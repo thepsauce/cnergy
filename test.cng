@@ -1,0 +1,10 @@
+normal:
+
+h <1
+l >1
+j .1
+k `1
+
+insert: lazy
+
+escape :normal

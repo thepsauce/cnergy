@@ -1,0 +1,57 @@
+.lazy:
+
+HOME >home
+END >end
+LEFT <N
+RIGHT >N
+UP `N
+DOWN .N
+
+.normal_movement:
+
+0 >home
+$ >end
+G $end
+g g `home .N & `1
+g G .end `N & .1
+BACK $-N
+SPACE $N
+^J .1 & >home
+h <N
+l >N
+k `N
+j .N
+
+normal: lazy, normal_movement
+
+O >home +\n $-N
+o >end +\n :insert
+I >home :insert
+A >end :insert
+i :insert
+r >xN :insert
+a $1 :insert
+d l, x, DEL >xN
+d h, X <xN
+d D `xN
+d d .xN
+d k `x1 `xN
+d j .x1 .xN
+p !paste
+u !undo
+R !redo
+v :visual
+
+$insert: lazy
+
+BACK <x1
+DEL >x1
+#^A $home :visual $end
+ESC :normal
+
+visual*: lazy, normal_movement
+
+ESC, v :normal
+x, X, d, D !delete :normal
+y !copy :normal
+
