@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "cnergy.h"
 
 static inline int
 parse_word(FILE *fp, int c, char *word, U32 maxWord)

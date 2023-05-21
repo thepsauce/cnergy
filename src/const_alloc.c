@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "cnergy.h"
 
 struct memptr {
 	U32 off: 10;

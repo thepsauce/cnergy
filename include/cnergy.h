@@ -94,12 +94,6 @@ struct event {
 	U32 nIns, nDel;
 };
 
-struct c_info {
-	char *data;
-	U32 nData;
-	U32 index;
-};
-
 struct buffer {
 	char *data;
 	U32 nData;
@@ -231,10 +225,10 @@ enum {
 
 	C_STATE_PREPROC,
 	C_STATE_PREPROC_COMMON,
-	C_STATE_PREPROC_ESCAPE,
 	C_STATE_PREPROC_INCLUDE,
-	C_STATE_PREPROC_INCLUDE_BRACKETS,
-	C_STATE_PREPROC_INCLUDE_STRING,
+
+	C_STATE_LINECOMMENT,
+	C_STATE_MULTICOMMENT,
 };
 
 struct c_state {
@@ -243,6 +237,9 @@ struct c_state {
 	U32 state;
 	const char *conceal;
 	int attr;
+	char *data;
+	U32 nData;
+	U32 index;
 };
 
 #endif

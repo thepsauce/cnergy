@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "cnergy.h"
 #include <locale.h>
 
 void
@@ -9,12 +9,14 @@ render(struct window *window)
 	U32 cursorLine;
 	U32 sMin = 1, sMax = 0;
 	struct c_state state;
-	struct c_info info;
 	struct buffer *const buf = window->buffers + window->iBuffer;
 	// move gap out of the way
 	const U32 saveiGap = buf->iGap;
 	cursorLine = buffer_line(buf);
 	unsafe_buffer_movecursor(buf, buf->nData - buf->iGap);
+	// TODO: this might crash if the gap size is zero
+	buf->data[buf->nData] = EOF;
+
 	row = window->row;
 	col = window->col;
 
@@ -32,27 +34,29 @@ render(struct window *window)
 	printw("  1 ");
 	col = 4;
 	memset(&state, 0, sizeof(state));
-	info.data = buf->data;
-	info.nData = buf->nData;
+	state.data = buf->data;
+	state.nData = buf->nData;
 	for(U32 i = 0; i < buf->nData;) {
-		info.index = i;
-		const int r = c_feed(&state, &info);
+		state.index = i;
+		const int r = c_feed(&state);
 		attrset(state.attr);
 		if(state.conceal) {
 			const char *const conceal = state.conceal;
 			state.conceal = NULL;
 			if(row != cursorLine) {
-				i = info.index + 1;
+				i = state.index + 1;
 				addstr(conceal);
 				col += strlen(conceal);
 				continue;
 			}
 		}
-		for(; i <= info.index; i++) {
+		for(; i <= state.index; i++) {
 			if(i == saveiGap) {
 				cursorRow = row;
 				cursorCol = col;
 			}
+			if(i >= sMin && i <= sMax)
+				attron(A_REVERSE);
 			const char ch = buf->data[i];
 			if(ch == '\t') {
 				do {
@@ -61,7 +65,7 @@ render(struct window *window)
 			} else if(ch == '\n') {
 				addch('\n');
 				attrset(COLOR(242, 236));
-				printw("%4d", row + 2);
+				printw("%3d ", row + 2);
 				attrset(state.attr);
 				col = 4;
 				row++;
@@ -74,6 +78,8 @@ render(struct window *window)
 				addch(ch);
 				col++;
 			}
+			if(i >= sMin && i <= sMax)
+				attroff(A_REVERSE);
 		}
 	}
 	move(cursorRow, cursorCol);
@@ -164,9 +170,10 @@ main(int argc, char **argv)
 	window.buffers = malloc(sizeof(*window.buffers));
 	memset(window.buffers, 0, sizeof(*window.buffers));
 
-	//FILE *fp = fopen("src/main.c", "r");
-	//buffer_insert_file(window.buffers, fp);
-	//fclose(fp);
+	FILE *fp = fopen("src/main.c", "r");
+	buffer_insert_file(window.buffers, fp);
+	fclose(fp);
+	//buffer_insert(window.buffers, "#include");
 
 	while(1) {
 		render(&window);

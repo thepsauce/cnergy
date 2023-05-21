@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "cnergy.h"
 
 struct binding_mode *modes;
 U32 nModes;

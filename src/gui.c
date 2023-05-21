@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "cnergy.h"
 #ifdef GUI
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>

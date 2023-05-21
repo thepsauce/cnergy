@@ -1,7 +1,7 @@
 int
-c_state_string_x(struct c_state *s, struct c_info *i)
+c_state_string_x(struct c_state *s)
 {
-	if(!isxdigit(i->data[i->index])) {
+	if(!isxdigit(s->data[s->index])) {
 		s->state = C_STATE_STRING;
 		return 1;
 	}
@@ -14,9 +14,9 @@ c_state_string_x(struct c_state *s, struct c_info *i)
 }
 
 int
-c_state_string_escape(struct c_state *s, struct c_info *i)
+c_state_string_escape(struct c_state *s)
 {
-	switch(i->data[i->index]) {
+	switch(s->data[s->index]) {
 	case 'a':
 	case 'b':
 	case 'e':
@@ -51,14 +51,14 @@ c_state_string_escape(struct c_state *s, struct c_info *i)
 }
 
 int
-c_state_string(struct c_state *s, struct c_info *i)
+c_state_string(struct c_state *s)
 {
-	if(i->data[i->index] == '\\') {
+	if(s->data[s->index] == '\\') {
 		s->state = C_STATE_STRING_ESCAPE;
 		s->attr = COLOR_PAIR(10);
 	} else {
 		s->attr = COLOR_PAIR(11);
-		if(i->data[i->index] == '\"' || i->data[i->index] == '\n')
+		if(s->data[s->index] == '\"' || s->data[s->index] == '\n')
 			c_popstate(s);
 	}
 	return 0;

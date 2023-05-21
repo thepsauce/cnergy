@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "cnergy.h"
 
 #if _PLATFORM == _X11
 

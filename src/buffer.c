@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "cnergy.h"
 
 #define cwidth(x, c) ({ \
 	__auto_type _c = (c); \
