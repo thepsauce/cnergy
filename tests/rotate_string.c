@@ -4,7 +4,7 @@
 typedef unsigned int U32;
 
 int
-move(char *s, U32 len, int amount)
+rotate_string(char *s, U32 len, int amount)
 {
 	if(amount < 0) {
 		amount = -amount;
@@ -45,15 +45,15 @@ main(void)
     
 	strcpy(buffer, str);
     printf("Before: %s\n", buffer);
-	move(buffer, strlen(buffer), -10000);
-	move(buffer, strlen(buffer), 10000);
+	rotate_string(buffer, strlen(buffer), -10000);
+	rotate_string(buffer, strlen(buffer), 10000);
     printf("After:  %s\n", buffer);
     
 	return 0;
 	strcpy(buffer, str);
     printf("Before: %s\n", buffer);
 	for(int i = 0; i <= 1983; i++) {
-		move(buffer + 2, strlen(buffer) - 8, 8);
+		rotate_string(buffer + 2, strlen(buffer) - 8, 8);
 		if(!strcmp(buffer, str)) {
 			printf("%d repeat\n", i);
 		}
