@@ -376,7 +376,7 @@ int exec_bind(const int *keys, I32 amount, struct window *window)
 						break;
 					}
 					case BIND_CALL_UNDO:
-						print_events(buf->events, buf->iEvent, buf->nEvents);
+						//print_events(buf->events, buf->iEvent, buf->nEvents);
 						buffer_undo(buf);
 						break;
 					case BIND_CALL_REDO:

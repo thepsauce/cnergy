@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 
+/* General purpose */
 #define MAX(a, b) ({ \
 	__auto_type _a = (a); \
 	__auto_type _b = (b); \
@@ -51,9 +52,6 @@ typedef uint16_t U16;
 typedef uint32_t U32;
 typedef uint64_t U64;
 
-#define BUFFER_MAX_LINE_LENGTH 512
-#define BUFFER_GAP_SIZE 64
-
 #define _MACOS 1
 #define _X11 2
 #define _UNIX 3
@@ -79,6 +77,7 @@ int clipboard_copy(const char *text, U32 nText);
 // Returns 0 if the function succeeded
 int clipboard_paste(char **text);
 
+/* Gap buffer */
 enum {
 	EVENT_INSERT,
 	EVENT_DELETE,
@@ -93,6 +92,9 @@ struct event {
 	char *ins, *del;
 	U32 nIns, nDel;
 };
+
+// Default size of the buffer gap
+#define BUFFER_GAP_SIZE 64
 
 struct buffer {
 	char *data;
@@ -133,15 +135,30 @@ U32 buffer_col(const struct buffer *buf);
 // Returns the length of the line
 U32 buffer_getline(const struct buffer *buf, U32 line, char *dest, U32 maxDest);
 
+/* Window */
+// TODO: State saving technique
+// This technique will be used to avoid re-rendering of the buffer every time.
+// It will store a list of states and their position and when re-rendering, it will
+// start from the closest previous state that is left to the caret.
+// When the user inserts a character, .... (TODO: think about this; lookahead makes this complicated)
 struct window {
+	// a window can have multiple buffers but must have at least one
 	U32 nBuffers;
 	U32 iBuffer;
 	struct buffer *buffers;
-	int row, col;
-	int nRows, nCols;
-	int selection;
+	// position of the window
+	int line, col;
+	// size of the window
+	int lines, cols;
+	// scrolling values of the last render
+	U32 vScroll, hScroll;
+	// selection cursor
+	U32 selection;
 };
 
+void window_render(struct window *win);
+
+/* Key bindings */
 enum {
 	BIND_CALL_NULL,
 	BIND_CALL_MOVECURSOR,
@@ -193,22 +210,14 @@ U32 mode_has(U32 flags);
 int mode_getmergepos(struct binding_mode *modes, U32 nModes, U32 *pos);
 int mode_merge(struct binding_mode *modes, U32 nModes);
 
-int exec_bind(const int *keys, I32 amount, struct window *window);
 int bind_parse(FILE *fp);
+int exec_bind(const int *keys, I32 amount, struct window *window);
 
+/* Syntax highlighting for C */
 enum {
 	C_STATE_DEFAULT,
 	C_STATE_IDENTF,
 	C_STATE_STRING,
-	C_STATE_STRING_ESCAPE,
-	C_STATE_STRING_X1,
-	C_STATE_STRING_X2,
-	C_STATE_STRING_X3,
-	C_STATE_STRING_X4,
-	C_STATE_STRING_X5,
-	C_STATE_STRING_X6,
-	C_STATE_STRING_X7,
-	C_STATE_STRING_X8,
 
 	C_STATE_NUMBER,
 	C_STATE_NUMBER_ZERO,
@@ -232,14 +241,25 @@ enum {
 };
 
 struct c_state {
+	// the stack can be used to repurpose states (states within states)
 	U32 stateStack[32];
 	U32 iStack;
+	// current active state
 	U32 state;
+	// conceal can be set to non null to replace characters visually with other characters
+	// conceal is only used when the caret is not on the same line as the concealment
+	// conceal is not allowed to replace new lines, nor contain new lines (undefined behavior)
 	const char *conceal;
+	// attr is used when a state returns to print the character between the start and end of the state
 	int attr;
+	// this is the raw buffer data, index specifies the current index within the data
 	char *data;
 	U32 nData;
 	U32 index;
+	// cursor index for cursor assertions
+	U32 cursor;
 };
+
+int c_feed(struct c_state *s);
 
 #endif

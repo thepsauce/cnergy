@@ -16,8 +16,8 @@ c_popstate(struct c_state *s)
 
 static const struct {
 	int pair;
-	// note: be sure to increase this number when a list exceeds 32 words; the word list is null terminated
-	const char *words[32];
+	// note: be sure to increase this number when a list exceeds words; the word list is null terminated
+	const char *words[64];
 } C_keywords[] = {
 	{ 12, {
 		"__auto_type",
@@ -63,6 +63,369 @@ static const struct {
 		"while",
 		NULL,
 	} },
+	{ 14, {
+		"M_E",
+		"M_PI",
+		"M_PI",
+		"M_E",
+		"M_LOG2E",
+		"M_LOG10E",
+		"M_LN2",
+		"M_LN10",
+		"M_PI",
+		"M_PI_2",
+		"M_PI_4",
+
+		"M_1_PI",
+		"M_2_PI",
+		"M_2_SQRTPI",
+		"M_SQRT2",
+		"M_SQRT1_2",
+
+		NULL,
+	} },
+	{ 14, {
+		"__LINE__",
+		"__FILE__",
+		"__DATE__",
+		"__TIME__",
+		"__STDC__",
+		"__STDC_VERSION__",
+		"__STDC_HOSTED__",
+		NULL,
+	} },
+	{ 14, {
+		"CHAR_BIT",
+		"MB_LEN_MAX",
+		"MB_CUR_MAX",
+
+		"UCHAR_MAX",
+		"UINT_MAX",
+		"ULONG_MAX",
+		"USHRT_MAX",
+
+		"CHAR_MIN",
+		"INT_MIN",
+		"LONG_MIN",
+		"SHRT_MIN",
+
+		"CHAR_MAX",
+		"INT_MAX",
+		"LONG_MAX",
+		"SHRT_MAX",
+
+		"SCHAR_MIN",
+		"SINT_MIN",
+		"SLONG_MIN",
+		"SSHRT_MIN",
+
+		"SCHAR_MAX",
+		"SINT_MAX",
+		"SLONG_MAX",
+		"SSHRT_MAX",
+		"__func__",
+		"__VA_ARGS__",
+		NULL,
+	} },
+	{ 14, {
+		"LLONG_MIN",
+		"LLONG_MAX",
+		"ULLONG_MAX",
+
+		"INT8_MIN",
+		"INT16_MIN",
+		"INT32_MIN",
+		"INT64_MIN",
+
+		"INT8_MAX",
+		"INT16_MAX",
+		"INT32_MAX",
+		"INT64_MAX",
+
+		"UINT8_MAX",
+		"UINT16_MAX",
+		"UINT32_MAX",
+		"UINT64_MAX",
+
+		"INT_LEAST8_MIN",
+		"INT_LEAST16_MIN",
+		"INT_LEAST32_MIN",
+		"INT_LEAST64_MIN",
+
+		"INT_LEAST8_MAX",
+		"INT_LEAST16_MAX",
+		"INT_LEAST32_MAX",
+		"INT_LEAST64_MAX",
+
+		"UINT_LEAST8_MAX",
+		"UINT_LEAST16_MAX",
+		"UINT_LEAST32_MAX",
+		"UINT_LEAST64_MAX",
+
+		"INT_FAST8_MIN",
+		"INT_FAST16_MIN",
+		"INT_FAST32_MIN",
+		"INT_FAST64_MIN",
+
+		"INT_FAST8_MAX",
+		"INT_FAST16_MAX",
+		"INT_FAST32_MAX",
+		"INT_FAST64_MAX",
+
+		"UINT_FAST8_MAX",
+		"UINT_FAST16_MAX",
+		"UINT_FAST32_MAX",
+		"UINT_FAST64_MAX",
+
+		"INTPTR_MIN",
+		"INTPTR_MAX",
+		"UINTPTR_MAX",
+
+		"INTMAX_MIN",
+		"INTMAX_MAX",
+		"UINTMAX_MAX",
+
+		"PTRDIFF_MIN",
+		"PTRDIFF_MAX",
+		"SIG_ATOMIC_MIN",
+		"SIG_ATOMIC_MAX",
+
+		"SIZE_MAX",
+		"WCHAR_MIN",
+		"WCHAR_MAX",
+		"WINT_MIN",
+		"WINT_MAX",
+		NULL,
+	} },
+	{ 14, {
+		"FLT_RADIX",
+		"FLT_ROUNDS",
+		"FLT_DIG",
+		"FLT_MANT_DIG",
+		"FLT_EPSILON",
+		"DBL_DIG",
+		"DBL_MANT_DIG",
+		"DBL_EPSILON",
+
+		"LDBL_DIG",
+		"LDBL_MANT_DIG",
+		"LDBL_EPSILON",
+		"FLT_MIN",
+		"FLT_MAX",
+		"FLT_MIN_EXP",
+		"FLT_MAX_EXP",
+		"FLT_MIN_10_EXP",
+		"FLT_MAX_10_EXP",
+
+		"DBL_MIN",
+		"DBL_MAX",
+		"DBL_MIN_EXP",
+		"DBL_MAX_EXP",
+		"DBL_MIN_10_EXP",
+		"DBL_MAX_10_EXP",
+		"LDBL_MIN",
+		"LDBL_MAX",
+		"LDBL_MIN_EXP",
+		"LDBL_MAX_EXP",
+
+		"LDBL_MIN_10_EXP",
+		"LDBL_MAX_10_EXP",
+		"HUGE_VAL",
+		NULL,
+	} },
+	{ 14, {
+		"CLOCKS_PER_SEC",
+		"NULL",
+		"LC_ALL",
+		"LC_COLLATE",
+		"LC_CTYPE",
+		"LC_MONETARY",
+
+		"LC_NUMERIC",
+		"LC_TIME",
+		NULL,
+	} },
+	{ 14, {
+		"SIG_DFL",
+		"SIG_ERR",
+		"SIG_IGN",
+		"SIGABRT",
+		"SIGFPE",
+		"SIGILL",
+		"SIGHUP",
+		"SIGINT",
+		"SIGSEGV",
+		"SIGTERM",
+		// Add POSIX signals as well...
+		"SIGABRT",
+		"SIGALRM",
+		"SIGCHLD",
+		"SIGCONT",
+		"SIGFPE",
+		"SIGHUP",
+		"SIGILL",
+		"SIGINT",
+		"SIGKILL",
+		"SIGPIPE",
+		"SIGQUIT",
+		"SIGSEGV",
+
+		"SIGSTOP",
+		"SIGTERM",
+		"SIGTRAP",
+		"SIGTSTP",
+		"SIGTTIN",
+		"SIGTTOU",
+		"SIGUSR1",
+		"SIGUSR2",
+		NULL,
+	} },
+	{ 14, {
+		"_IOFBF",
+		"_IOLBF",
+		"_IONBF",
+		"BUFSIZ",
+		"EOF",
+		"WEOF",
+		"FOPEN_MAX",
+		"FILENAME_MAX",
+		"L_tmpnam",
+		NULL,
+	} },
+	{ 14, {
+		"SEEK_CUR",
+		"SEEK_END",
+		"SEEK_SET",
+		"TMP_MAX",
+		"EXIT_FAILURE",
+		"EXIT_SUCCESS",
+		"RAND_MAX",
+
+		"stdin",
+		"stdout",
+		"stderr",
+		// POSIX 2001, in unistd.h
+		"STDIN_FILENO",
+		"STDOUT_FILENO",
+		"STDERR_FILENO",
+		// used in assert.h
+		"NDEBUG",
+		NULL,
+	} },
+	{ 14, {
+		// POSIX 2001
+		"SIGBUS",
+		"SIGPOLL",
+		"SIGPROF",
+		"SIGSYS",
+		"SIGURG",
+		"SIGVTALRM",
+		"SIGXCPU",
+		"SIGXFSZ",
+		// non-POSIX signals
+		"SIGWINCH",
+		"SIGINFO",
+		// Add POSIX errors as well.		List comes from:
+		// http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/errno.h.html
+		"E2BIG",
+		"EACCES",
+		"EADDRINUSE",
+		"EADDRNOTAVAIL",
+		"EAFNOSUPPORT",
+		"EAGAIN",
+		"EALREADY",
+		"EBADF",
+
+		"EBADMSG",
+		"EBUSY",
+		"ECANCELED",
+		"ECHILD",
+		"ECONNABORTED",
+		"ECONNREFUSED",
+		"ECONNRESET",
+		"EDEADLK",
+
+		"EDESTADDRREQ",
+		"EDOM",
+		"EDQUOT",
+		"EEXIST",
+		"EFAULT",
+		"EFBIG",
+		"EHOSTUNREACH",
+		"EIDRM",
+		"EILSEQ",
+
+		"EINPROGRESS",
+		"EINTR",
+		"EINVAL",
+		"EIO",
+		"EISCONN",
+		"EISDIR",
+		"ELOOP",
+		"EMFILE",
+		"EMLINK",
+		"EMSGSIZE",
+		NULL,
+	} },
+	{ 14, {
+		"EMULTIHOP",
+		"ENAMETOOLONG",
+		"ENETDOWN",
+		"ENETRESET",
+		"ENETUNREACH",
+		"ENFILE",
+		"ENOBUFS",
+		"ENODATA",
+
+		"ENODEV",
+		"ENOENT",
+		"ENOEXEC",
+		"ENOLCK",
+		"ENOLINK",
+		"ENOMEM",
+		"ENOMSG",
+		"ENOPROTOOPT",
+		"ENOSPC",
+		"ENOSR",
+
+		"ENOSTR",
+		"ENOSYS",
+		"ENOTBLK",
+		"ENOTCONN",
+		"ENOTDIR",
+		"ENOTEMPTY",
+		"ENOTRECOVERABLE",
+		"ENOTSOCK",
+		"ENOTSUP",
+
+		"ENOTTY",
+		"ENXIO",
+		"EOPNOTSUPP",
+		"EOVERFLOW",
+		"EOWNERDEAD",
+		"EPERM",
+		"EPIPE",
+		"EPROTO",
+
+		"EPROTONOSUPPORT",
+		"EPROTOTYPE",
+		"ERANGE",
+		"EROFS",
+		"ESPIPE",
+		"ESRCH",
+		"ESTALE",
+		"ETIME",
+		"ETIMEDOUT",
+
+		"ETXTBSY",
+		"EWOULDBLOCK",
+		"EXDEV",
+		NULL,
+	} },
+};
+
+int C_bracketPairs[] = {
+	4, 12, 10,
 };
 
 static const struct {
@@ -74,6 +437,7 @@ static const struct {
 	{ ':',   0, "" },
 	{ '+',   0, "" },
 	{ '-', '>', { 0xe2, 0x86, 0x92, 0 } },
+	{ '-',   0, "" },
 	{ '*',   0, "" },
 	{ '/',   0, "" },
 	{ '%',   0, "" },
@@ -81,10 +445,13 @@ static const struct {
 	{ '>', '=', { 0xe2, 0x89, 0xa5, 0 } },
 	{ '<', '<', { 0xc2, 0xab, 0 } },
 	{ '>', '>', { 0xc2, 0xbb, 0 } },
+	{ '<',   0, "" },
+	{ '>',   0, "" },
 	{ '=',   0, "" },
 	{ '?',   0, "" },
 	{ '!', '=', { 0xe2, 0x89, 0xa0, 0 } },
 	{ '!', '!', { 0xe2, 0x80, 0xbc, 0 } },
+	{ '!',   0, "" },
 	{ '~',   0, "" },
 	{ '&',   0, "" },
 	{ '|',   0, "" },
@@ -129,6 +496,66 @@ c_state_common(struct c_state *s)
 		s->state = C_STATE_STRING;
 		s->attr = COLOR_PAIR(11);
 		break;
+	case '\'':
+		s->index++;
+		if(s->data[s->index] == '\\') {
+			U32 hexChars = 0;
+
+			s->attr = COLOR_PAIR(10);
+			s->index++;
+			switch(s->data[s->index]) {
+			case 'a':
+			case 'b':
+			case 'e':
+			case 'f':
+			case 'n':
+			case 'r':
+			case 't':
+			case 'v':
+			case '\\':
+			case '\"':
+			case '\'':
+			case '\n':
+				s->index++;
+				break;
+			case 'U':
+				hexChars = 8;
+				s->index++;
+				break;
+			case 'u':
+				hexChars = 4;
+				s->index++;
+				break;
+			case 'x':
+				hexChars = 2;
+				s->index++;
+				break;
+			default:
+				s->attr = A_REVERSE | COLOR_PAIR(2);
+			}
+			while(hexChars) {
+				if(!isxdigit(s->data[s->index])) {
+					s->attr = A_REVERSE | COLOR_PAIR(2);
+					break;
+				}
+				s->index++;
+				hexChars--;
+			}
+		} else {
+			s->index++;
+			s->attr = COLOR_PAIR(14);
+		}
+		if(s->data[s->index] != '\'') {
+			s->attr = A_REVERSE | COLOR_PAIR(2);
+			s->index--;
+		}
+		break;
+	case '(': case ')':
+	case '[': case ']':
+	case '{': case '}':
+		// TODO: Find a way to make paranthesis multi-colored by adding states
+		s->attr = COLOR_PAIR(C_bracketPairs[0]);
+		break;
 	case '/':
 		if(s->data[s->index + 1] == '/') {
 			s->index++;
@@ -143,6 +570,7 @@ c_state_common(struct c_state *s)
 			s->attr = COLOR_PAIR(5);
 			break;
 		}
+	/* fall through */
 	default:
 	case_char:
 		for(U32 c = 0; c < ARRLEN(C_chars); c++)
@@ -179,7 +607,7 @@ c_state_default(struct c_state *s)
 		const char c = s->data[s->index];
 		s->attr = 0;
 		c_state_common(s);
-		// if there was word but no keyword, look ahead for a function call
+		// if there was a word but no keyword, look ahead for a function call
 		if(!s->attr && (isalpha(c) || c == '_')) {
 			U32 i = s->index;
 			while(isspace(s->data[i + 1]))
@@ -196,9 +624,7 @@ int (*states[])(struct c_state *s) = {
 	[C_STATE_DEFAULT] = c_state_default,
 
 	[C_STATE_STRING] = c_state_string,
-	[C_STATE_STRING_ESCAPE] = c_state_string_escape,
-	[C_STATE_STRING_X1 ... C_STATE_STRING_X8] = c_state_string_x,
-	
+
 	[C_STATE_NUMBER_ZERO] = c_state_number_zero,
 	[C_STATE_NUMBER_DECIMAL] = c_state_number_decimal,
 	[C_STATE_NUMBER_HEX] = c_state_number_hex,

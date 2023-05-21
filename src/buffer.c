@@ -6,6 +6,7 @@
 	_c == '\t' ? TABSIZE - _x % TABSIZE : _c < 32 ? 2 : 1; \
 })
 		
+// TODO: maybe consider utf8 encoded characters
 // Returns the width this would visually take up
 // Note: Newlines are not handled
 static inline U32
@@ -499,7 +500,7 @@ buffer_line(const struct buffer *buf)
 	return line;
 }
 
-// Returns the index of the column containing the cursor
+// Returns the terminal index of the column containing the cursor
 U32
 buffer_col(const struct buffer *buf)
 {
@@ -508,7 +509,7 @@ buffer_col(const struct buffer *buf)
 	for(i = buf->iGap; i > 0; i--)
 		if(buf->data[i - 1] == '\n')
 			break;
-	return buf->iGap - i;
+	return widthnstr(buf->data + i, buf->iGap - i);
 }
 
 // Returns the length of the line

@@ -1,38 +1,79 @@
 #include "cnergy.h"
 #include <locale.h>
 
+U32
+compute_scrolling_position(U32 cursor, U32 lines, U32 prevScroll) {
+    if(cursor < prevScroll)
+        return cursor;
+    if(cursor >= lines + prevScroll)
+        return cursor - (lines - 1);
+    return prevScroll;
+}
+
+// TODO: move this to a better place
+U32
+utf8_strlen(const char *str)
+{
+	U32 l = 0;
+	while(*str) {
+		if((*str & 0xe0) == 0xc0)
+			str += 2;
+		else if((*str & 0xf0) == 0xe0)
+			str += 3;
+		else if((*str & 0xf8) == 0xf0)
+			str += 4;
+		else
+			str++;
+		l++;
+	}
+	return l;
+}
+
+// TODO: This functino needs cleanup
+// there's also a problem when a line is exceeded horizontally
 void
 render(struct window *window)
 {
-	U32 cursorRow, cursorCol;
-	U32 row, col;
-	U32 cursorLine;
+	const U32 nLineNumbers = 4; // TODO: dynamically set this
+	U32 cursorLine, cursorCol;
+	U32 line, col;
 	U32 sMin = 1, sMax = 0;
 	struct c_state state;
 	struct buffer *const buf = window->buffers + window->iBuffer;
-	// move gap out of the way
-	const U32 saveiGap = buf->iGap;
+	const U32 saveiGap = buf->iGap; // used to restore the gap position
 	cursorLine = buffer_line(buf);
+	cursorCol = buffer_col(buf);
+	// move gap out of the way
 	unsafe_buffer_movecursor(buf, buf->nData - buf->iGap);
 	// TODO: this might crash if the gap size is zero
+	// hardcoded fix:
+	if(!buf->nGap) {
+		buf->data = realloc(buf->data, buf->nData + BUFFER_GAP_SIZE);
+		buf->nGap = BUFFER_GAP_SIZE;
+	}
 	buf->data[buf->nData] = EOF;
 
-	row = window->row;
+	line = window->line;
 	col = window->col;
 
+    if(cursorLine < window->vScroll)
+        window->vScroll = cursorLine;
+    if(cursorLine >= window->lines + window->vScroll)
+        window->vScroll = cursorLine - (window->lines - 1);
+
 	if(mode_has(FBIND_MODE_SELECTION)) {
-		if(window->selection > buf->iGap) {
-			sMin = buf->iGap;
+		if(window->selection > saveiGap) {
+			sMin = saveiGap;
 			sMax = window->selection;
 		} else {
 			sMin = window->selection;
-			sMax = buf->iGap;
+			sMax = saveiGap;
 		}
 	}
-	move(row, col);
-	attrset(COLOR(242, 245));
-	printw("  1 ");
-	col = 4;
+	if(!window->vScroll) {
+		attrset(COLOR(242, 236));
+		mvprintw(window->line, window->col, "%*d ", nLineNumbers - 1, line + 1);
+	}
 	memset(&state, 0, sizeof(state));
 	state.data = buf->data;
 	state.nData = buf->nData;
@@ -43,46 +84,46 @@ render(struct window *window)
 		if(state.conceal) {
 			const char *const conceal = state.conceal;
 			state.conceal = NULL;
-			if(row != cursorLine) {
+			if(line != cursorLine) {
 				i = state.index + 1;
-				addstr(conceal);
-				col += strlen(conceal);
+				if(line >= window->vScroll && line < window->vScroll + window->lines)
+					mvaddstr(line - window->vScroll, col - window->hScroll + nLineNumbers, conceal);
+				col += utf8_strlen(conceal);
 				continue;
 			}
 		}
 		for(; i <= state.index; i++) {
-			if(i == saveiGap) {
-				cursorRow = row;
-				cursorCol = col;
-			}
 			if(i >= sMin && i <= sMax)
 				attron(A_REVERSE);
 			const char ch = buf->data[i];
 			if(ch == '\t') {
-				do {
-					addch(' ');
-				} while((++col) % TABSIZE);
+				while((++col) % TABSIZE);
 			} else if(ch == '\n') {
-				addch('\n');
-				attrset(COLOR(242, 236));
-				printw("%3d ", row + 2);
-				attrset(state.attr);
-				col = 4;
-				row++;
+				line++;
+				col = 0;
+				if(line >= window->vScroll && line < window->vScroll + window->lines) {
+					attrset(COLOR(242, 236));
+					mvprintw(line - window->vScroll, window->col, "%*d ", nLineNumbers - 1, line + 1);
+					attrset(state.attr);
+				}
 			} else if(ch < 32) {
-				attrset(COLOR_PAIR(1));
-				addch('^');
-				addch(ch + 64);
+				if(line >= window->vScroll && line < window->vScroll + window->lines) {
+					attrset(COLOR_PAIR(1));
+					mvaddch(line - window->vScroll, col - window->hScroll + nLineNumbers, '^');
+					mvaddch(line - window->vScroll, col - window->hScroll + nLineNumbers, ch + 64);
+					attrset(state.attr);
+				}
 				col += 2;
 			} else {
-				addch(ch);
+				if(line >= window->vScroll && line < window->vScroll + window->lines)
+					mvaddch(line - window->vScroll, col - window->hScroll + nLineNumbers, ch);
 				col++;
 			}
 			if(i >= sMin && i <= sMax)
 				attroff(A_REVERSE);
 		}
 	}
-	move(cursorRow, cursorCol);
+	move(cursorLine - window->vScroll, cursorCol - window->hScroll + nLineNumbers);
 	unsafe_buffer_movecursor(buf, saveiGap - buf->iGap);
 }
 
@@ -128,6 +169,8 @@ main(int argc, char **argv)
 	raw();
 	noecho();
 	keypad(stdscr, true);
+	scrollok(stdscr, true);
+	clearok(stdscr, false);
 	set_tabsize(4);
 
 	if(has_colors()) {
@@ -164,10 +207,16 @@ main(int argc, char **argv)
 	U16 nKeys = 0;
 	I32 num = 0;
 
-	struct window window;
-	window.nBuffers = 1;
-	window.iBuffer = 0;
-	window.buffers = malloc(sizeof(*window.buffers));
+	struct window window = {
+		.line = 0,
+		.col = 0,
+		.lines = 18,
+		.cols = 40,
+		.nBuffers = 1,
+		.iBuffer = 0,
+		.vScroll = 0,
+	};
+	window.buffers = malloc(sizeof(*window.buffers)),
 	memset(window.buffers, 0, sizeof(*window.buffers));
 
 	FILE *fp = fopen("src/main.c", "r");
