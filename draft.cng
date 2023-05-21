@@ -24,6 +24,7 @@ j .N
 
 normal: lazy, normal_movement
 
+^A a !color_test 
 O >home +\n $-N
 o >end +\n :insert
 I >home :insert

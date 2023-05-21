@@ -28,7 +28,6 @@ static const struct {
 		"long",
 		"short",
 		"signed",
-		"sizeof",
 		"typedef",
 		"typeof",
 		"unsigned",
@@ -92,6 +91,8 @@ static const struct {
 		"__STDC__",
 		"__STDC_VERSION__",
 		"__STDC_HOSTED__",
+
+		"sizeof",
 		NULL,
 	} },
 	{ 14, {

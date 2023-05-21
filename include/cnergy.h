@@ -62,7 +62,7 @@ int const_free(void *data);
 U32 const_getid(const void *data);
 void *const_getdata(U32 id);
 
-#define COLOR(bg, fg) COLOR_PAIR(1 + ((bg) | ((fg) * COLORS)))
+#define COLOR(bg, fg) COLOR_PAIR(1 + ((bg) | ((fg) * 16)))
 
 // Clipboard
 // X11 support YES
@@ -136,26 +136,49 @@ U32 buffer_col(const struct buffer *buf);
 U32 buffer_getline(const struct buffer *buf, U32 line, char *dest, U32 maxDest);
 
 /* Window */
-// TODO: State saving technique
+// TODO: State saving technique for buffer windows
 // This technique will be used to avoid re-rendering of the buffer every time.
 // It will store a list of states and their position and when re-rendering, it will
 // start from the closest previous state that is left to the caret.
 // When the user inserts a character, .... (TODO: think about this; lookahead makes this complicated)
+enum {
+	WINDOW_BUFFER,
+	WINDOW_COLORS,
+};
+
+enum {
+	FWINDOW_PRIORITIZE_BELOW = 1 << 0,
+};
+
 struct window {
-	// a window can have multiple buffers but must have at least one
-	U32 nBuffers;
-	U32 iBuffer;
-	struct buffer *buffers;
+	U32 flags;
+	U32 type;
 	// position of the window
 	int line, col;
 	// size of the window
 	int lines, cols;
-	// scrolling values of the last render
-	U32 vScroll, hScroll;
-	// selection cursor
-	U32 selection;
+	union {
+		struct {
+			// a window can have multiple buffers but must have at least one
+			U32 nBuffers;
+			U32 iBuffer;
+			struct buffer *buffers;
+			// scrolling values of the last render
+			U32 vScroll, hScroll;
+			// selection cursor
+			U32 selection;
+		};
+	};
+	// that window is right of this window
+	struct window *right;
+	// that window is below this window
+	struct window *below;
 };
 
+extern struct window *first_window;
+extern struct window *focus_window;
+
+void window_layout(struct window *win);
 void window_render(struct window *win);
 
 /* Key bindings */
@@ -173,6 +196,7 @@ enum {
 	BIND_CALL_PASTE,
 	BIND_CALL_UNDO,
 	BIND_CALL_REDO,
+	BIND_CALL_COLOR_TEST,
 };
 
 enum {

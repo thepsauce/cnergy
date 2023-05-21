@@ -382,6 +382,8 @@ int exec_bind(const int *keys, I32 amount, struct window *window)
 					case BIND_CALL_REDO:
 						buffer_redo(buf);
 						break;
+					case BIND_CALL_COLOR_TEST:
+						break;
 					}
 					if((bc.flags & FBIND_CALL_AND) && r != m)
 						break;

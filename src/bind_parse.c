@@ -127,6 +127,7 @@ translate_command(const char *word, U16 *pType)
 		{ "PASTE", BIND_CALL_PASTE },
 		{ "UNDO", BIND_CALL_UNDO },
 		{ "REDO", BIND_CALL_REDO },
+		{ "COLOR_TEST", BIND_CALL_COLOR_TEST },
 	};
 	for(U32 i = 0; i < ARRLEN(namedCommands); i++)
 		if(!strcasecmp(namedCommands[i].word, word)) {
@@ -136,6 +137,7 @@ translate_command(const char *word, U16 *pType)
 	return -1;
 }
 
+// TODO: The exit codes of this function are pretty random, needs fixing
 int
 bind_parse(FILE *fp)
 {
