@@ -59,11 +59,13 @@ buffer_cnvdist(const struct buffer *buf, I32 distance)
 		i += buf->nGap;
 		iFirst = i;
 		for(; i < buf->nData + buf->nGap && distance; distance--)
-			i += utf8_len(buf->data[i]);
+			i += utf8_len(buf->data + i, buf->nData + buf->nGap - i);
 	} else {
 		iFirst = i;
 		for(; i > 0 && distance; distance++)
-			while((buf->data[--i] & 0xC0) == 0x80);
+			while((buf->data[--i] & 0xC0) == 0x80)
+				if(i > 0 && !(buf->data[i - 1] & 0x80))
+					break;
 	}
 	return i - iFirst;
 }
@@ -101,7 +103,7 @@ buffer_movehorz(struct buffer *buf, I32 distance)
 		for(; i < buf->nData + buf->nGap && distance; distance--) {
 			if(buf->data[i] == '\n')
 				break;
-			i += utf8_len(buf->data[i]);
+			i += utf8_len(buf->data + i, buf->nData + buf->nGap - i);
 		}
 		left = right = i;
 		while(left != buf->iGap + buf->nGap) {
@@ -116,7 +118,9 @@ buffer_movehorz(struct buffer *buf, I32 distance)
 		for(; i > 0 && distance; distance++) {
 			if(buf->data[i - 1] == '\n')
 				break;
-			while((buf->data[--i] & 0xC0) == 0x80);
+			while((buf->data[--i] & 0xC0) == 0x80)
+				if(i > 0 && !(buf->data[i - 1] & 0x80))
+					break;
 		}
 		left = i;
 		buf->vct = 0;
@@ -157,8 +161,8 @@ buffer_movevert(struct buffer *buf, I32 distance)
 		for(U32 travelled = 0; travelled < buf->vct;) {
 			if(buf->data[i] == '\n')
 				break;
-			travelled += utf8_width(buf->data + i, travelled);
-			i += utf8_len(buf->data[i]);
+			travelled += utf8_width(buf->data + i, buf->nData + buf->nGap - i, travelled);
+			i += utf8_len(buf->data + i, buf->nData + buf->nGap - i);
 		}
 		moved = i - buf->iGap;
 	} else {
@@ -180,8 +184,8 @@ buffer_movevert(struct buffer *buf, I32 distance)
 		for(U32 travelled = 0; i < buf->nData + buf->nGap && travelled < buf->vct;) {
 			if(buf->data[i] == '\n')
 				break;
-			travelled += utf8_width(buf->data + i, travelled);
-			i += utf8_len(buf->data[i]);
+			travelled += utf8_width(buf->data + i, buf->nData + buf->nGap - i, travelled);
+			i += utf8_len(buf->data + i, buf->nData + buf->nGap - i);
 		}
 		moved = i - buf->nGap - buf->iGap;
 	}

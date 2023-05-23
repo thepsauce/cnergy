@@ -137,7 +137,7 @@ main(int argc, char **argv)
 			char b[10];
 
 			b[0] = c;
-			const U32 len = utf8_len(c);
+			const U32 len = !(c & 0x80) ? 1 : (c & 0xe0) == 0xc0 ? 2 : (c & 0xf0) == 0xe0 ? 3 : 4;
 			for(U32 i = 1; i < len; i++)
 				b[i] = getch();
 			buffer_insert(focus_window->buffers + focus_window->iBuffer, b, len);

@@ -88,23 +88,25 @@ window_render(struct window *win)
 	}
 	buf->data[buf->nData] = EOF;
 
-	// get size of left pad
-	nLineNumbers = 2;
-	for(U32 i = buffer_line(buf); i; i /= 10)
+	// get width of line numbers
+	nLineNumbers = 1; // initial padding to the right side
+	if(win->left)
+		nLineNumbers++; // add some padding
+	for(U32 i = buffer_line(buf) + 1; i; i /= 10)
 		nLineNumbers++;
-	nLineNumbers = MAX(nLineNumbers, 4);
 
 	// scroll the text if the caret is out of view
-    if(curLine < win->vScroll)
-        win->vScroll = curLine;
-    if(curLine >= win->lines - 1 + win->vScroll)
-        win->vScroll = curLine - (win->lines - 2);
+	if(curLine < win->vScroll)
+		win->vScroll = curLine;
+	if(curLine >= win->lines - 1 + win->vScroll)
+		win->vScroll = curLine - (win->lines - 2);
 
 	// note that we scroll a little extra horizontally
-    if(curCol - 1 <= win->hScroll)
-        win->hScroll = MAX((int) curCol - win->cols / 4, 0);
-    if(curCol >= win->cols - nLineNumbers + win->hScroll)
-        win->hScroll = curCol - (win->cols - nLineNumbers - 2) + win->cols / 4;
+	// TODO: fix bug where scrolling will sometimes cause the cursor to be misaligned with a multi width character
+	if(curCol <= win->hScroll)
+		win->hScroll = MAX((int) curCol - win->cols / 4, 0);
+	if(curCol >= win->cols - nLineNumbers + win->hScroll)
+		win->hScroll = curCol - (win->cols - nLineNumbers - 2) + win->cols / 4;
 
 	// get bounds of text
 	minLine = win->vScroll;
@@ -113,7 +115,7 @@ window_render(struct window *win)
 	maxCol = win->hScroll - nLineNumbers + win->cols;
 
 	// get bounds of selection
-	if(mode_has(FBIND_MODE_SELECTION)) {
+	if(win == focus_window && mode_has(FBIND_MODE_SELECTION)) {
 		if(win->selection > saveiGap) {
 			minSel = saveiGap;
 			maxSel = win->selection;
@@ -153,7 +155,7 @@ window_render(struct window *win)
 				if(line >= minLine && line < maxLine) {
 					attrset(state.attr);
 					while(*conceal) {
-						const U32 len = utf8_len(*conceal);
+						const U32 len = utf8_len(conceal, strlen(conceal));
 						if(col >= minCol && col < maxCol)
 							addnstr(conceal, len);
 						conceal += len;
@@ -166,11 +168,20 @@ window_render(struct window *win)
 		// check if the state interpreted the utf8 encoded character correctly (if not we handle it here)
 		if((buf->data[i] & 0x80) && state.index == i) {
 			attrset(state.attr);
-			const U32 len = utf8_len(buf->data[i]);
-			if(col >= minCol && col < maxCol)
-				addnstr(buf->data + i, len);
+			const U32 len = utf8_len(buf->data + i, buf->nData - i);
+			if(col >= minCol && col < maxCol) {
+				if(!utf8_valid(buf->data + i, buf->nData - i)) {
+					attrset(COLOR(4, 0));
+					if(col >= minCol && col < maxCol)
+						addch('^');
+					if(col + 1 >= minCol && col + 1 < maxCol)
+						addch('?');
+				} else {
+					addnstr(buf->data + i, len);
+				}
+			}
+			col += utf8_width(buf->data + i, buf->nData - i, col);
 			i += len;
-			col += utf8_width(buf->data + i, col);
 			continue;
 		}
 		for(; i <= state.index; i++) {
@@ -191,10 +202,11 @@ window_render(struct window *win)
 				col = 0;
 			} else if(iscntrl(ch)) {
 				if(line >= minLine && line < maxLine) {
+					attrset(COLOR(4, 0));
 					if(col >= minCol && col < maxCol)
 						addch('^');
 					if(col + 1 >= minCol && col + 1 < maxCol)
-						addch(!ch ? '@' : ch == 0x7f ? '?' : ch + 'A' - 1);
+						addch(ch == 0x7f ? '?' : ch + 'A' - 1);
 				}
 				col += 2;
 			} else {

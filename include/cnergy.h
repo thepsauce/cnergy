@@ -68,19 +68,19 @@ void *const_getdata(U32 id);
 
 // Returns the width this would visually take up
 // Note: Newlines are interpreted as ^J
-U32 utf8_widthnstr(const char *utf8, U32 n);
-U32 utf8_widthstr(const char *utf8);
+U32 utf8_widthnstr(const char *str, U32 nStr);
+U32 utf8_widthstr(const char *str);
 // Returns the number of columns this character takes up
-int utf8_width(const char *utf8, U32 tabRef);
-// Returns the length of bytes of given prefix byte
-#define utf8_len(c) ({ \
-	const char _c = (c); \
-	!(_c & 0x80) ? 1 : \
-	(_c & 0xe0) == 0xc0 ? 2 : \
-	(_c & 0xf0) == 0xe0 ? 3 : 4; \
-})
+// Note: nStr is not allowed to be 0, it's undefined behavior
+int utf8_width(const char *utf8, U32 nStr, U32 tabRef);
+// Returns the length of bytes of a single character
+int utf8_len(const char *str, U32 nStr);
+// Checks if the given character is valid utf8
+// Note: nStr is not allowed to be 0, might cause segfault
+bool utf8_valid(const char *utf8, U32 nStr);
 
-// Clipboard
+/* Clipboard */
+
 // X11 support YES
 // Windows support NO
 // MacOS NO
