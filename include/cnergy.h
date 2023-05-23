@@ -64,7 +64,8 @@ int const_free(void *data);
 U32 const_getid(const void *data);
 void *const_getdata(U32 id);
 
-// UTF8 support
+/* UTF8 */
+
 // Returns the width this would visually take up
 // Note: Newlines are interpreted as ^J
 U32 utf8_widthnstr(const char *utf8, U32 n);
@@ -93,6 +94,7 @@ int clipboard_copy(const char *text, U32 nText);
 int clipboard_paste(char **text);
 
 /* Gap buffer */
+
 enum {
 	EVENT_INSERT,
 	EVENT_DELETE,
@@ -132,7 +134,7 @@ I32 buffer_movehorz(struct buffer *buf, I32 distance);
 // Returns the moved amount
 I32 buffer_movevert(struct buffer *buf, I32 distance);
 // Returns the number of characters inserted
-U32 buffer_insert(struct buffer *buf, const char *str);
+U32 buffer_insert(struct buffer *buf, const char *str, U32 nStr);
 // Returns the number of characters inserted
 U32 buffer_insert_file(struct buffer *buf, FILE *fp);
 // Returns the amount that was deleted
@@ -151,6 +153,7 @@ U32 buffer_col(const struct buffer *buf);
 U32 buffer_getline(const struct buffer *buf, U32 line, char *dest, U32 maxDest);
 
 /* Window */
+
 // TODO: State saving technique for buffer windows
 // This technique will be used to avoid re-rendering of the buffer every time.
 // It will store a list of states and their position and when re-rendering, it will
@@ -198,6 +201,7 @@ void window_layout(struct window *win);
 void window_render(struct window *win);
 
 /* Key bindings */
+
 enum {
 	BIND_CALL_NULL,
 	BIND_CALL_MOVECURSOR,
@@ -258,6 +262,7 @@ int bind_parse(FILE *fp);
 int exec_bind(const int *keys, I32 amount, struct window *window);
 
 /* Syntax highlighting for C */
+
 enum {
 	C_STATE_DEFAULT,
 	C_STATE_IDENTF,

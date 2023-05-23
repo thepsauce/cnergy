@@ -194,7 +194,7 @@ window_render(struct window *win)
 					if(col >= minCol && col < maxCol)
 						addch('^');
 					if(col + 1 >= minCol && col + 1 < maxCol)
-						addch(ch != 0x7f ? ch + 'A' + 1 : '<');
+						addch(!ch ? '@' : ch == 0x7f ? '?' : ch + 'A' - 1);
 				}
 				col += 2;
 			} else {
@@ -208,9 +208,9 @@ window_render(struct window *win)
 	attrset(COLOR(6, 0));
 	for(line++; line + 1 < maxLine; line++)
 		mvprintw(line + win->line - minLine, win->col, "%*s~ ", nLineNumbers - 2, "");
-	// draw status bar
+	// draw status bar (TODO: what if the status bar doesn't fit?)
 	attrset(COLOR(6, 8));
-	mvaddstr(win->line + win->lines - 1, win->col, "Buffer ");
+	mvaddstr(win->line + win->lines - 1, win->col, " Buffer ");
 	attrset(COLOR(3, 8));
 	printw("%u, %u", curLine, curCol);
 	printw("%*s", MAX(win->col + win->cols - getcurx(stdscr), 0), "");

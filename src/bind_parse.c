@@ -49,6 +49,8 @@ parse_string(FILE *fp, int c, char **pStr, U32 *pnStr)
 	U32 nStr = 0;
 	const bool quoted = c == '\"';
 
+	if(quoted)
+		c = fgetc(fp);
 	while(1) {
 		if(c == EOF ||
 			(quoted && (c == '\"' || c == '\n')) ||
@@ -174,8 +176,13 @@ bind_parse(FILE *fp)
 		return -1;
 	while(1) {
 		c = fgetc(fp);
-		if(c == '#')
-			while((c = fgetc(fp)) != '\n' && c != EOF);
+		if(c == '#') {
+			c = fgetc(fp);
+			if(c != '#')
+				ungetc(c, fp);
+			else
+				while((c = fgetc(fp)) != '\n' && c != EOF);
+		}
 		if(c == EOF)
 			break;
 		if(isspace(c))

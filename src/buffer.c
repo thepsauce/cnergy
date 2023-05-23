@@ -220,64 +220,62 @@ buffer_addevent(struct buffer *buf)
 
 // Returns the number of characters inserted
 U32
-buffer_insert(struct buffer *buf, const char *str)
+buffer_insert(struct buffer *buf, const char *str, U32 nStr)
 {
 	U32 i;
 	struct event *ev;
-	const U32 n = strlen(str);
-	if(!n)
-		return 0;
+
 	// if gap is too small to insert n characters, increase gap size
-	if(n > buf->nGap) {
-		char *const newData = realloc(buf->data, buf->nData + n + BUFFER_GAP_SIZE);
+	if(nStr > buf->nGap) {
+		char *const newData = realloc(buf->data, buf->nData + nStr + BUFFER_GAP_SIZE);
 		if(!newData)
 			return 0;
-		memmove(newData + buf->iGap + n + BUFFER_GAP_SIZE,
+		memmove(newData + buf->iGap + nStr + BUFFER_GAP_SIZE,
 				newData + buf->iGap + buf->nGap,
 				buf->nData - buf->iGap);
-		buf->nGap = n + BUFFER_GAP_SIZE;
+		buf->nGap = nStr + BUFFER_GAP_SIZE;
 		buf->data = newData;
 	}
 	// insert string into gap
-	memcpy(buf->data + buf->iGap, str, n);
-	buf->iGap += n;
-	buf->nGap -= n;
-	buf->nData += n;
+	memcpy(buf->data + buf->iGap, str, nStr);
+	buf->iGap += nStr;
+	buf->nGap -= nStr;
+	buf->nData += nStr;
 	// update vct
 	const U32 prevVct = buf->vct;
-	for(i = n; i > 0; i--)
+	for(i = nStr; i > 0; i--)
 		if(str[i - 1] == '\n') {
 			buf->vct = 0;
 			break;
 		}
-	buf->vct += utf8_widthnstr(str + i, n - i);
+	buf->vct += utf8_widthnstr(str + i, nStr - i);
 	// try to join events
 	if(buf->iEvent) {
 		ev = buf->events + buf->iEvent - 1;
-		if(ev->type == EVENT_INSERT && ev->iGap + ev->nIns == buf->iGap - n) {
-			ev->ins = realloc(ev->ins, ev->nIns + n);
-			memcpy(ev->ins + ev->nIns, str, n);
+		if(ev->type == EVENT_INSERT && ev->iGap + ev->nIns == buf->iGap - nStr) {
+			ev->ins = realloc(ev->ins, ev->nIns + nStr);
+			memcpy(ev->ins + ev->nIns, str, nStr);
 			ev->vct = buf->vct;
-			ev->nIns += n;
-			return n;
+			ev->nIns += nStr;
+			return nStr;
 		}
 	}
 	// add event
 	if(!(ev = buffer_addevent(buf)))
-		return n;
+		return nStr;
 	*ev = (struct event) {
 		.flags = 0,
 		.type = EVENT_INSERT,
-		.iGap = buf->iGap - n,
+		.iGap = buf->iGap - nStr,
 		.vct = buf->vct,
 		.prevVct = prevVct,
-		.ins = malloc(n),
-		.nIns = n,
+		.ins = malloc(nStr),
+		.nIns = nStr,
 	};
 	if(!ev->ins)
-		return n;
-	memcpy(ev->ins, str, n);
-	return n;
+		return nStr;
+	memcpy(ev->ins, str, nStr);
+	return nStr;
 }
 
 // Returns the number of characters inserted
@@ -288,12 +286,11 @@ buffer_insert_file(struct buffer *buf, FILE *fp)
 
 	fseek(fp, 0, SEEK_END);
 	const long n = ftell(fp);
-	if(n <= 0 || !(s = malloc(n + 1)))
+	if(n <= 0 || !(s = malloc(n)))
 		return 0;
 	fseek(fp, 0, SEEK_SET);
 	fread(s, 1, n, fp);
-	s[n] = 0;
-	const U32 nins = buffer_insert(buf, s);
+	const U32 nins = buffer_insert(buf, s, n);
 	free(s);
 	return nins;
 }

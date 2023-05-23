@@ -294,14 +294,6 @@ int exec_bind(const int *keys, I32 amount, struct window *window)
 	int ret = 2;
 	const int *k;
 	const struct binding_mode *const mode = modes + iMode;
-	if(mode->flags & FBIND_MODE_TYPE) {
-		for(k = keys; *k; k++);
-		const int c = k[-1];
-		if(isprint(c) || isspace(c)) {
-			const char b[2] = { c, 0 };
-			buffer_insert(window->buffers + window->iBuffer, b);
-		}
-	}
 	for(binds = mode->bindings, nBinds = mode->nBindings; nBinds; binds++, nBinds--) {
 		// TODO: maybe too much code repetition
 		for(const int *ks = binds->keys, *es = ks + binds->nKeys; ks != es; ks++) {
@@ -325,7 +317,7 @@ int exec_bind(const int *keys, I32 amount, struct window *window)
 					case BIND_CALL_INSERT: {
 						const void *const p = const_getdata(bc.param);
 						if(p)
-							buffer_insert(buf, p);
+							buffer_insert(buf, p, strlen(p));
 						break;
 					}
 					case BIND_CALL_DELETE: r = buffer_delete(buf, m); break;
@@ -370,7 +362,7 @@ int exec_bind(const int *keys, I32 amount, struct window *window)
 						char *text;
 
 						if(!clipboard_paste(&text)) {
-							buffer_insert(buf, text);
+							buffer_insert(buf, text, strlen(text));
 							free(text);
 						}
 						break;

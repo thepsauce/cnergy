@@ -88,8 +88,6 @@ utf8_width(const char *utf8, U32 tabRef)
 	// convert utf8 to unicode
 	const U8 firstByte = utf8[0];
 
-	if(!firstByte)
-		return 0;
 	// tab correction
 	if(firstByte == '\t')
 		return TABSIZE - tabRef % TABSIZE;

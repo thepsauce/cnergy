@@ -53,8 +53,16 @@ $insert: lazy
 
 BACK <x1
 DEL >x1
-#^A $home :visual $end
+##^A $home :visual $end
 ESC :normal
+
+## some tests for interactive coding
+i f ( +) $-1
+i f { <x1 +"() {\n}" $-5
+m a i n <x4 +"int\nmain(int argc, char **argv)\n{\n\treturn 0;\n}"
+w h i l e ( 1 ) <x8 +for(;;)
+^W b e g <x3 $home
+^W e n d <x3 $end
 
 visual*: lazy, normal_movement
 

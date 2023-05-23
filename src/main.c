@@ -120,7 +120,8 @@ main(int argc, char **argv)
 	}
 
 	while(1) {
-		first_window->lines = LINES;
+		// TODO: reserve the very last line for some debug printing
+		first_window->lines = LINES - 1;
 		first_window->cols = COLS;
 		window_layout(first_window);
 		window_render(first_window);
@@ -132,8 +133,17 @@ main(int argc, char **argv)
 			nKeys = 0;
 			continue;
 		}
+		if(mode_has(FBIND_MODE_TYPE) && (isprint(c) || isspace(c))) {
+			char b[10];
+
+			b[0] = c;
+			const U32 len = utf8_len(c);
+			for(U32 i = 1; i < len; i++)
+				b[i] = getch();
+			buffer_insert(focus_window->buffers + focus_window->iBuffer, b, len);
+		}
 		if(!nKeys) {
-			if(!mode_has(FBIND_MODE_TYPE) && isdigit(c) && (c != '0' || num)) {
+			if(isdigit(c) && (c != '0' || num)) {
 				num = SAFE_MUL(num, 10);
 				num = SAFE_ADD(num, c - '0');
 				move(LINES - 1, 0);
