@@ -24,6 +24,12 @@ j .N
 
 normal: lazy, normal_movement
 
+^W h <wN
+^W j .wN
+^W k `wN
+^W l >wN
+^W SPACE $wN
+^W BACK $w-N
 ^A a !color_test 
 O >home +\n $-N
 o >end +\n :insert
@@ -40,7 +46,7 @@ d k `x1 `xN
 d j .x1 .xN
 p !paste
 u !undo
-R !redo
+^R !redo
 v :visual
 
 $insert: lazy

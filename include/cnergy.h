@@ -52,6 +52,8 @@ typedef uint16_t U16;
 typedef uint32_t U32;
 typedef uint64_t U64;
 
+#define COLOR(bg, fg) COLOR_PAIR(1 + ((bg) | ((fg) * 16)))
+
 #define _MACOS 1
 #define _X11 2
 #define _UNIX 3
@@ -62,7 +64,20 @@ int const_free(void *data);
 U32 const_getid(const void *data);
 void *const_getdata(U32 id);
 
-#define COLOR(bg, fg) COLOR_PAIR(1 + ((bg) | ((fg) * 16)))
+// UTF8 support
+// Returns the width this would visually take up
+// Note: Newlines are interpreted as ^J
+U32 utf8_widthnstr(const char *utf8, U32 n);
+U32 utf8_widthstr(const char *utf8);
+// Returns the number of columns this character takes up
+int utf8_width(const char *utf8, U32 tabRef);
+// Returns the length of bytes of given prefix byte
+#define utf8_len(c) ({ \
+	const char _c = (c); \
+	!(_c & 0x80) ? 1 : \
+	(_c & 0xe0) == 0xc0 ? 2 : \
+	(_c & 0xf0) == 0xe0 ? 3 : 4; \
+})
 
 // Clipboard
 // X11 support YES
@@ -169,14 +184,15 @@ struct window {
 			U32 selection;
 		};
 	};
-	// that window is right of this window
-	struct window *right;
-	// that window is below this window
-	struct window *below;
+	// that window is left/right of this window
+	struct window *left, *right;
+	// that window is above/below this window
+	struct window *above, *below;
 };
 
 extern struct window *first_window;
 extern struct window *focus_window;
+extern int focus_y, focus_x;
 
 void window_layout(struct window *win);
 void window_render(struct window *win);
@@ -196,6 +212,10 @@ enum {
 	BIND_CALL_PASTE,
 	BIND_CALL_UNDO,
 	BIND_CALL_REDO,
+	BIND_CALL_CLOSEWINDOW_RIGHT,
+	BIND_CALL_CLOSEWINDOW_BELOW,
+	BIND_CALL_MOVEWINDOW_RIGHT,
+	BIND_CALL_MOVEWINDOW_BELOW,
 	BIND_CALL_COLOR_TEST,
 };
 

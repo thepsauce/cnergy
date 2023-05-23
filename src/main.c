@@ -37,7 +37,7 @@ main(int argc, char **argv)
 	raw();
 	noecho();
 	keypad(stdscr, true);
-	scrollok(stdscr, true);
+	scrollok(stdscr, false);
 	clearok(stdscr, false);
 	set_tabsize(4);
 
@@ -95,34 +95,36 @@ main(int argc, char **argv)
 		.buffers = malloc(sizeof(*w->buffers)),
 	};
 	memset(w->buffers, 0, sizeof(*w->buffers));
-	/*fp = fopen("src/main.c", "r");
+	fp = fopen("example_utf8.txt", "r");
 	buffer_insert_file(w->buffers, fp);
-	fclose(fp);*/
-	buffer_insert(w->buffers, "Test text");
+	fclose(fp);
 	first_window = w;
-	for(U32 i = 0; i < ARRLEN(path); i++) {
-		if(!path[i])
-			w = w->right = malloc(sizeof(*w));
-		else
-			w = w->below = malloc(sizeof(*w));
-		memset(w, 0, sizeof(*w));
-		*w = (struct window) {
-			.nBuffers = 1,
-			.buffers = malloc(sizeof(*w->buffers)),
-		};
-		memset(w->buffers, 0, sizeof(*w->buffers));
-		buffer_insert(w->buffers, "Test text");
-		/*fp = fopen(files[i % ARRLEN(files)], "r");
-		buffer_insert_file(w->buffers, fp);
-		fclose(fp);*/
-	}
 	focus_window = w;
+	for(U32 i = 0; i < ARRLEN(path); i++) {
+		struct window *const new = malloc(sizeof(*new));
+		memset(new, 0, sizeof(*new));
+		if(!path[i]) {
+			w->right = new;
+			new->left = w;
+		} else {
+			w->below = new;
+			new->above = w;
+		}
+		w = new;
+		w->nBuffers = 1;
+		w->buffers = malloc(sizeof(*w->buffers));
+		memset(w->buffers, 0, sizeof(*w->buffers));
+		fp = fopen(files[i % ARRLEN(files)], "r");
+		buffer_insert_file(w->buffers, fp);
+		fclose(fp);
+	}
 
 	while(1) {
 		first_window->lines = LINES;
 		first_window->cols = COLS;
 		window_layout(first_window);
 		window_render(first_window);
+		move(focus_y, focus_x);
 		const int c = getch();
 		erase();
 		if(c == 27 && (num || nKeys)) {

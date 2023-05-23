@@ -302,6 +302,7 @@ bind_parse(FILE *fp)
 			case '<':
 			case '>': {
 				bool del = false;
+				bool window = false;
 				const int sign = c == '<' || c == '`' ? - 1 : 1;
 				const bool horz = c == '<' || c == '>';
 				const bool vert = c == '.' || c == '`';
@@ -309,6 +310,10 @@ bind_parse(FILE *fp)
 				c = fgetc(fp);
 				if(c == 'x') {
 					del = true;
+					c = fgetc(fp);
+				}
+				if(c == 'w') {
+					window = true;
 					c = fgetc(fp);
 				}
 				if(isalpha(c)) {
@@ -328,7 +333,16 @@ bind_parse(FILE *fp)
 					if(!strcmp(word, "N"))
 						calls[nCalls].flags = FBIND_CALL_USENUMBER;
 				}
-				calls[nCalls].type = del ? (vert ? BIND_CALL_DELETELINE : BIND_CALL_DELETE) : vert ? BIND_CALL_MOVEVERT : horz ? BIND_CALL_MOVEHORZ : BIND_CALL_MOVECURSOR;
+				if(window) {
+					if(del)
+						calls[nCalls].type = vert ? BIND_CALL_CLOSEWINDOW_BELOW : BIND_CALL_CLOSEWINDOW_RIGHT;
+					else
+						calls[nCalls].type = vert ? BIND_CALL_MOVEWINDOW_BELOW : BIND_CALL_MOVEWINDOW_RIGHT;
+				} else if(del) {
+					calls[nCalls].type = vert ? BIND_CALL_DELETELINE : BIND_CALL_DELETE;
+				} else {
+					calls[nCalls].type = vert ? BIND_CALL_MOVEVERT : horz ? BIND_CALL_MOVEHORZ : BIND_CALL_MOVECURSOR;
+				}
 				calls[nCalls].param = sign * num;
 				break;
 			}

@@ -1,30 +1,5 @@
 #include "cnergy.h"
 
-#define cwidth(x, c) ({ \
-	__auto_type _c = (c); \
-	__auto_type _x = (x); \
-	_c == '\t' ? TABSIZE - _x % TABSIZE : _c < 32 ? 2 : 1; \
-})
-		
-// TODO: maybe consider utf8 encoded characters
-// Returns the width this would visually take up
-// Note: Newlines are not handled
-static inline U32
-widthnstr(const char *str, U32 nStr)
-{
-	U32 width = 0;
-
-   for(U32 i = 0; i < nStr; i++)
-		width += cwidth(width, str[i]);
-	return width;
-}
-
-static inline U32
-widthstr(const char *str)
-{
-	return widthnstr(str, strlen(str));
-}
-
 I32 
 unsafe_buffer_movecursor(struct buffer *buf, I32 distance)
 {
@@ -73,25 +48,33 @@ unsafe_buffer_movecursor(struct buffer *buf, I32 distance)
 	return distance;
 }
 
-static inline I32
-clamp(const struct buffer *buf, I32 amount)
+// converts a distance of characters to a byte distance
+static I32
+buffer_cnvdist(const struct buffer *buf, I32 distance)
 {
-	if(amount > (I32) (buf->nData - buf->iGap))
-		return buf->nData - buf->iGap;
-	// TODO: quickfix in place because -INT32_MIN doesn't exist
-	if(amount == INT32_MIN || -amount > (I32) buf->iGap)
-		return -buf->iGap;
-	return amount;
+	U32 i, iFirst;
+
+	i = buf->iGap;
+	if(distance > 0) {
+		i += buf->nGap;
+		iFirst = i;
+		for(; i < buf->nData + buf->nGap && distance; distance--)
+			i += utf8_len(buf->data[i]);
+	} else {
+		iFirst = i;
+		for(; i > 0 && distance; distance++)
+			while((buf->data[--i] & 0xC0) == 0x80);
+	}
+	return i - iFirst;
 }
 
 // Returns the moved amount (safe version of unsafe_buffer_movecursor that also updates vct)
 I32
 buffer_movecursor(struct buffer *buf, I32 distance)
 {
-	distance = clamp(buf, distance);
+	distance = buffer_cnvdist(buf, distance);
 	unsafe_buffer_movecursor(buf, distance);
-	const U32 col = buffer_col(buf);
-	buf->vct = widthnstr(buf->data + buf->iGap - col, col);
+	buf->vct = buffer_col(buf);
 	return distance;
 }
 
@@ -115,22 +98,26 @@ buffer_movehorz(struct buffer *buf, I32 distance)
 	if(distance > 0) {
 		i += buf->nGap;
 		iFirst = i;
-		for(; i < buf->nData + buf->nGap && distance; i++, distance--)
+		for(; i < buf->nData + buf->nGap && distance; distance--) {
 			if(buf->data[i] == '\n')
 				break;
+			i += utf8_len(buf->data[i]);
+		}
 		left = right = i;
 		while(left != buf->iGap + buf->nGap) {
 			if(buf->data[left - 1] == '\n')
 				break;
 			left--;
 		}
-		buf->vct = widthnstr(buf->data + left, right - left);
+		buf->vct = utf8_widthnstr(buf->data + left, right - left);
 		left -= buf->nGap;
 	} else {
 		iFirst = i;
-		for(; i > 0 && distance; i--, distance++)
+		for(; i > 0 && distance; distance++) {
 			if(buf->data[i - 1] == '\n')
 				break;
+			while((buf->data[--i] & 0xC0) == 0x80);
+		}
 		left = i;
 		buf->vct = 0;
 	}
@@ -140,7 +127,7 @@ buffer_movehorz(struct buffer *buf, I32 distance)
 			break;
 		left--;
 	}
-	buf->vct += widthnstr(buf->data + left, right - left);
+	buf->vct += utf8_widthnstr(buf->data + left, right - left);
 	return unsafe_buffer_movecursor(buf, i - iFirst);
 }
 
@@ -167,10 +154,11 @@ buffer_movevert(struct buffer *buf, I32 distance)
 			return 0;
 		while(i > 0 && buf->data[i - 1] != '\n')
 			i--;
-		for(U32 travelled = 0; travelled < buf->vct; i++) {
+		for(U32 travelled = 0; travelled < buf->vct;) {
 			if(buf->data[i] == '\n')
 				break;
-			travelled += cwidth(travelled, buf->data[i]);
+			travelled += utf8_width(buf->data + i, travelled);
+			i += utf8_len(buf->data[i]);
 		}
 		moved = i - buf->iGap;
 	} else {
@@ -189,10 +177,11 @@ buffer_movevert(struct buffer *buf, I32 distance)
 			// i > 0 not needed since we know that we crossed over a \n already
 			while(buf->data[i - 1] != '\n')
 				i--;
-		for(U32 travelled = 0; i < buf->nData + buf->nGap && travelled < buf->vct; i++) {
+		for(U32 travelled = 0; i < buf->nData + buf->nGap && travelled < buf->vct;) {
 			if(buf->data[i] == '\n')
 				break;
-			travelled += cwidth(travelled, buf->data[i]);
+			travelled += utf8_width(buf->data + i, travelled);
+			i += utf8_len(buf->data[i]);
 		}
 		moved = i - buf->nGap - buf->iGap;
 	}
@@ -261,7 +250,7 @@ buffer_insert(struct buffer *buf, const char *str)
 			buf->vct = 0;
 			break;
 		}
-	buf->vct += widthnstr(str + i, n - i);
+	buf->vct += utf8_widthnstr(str + i, n - i);
 	// try to join events
 	if(buf->iEvent) {
 		ev = buf->events + buf->iEvent - 1;
@@ -315,7 +304,7 @@ buffer_delete(struct buffer *buf, I32 amount)
 {
 	struct event *ev;
 
-	amount = clamp(buf, amount);
+	amount = buffer_cnvdist(buf, amount);
 	if(!amount)
 		return 0;
 	// add event
@@ -351,10 +340,10 @@ buffer_delete(struct buffer *buf, I32 amount)
 				for(; i > 0; i--)
 					if(buf->data[i - 1] == '\n')
 						break;
-				buf->vct = widthnstr(buf->data + i, end - i);
+				buf->vct = utf8_widthnstr(buf->data + i, end - i);
 				return amount;
 			}
-		buf->vct -= widthnstr(buf->data + buf->iGap, -amount);
+		buf->vct -= utf8_widthnstr(buf->data + buf->iGap, -amount);
 	}
 	return amount;
 }
@@ -509,7 +498,7 @@ buffer_col(const struct buffer *buf)
 	for(i = buf->iGap; i > 0; i--)
 		if(buf->data[i - 1] == '\n')
 			break;
-	return widthnstr(buf->data + i, buf->iGap - i);
+	return utf8_widthnstr(buf->data + i, buf->iGap - i);
 }
 
 // Returns the length of the line

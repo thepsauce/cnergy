@@ -382,6 +382,30 @@ int exec_bind(const int *keys, I32 amount, struct window *window)
 					case BIND_CALL_REDO:
 						buffer_redo(buf);
 						break;
+					case BIND_CALL_CLOSEWINDOW_RIGHT:
+						break;
+					case BIND_CALL_CLOSEWINDOW_BELOW:
+						break;
+					case BIND_CALL_MOVEWINDOW_RIGHT:
+						r = 0;
+						if(m > 0) {
+							for(; r != m && focus_window->right; r++)
+								focus_window = focus_window->right;
+						} else {
+							for(; r != m && focus_window->left; r--)
+								focus_window = focus_window->left;
+						}
+						break;
+					case BIND_CALL_MOVEWINDOW_BELOW:
+						r = 0;
+						if(m > 0) {
+							for(; r != m && focus_window->below; r++)
+								focus_window = focus_window->below;
+						} else {
+							for(; r != m && focus_window->above; r--)
+								focus_window = focus_window->above;
+						}
+						break;
 					case BIND_CALL_COLOR_TEST:
 						break;
 					}

@@ -1,0 +1,9 @@
+// Example UTF-8 text file: example_utf8.txt
+
+Hello, 世界!
+This is a sample text file encoded in UTF-8.
+Unicode characters from various scripts can be represented in this file format.
+世界 means "world" in Chinese.
+Γεια σου means "Hello" in Greek.
+こんにちは means "Hello" in Japanese.
+Привет means "Hello" in Russian.
