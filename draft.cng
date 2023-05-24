@@ -31,6 +31,7 @@ normal: lazy, normal_movement
 ^W SPACE $wN
 ^W BACK $w-N
 ^W n !new
+^W w !close
 O >home +\n $-N
 o >end +\n :insert
 I >home :insert
@@ -44,13 +45,13 @@ d D `xN
 d d .xN
 d k `x1 `xN
 d j .x1 .xN
+##TODO: J >end >x1 & (( ?"\t" | ?" " & >x1 )) & +" "
 p !paste
 u !undo
 ^R !redo
 v :visual
 : w !write
-: q !close
-: q a !quit
+##: r !read
 
 $insert: lazy
 

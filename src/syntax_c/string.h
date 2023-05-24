@@ -4,9 +4,8 @@ c_state_string(struct state *s)
 	if(s->data[s->index] == '\\') {
 		U32 hexChars = 0;
 
-		s->attr = COLOR_PAIR(10);
-		s->index++;
-		switch(s->data[s->index]) {
+		s->attr = A_REVERSE | COLOR_PAIR(2);
+		switch(s->data[s->index + 1]) {
 		case 'a':
 		case 'b':
 		case 'e':
@@ -30,16 +29,16 @@ c_state_string(struct state *s)
 			hexChars = 8;
 			break;
 		default:
-			s->attr = A_REVERSE | COLOR_PAIR(2);
+			return 0;
 		}
+		s->index++;
 		while(hexChars) {
-			if(!isxdigit(s->data[s->index + 1])) {
-				s->attr = A_REVERSE | COLOR_PAIR(2);
-				break;
-			}
+			if(!isxdigit(s->data[s->index + 1]))
+				return 0;
 			s->index++;
 			hexChars--;
 		}
+		s->attr = COLOR_PAIR(10);
 	} else {
 		s->attr = COLOR_PAIR(11);
 		if(s->data[s->index] == '\"' || s->data[s->index] == '\n')

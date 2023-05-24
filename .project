@@ -1,2 +1,2 @@
--g  -D_PLATFORM=_X11
+-g  -D_PLATFORM=_X11 -Wall
 -lcurses -lX11

@@ -21,16 +21,40 @@ state_skipspace(struct state *s)
 		s->index++;
 }
 
+// Returns:
+// 0 - Index was found
+// 1 - Element that exactly matches was found
+static inline int
+state_getbestindex(struct state *s, const char *word, U32 nWord, U32 *pIndex)
+{
+	U32 left, right;
+
+	left = 0;
+	right = s->nWords;
+	while(left < right) {
+		const U32 middle = (left + right) / 2;
+		const int cmp = strncmp(s->words[middle].word, word, nWord);
+		if(!cmp && !s->words[middle].word[nWord]) {
+			*pIndex = middle;
+			return 1;
+		}
+		if(cmp > 0)
+			right = middle;
+		else
+			left = middle + 1;
+	}
+	*pIndex = right;
+	return 0;
+}
+
 int
 state_addword(struct state *s, int attr, const char *word, U32 nWord)
 {
+	U32 index;
 	char *w;
 
-	for(U32 i = 0; i < s->nWords; i++)
-		if(s->words[i].attr == attr && 
-				strlen(s->words[i].word) == nWord && 
-				!strcmp(s->words[i].word, word))
-			return 1;
+	if(state_getbestindex(s, word, nWord, &index))
+		return 1;
 	s->words = realloc(s->words, sizeof(*s->words) * (s->nWords + 1));
 	if(!s->words)
 		return -1;
@@ -42,24 +66,30 @@ state_addword(struct state *s, int attr, const char *word, U32 nWord)
 	w = const_alloc(w, nWord + 1);
 	if(!w)
 		return -1;
-	s->words[s->nWords].attr = attr;
-	s->words[s->nWords].word = w;
+	memmove(s->words + index + 1, s->words + index, sizeof(*s->words) * (s->nWords - index));
 	s->nWords++;
+	s->words[index].attr = attr;
+	s->words[index].word = w;
 	return 0;
 }
 
 int
-state_removeword(struct state *s, int attr, const char *word, U32 nWord)
+state_removeword(struct state *s, const char *word, U32 nWord)
 {
-	for(U32 i = 0; i < s->nWords; i++)
-		if(s->words[i].attr == attr && 
-				strlen(s->words[i].word) == nWord && 
-				!strcmp(s->words[i].word, word)) {
-			s->nWords--;
-			memmove(s->words + i, s->words + i + 1, sizeof(*s->words) * (s->nWords - i));
-			return 0;
-		}
-	return 1;
+	U32 index;
+
+	if(!state_getbestindex(s, word, nWord, &index))
+		return 1;
+	s->nWords--;
+	memmove(s->words + index, s->words + index + 1, sizeof(*s->words) * (s->nWords - index));
+	return 0;
+}
+
+int
+state_findword(struct state *s, const char *word, U32 nWord)
+{
+	U32 index;
+	return !state_getbestindex(s, word, nWord, &index);
 }
 
 int

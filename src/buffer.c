@@ -205,7 +205,7 @@ buffer_movehorz(struct buffer *buf, I32 distance)
 I32
 buffer_movevert(struct buffer *buf, I32 distance)
 {
-	U32 i, maxTravel;
+	U32 i;
 	const I32 cDistance = distance;
 	I32 moved;
 

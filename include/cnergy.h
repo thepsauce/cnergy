@@ -314,6 +314,7 @@ struct state {
 	// current active state
 	U32 state;
 	// words to highlight, the word data is placed into the const_alloc space
+	// this list is alphabetically sorted
 	// the words array should be freed when finished
 	struct {
 		int attr;
@@ -347,16 +348,20 @@ struct state {
 	U32 minLine, maxLine, minCol, maxCol;
 };
 
+// Skip spaces and tabs
+// Note: Put this at the beginning of a state function
+#define STATE_SKIPSPACE(s) if(isblank(s->data[s->index])) return 0
 // Push a state to the state stack
 int state_push(struct state *s, U32 state);
 // Pop the state from the state stack into the current state
 int state_pop(struct state *s);
-// Skip spaces and tabs
-void state_skipspace(struct state *s);
 // Add a word to the word list
 int state_addword(struct state *s, int attr, const char *word, U32 nWord);
 // Remove a word from the word list
-int state_removeword(struct state *s, int attr, const char *word, U32 nWord);
+int state_removeword(struct state *s, const char *word, U32 nWord);
+// Find a word in the word list
+// Returns 0 if the element was found and -1 if it failed
+int state_findword(struct state *s, const char *word, U32 nWord);
 // Add the current char as an opening paranthesis
 int state_addparan(struct state *s);
 // Add the current char as a closing paranthesis

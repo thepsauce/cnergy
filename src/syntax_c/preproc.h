@@ -24,7 +24,7 @@ static const struct {
 int
 c_state_preproc_common(struct state *s)
 {
-	state_skipspace(s);
+	STATE_SKIPSPACE(s);
 	switch(s->data[s->index]) {
 	case '\\':
 		if(s->data[s->index + 1] == '\n')
@@ -44,7 +44,7 @@ c_state_preproc_common(struct state *s)
 int
 c_state_preproc(struct state *s)
 {
-	state_skipspace(s);
+	STATE_SKIPSPACE(s);
 	switch(s->data[s->index]) {
 	case 'a' ... 'z': case 'A' ... 'Z': case '_': {
 		const U32 startWord = s->index;
@@ -52,8 +52,8 @@ c_state_preproc(struct state *s)
 		const U32 nWord = s->index - startWord;
 		s->index--;
 		for(U32 t = 0; t < ARRLEN(C_preprocTransitions); t++)
-			if(nWord == strlen(C_preprocTransitions[t].name) &&
-					!memcmp(C_preprocTransitions[t].name, s->data + startWord, nWord)) {
+			if(!strncmp(C_preprocTransitions[t].name, s->data + startWord, nWord) &&
+					!C_preprocTransitions[t].name[nWord]) {
 				s->attr = COLOR_PAIR(5);
 				s->state = C_preprocTransitions[t].state;
 				return 0;
@@ -71,15 +71,14 @@ c_state_preproc(struct state *s)
 int
 c_state_preproc_define(struct state *s)
 {
-	state_skipspace(s);
+	STATE_SKIPSPACE(s);
 	switch(s->data[s->index]) {
 	case 'a' ... 'z': case 'A' ... 'Z': case '_': {
-		char *word;
 		const U32 startWord = s->index;
 		while(isalnum(s->data[++s->index]) || s->data[s->index] == '_');
 		const U32 nWord = s->index - startWord;
 		s->index--;
-		state_addword(s, 0, s->data + startWord, nWord);
+		state_addword(s, COLOR_PAIR(5), s->data + startWord, nWord);
 		s->attr = COLOR_PAIR(5);
 		s->state = C_STATE_PREPROC_COMMON;
 		break;
@@ -94,7 +93,7 @@ c_state_preproc_define(struct state *s)
 int
 c_state_preproc_include(struct state *s)
 {
-	state_skipspace(s);
+	STATE_SKIPSPACE(s);
 	switch(s->data[s->index]) {
 	case '<':
 	case '\"': {
@@ -129,14 +128,14 @@ c_state_preproc_include(struct state *s)
 int
 c_state_preproc_undef(struct state *s)
 {
-	state_skipspace(s);
+	STATE_SKIPSPACE(s);
 	switch(s->data[s->index]) {
 	case 'a' ... 'z': case 'A' ... 'Z': case '_': {
 		const U32 startWord = s->index;
 		while(isalnum(s->data[++s->index]) || s->data[s->index] == '_');
 		const U32 nWord = s->index - startWord;
 		s->index--;
-		state_removeword(s, 0, s->data + startWord, nWord);
+		state_removeword(s, s->data + startWord, nWord);
 		s->attr = COLOR_PAIR(5);
 		s->state = C_STATE_PREPROC_COMMON;
 		break;

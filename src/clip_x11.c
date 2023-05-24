@@ -21,10 +21,12 @@ static char *clipboard_paste_data;
 void *
 x11_thread(void *arg)
 {
+	(void) arg;
+
 	XEvent event;
 	XTextProperty prop;
 
-    while(1) {
+	while(1) {
 		if(XPending(display) <= 0) {
 			usleep(1000);
 			continue;
@@ -77,9 +79,9 @@ init(void)
 
 	display = XOpenDisplay(NULL);
 	screen = DefaultScreen(display);
-    window = XCreateSimpleWindow(display, RootWindow(display, screen), 0, 0, 1, 1, 0, 0, 0);
-    clipboard = XInternAtom(display, "CLIPBOARD", False);
-    utf8_string = XInternAtom(display, "UTF8_STRING", False);
+	window = XCreateSimpleWindow(display, RootWindow(display, screen), 0, 0, 1, 1, 0, 0, 0);
+	clipboard = XInternAtom(display, "CLIPBOARD", False);
+	utf8_string = XInternAtom(display, "UTF8_STRING", False);
 	pthread_create(&x11_thread_id, NULL, x11_thread, NULL);
 }
 
@@ -92,13 +94,11 @@ uninit(void)
 int
 clipboard_copy(const char *text, U32 nText)
 {
-    XTextProperty prop;
-
 	pthread_mutex_lock(&clipboard_mutex);
 	XSetSelectionOwner(display, clipboard, window, CurrentTime);
-    const int result = XGetSelectionOwner(display, clipboard);
-    if(result != window)
-        return -1;
+	const Window result = XGetSelectionOwner(display, clipboard);
+	if(result != window)
+		return -1;
 	clipboard_data = realloc(clipboard_data, nText + 1);
 	memcpy(clipboard_data, text, nText);
 	clipboard_data[nText] = 0;
@@ -110,13 +110,13 @@ int
 clipboard_paste(char **pText)
 {
 	pthread_mutex_lock(&clipboard_mutex);
-    XConvertSelection(display, clipboard, utf8_string, None, window, CurrentTime);
+	XConvertSelection(display, clipboard, utf8_string, None, window, CurrentTime);
 	pthread_cond_wait(&clipboard_paste_cond, &clipboard_mutex);
 	pthread_mutex_unlock(&clipboard_mutex);
 	*pText = clipboard_paste_data;
-	if(!clipboard_paste)
+	if(!clipboard_paste_data)
 		return -1;
-    return 0;
+	return 0;
 }
 
 #endif

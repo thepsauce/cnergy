@@ -455,18 +455,13 @@ c_state_common(struct state *s)
 		const U32 nWord = s->index - startWord;
 		s->index--;
 		for(U32 k = 0; k < ARRLEN(C_keywords); k++)
-		for(const char *const *ws = C_keywords[k].words, *w; w = *ws; ws++)
-			if(nWord == strlen(w) && !memcmp(w, s->data + startWord, nWord)) {
+		for(const char *const *ws = C_keywords[k].words, *w; (w = *ws); ws++)
+			if(!strncmp(w, s->data + startWord, nWord) && !w[nWord]) {
 				s->attr = COLOR_PAIR(C_keywords[k].pair);
 				return 0;
 			}
-		for(U32 i = 0; i < s->nWords; i++) {
-			if(nWord == strlen(s->words[i].word) &&
-					!memcmp(s->words[i].word, s->data + startWord, nWord)) {
-				s->attr = s->words[i].attr;
-				return 0;
-			}
-		}
+		if(!state_findword(s, s->data + startWord, nWord))
+			s->attr = COLOR_PAIR(5);
 		break;
 	}
 	case '.':
@@ -492,13 +487,16 @@ c_state_common(struct state *s)
 		s->attr = COLOR_PAIR(11);
 		break;
 	case '\'':
-		s->index++;
-		if(s->data[s->index] == '\\') {
+	char_start:
+		if(s->data[s->index + 1] == '\\') {
 			U32 hexChars = 0;
 
-			s->attr = COLOR_PAIR(10);
+			s->attr = A_REVERSE | COLOR_PAIR(2);
 			s->index++;
-			switch(s->data[s->index]) {
+			switch(s->data[s->index + 1]) {
+			case '\n':
+				s->index++;
+				goto char_start;
 			case 'a':
 			case 'b':
 			case 'e':
@@ -510,40 +508,29 @@ c_state_common(struct state *s)
 			case '\\':
 			case '\"':
 			case '\'':
-			case '\n':
-				s->index++;
 				break;
-			case 'U':
-				hexChars = 8;
-				s->index++;
-				break;
-			case 'u':
-				hexChars = 4;
-				s->index++;
-				break;
-			case 'x':
-				hexChars = 2;
-				s->index++;
-				break;
+			case 'U': hexChars = 8; break;
+			case 'u': hexChars = 4; break;
+			case 'x': hexChars = 2; break;
 			default:
-				s->attr = A_REVERSE | COLOR_PAIR(2);
+				return 0;
 			}
+			s->index++;
 			while(hexChars) {
-				if(!isxdigit(s->data[s->index])) {
-					s->attr = A_REVERSE | COLOR_PAIR(2);
-					break;
-				}
+				if(!isxdigit(s->data[s->index + 1]))
+					return 0;
 				s->index++;
 				hexChars--;
 			}
-		} else {
+			s->attr = COLOR_PAIR(10);
+		} else if(isprint(s->data[s->index + 1])) {
 			s->index++;
 			s->attr = COLOR_PAIR(14);
 		}
-		if(s->data[s->index] != '\'') {
+		if(s->data[s->index + 1] != '\'')
 			s->attr = A_REVERSE | COLOR_PAIR(2);
-			s->index--;
-		}
+		else
+			s->index++;
 		break;
 	case '(':
 	case '[':

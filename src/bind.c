@@ -280,7 +280,7 @@ print_events(const struct event *events, U32 iEvent, U32 nEvents) {
 	printw("%2d,%2d--------------------------------------------\n", iEvent, nEvents);
 	for (U32 i = 0; i < nEvents; i++) {
 		printw(i == iEvent ? "(%-3d)" : "%-5d", i);
-		printw(" | %-4d | %-5d | %-4u | %-4u | %-3u | ", i, events[i].type,
+		printw(" | %-4d | %-5d | %-4u | %-4u | %-3u | ", events[i].type,
 			events[i].flags, events[i].vct, events[i].nIns, events[i].nDel);
 		printw("\n");
 	}

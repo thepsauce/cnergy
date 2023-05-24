@@ -153,13 +153,10 @@ bind_parse(FILE *fp)
 	int num;
 	char *str;
 	U32 nStr;
-	char *strings = NULL;
-	size_t szStrings = 0;
 	int c;
 	struct binding_mode mode;
 	struct binding_mode *modes;
 	U32 nModes = 0;
-	size_t szModeBindings;
 	// the requests are necessary to allow usage before declaration
 	// append requests are added when a mode should be extended by another
 	struct append_request {
@@ -237,7 +234,6 @@ bind_parse(FILE *fp)
 				if(!modes)
 					return -89;
 				modes[nModes++] = mode;
-				szModeBindings = 0;
 				continue;
 			}
 		}

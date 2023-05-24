@@ -1,6 +1,8 @@
 #include "cnergy.h"
 #include <locale.h>
 
+int print_modes(struct binding_mode *mode, int);
+
 int
 main(int argc, char **argv)
 {
@@ -17,7 +19,6 @@ main(int argc, char **argv)
 		long pos = ftell(f);
 		int line = 1;
 		int col = 1;
-		int c;
 		fseek(f, 0, SEEK_SET);
 		while(--pos) {
 			if(fgetc(f) == '\n') {
@@ -108,16 +109,22 @@ main(int argc, char **argv)
 	}
 
 	while(1) {
+		int c;
+
 		if(!focus_window)
 			break;
 		// -1 to reserve a line to show key presses
+		first_window->line = 0;
+		first_window->col = 0;
 		first_window->lines = LINES - 1;
 		first_window->cols = COLS;
 		window_layout(first_window);
-		for(U32 i = 0; i < n_windows; i++)
-			window_render(all_windows[i]);
+		for(U32 i = n_windows; i > 0;)
+			window_render(all_windows[--i]);
 		move(focus_y, focus_x);
-		const int c = getch();
+		c = getch();
+		if(c == 0x7f)
+			c = KEY_BACKSPACE;
 		// 27 is Escape
 		if(c == 27 && (num || nKeys)) {
 			num = 0;
@@ -128,7 +135,7 @@ main(int argc, char **argv)
 			char b[10];
 
 			b[0] = c;
-			// get length of the following utf8 sequence
+			// get length of the following utf8 character 
 			const U32 len = (c & 0xe0) == 0xc0 ? 2 : (c & 0xf0) == 0xe0 ? 3 : (c & 0xf8) == 0xf0 ? 4 : 1;
 			for(U32 i = 1; i < len; i++)
 				b[i] = getch();

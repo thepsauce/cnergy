@@ -73,6 +73,9 @@ window_delete(struct window *win)
 struct window *
 window_above(struct window *win)
 {
+	if(!win->above) {
+		
+	}
 	return win->above;
 }
 
@@ -149,7 +152,6 @@ window_detach(struct window *win)
 	win->right = NULL;
 }
 
-
 void
 window_layout(struct window *win)
 {
@@ -158,7 +160,6 @@ window_layout(struct window *win)
 	U32 nRight = 1, nBelow = 1;
 	int linesPer, colsPer, linesRemainder, colsRemainder;
 	int nextCol, nextLine;
-	bool render = false;
 	const int line = win->line;
 	const int col = win->col;
 	const int lines = win->lines;
@@ -179,9 +180,10 @@ window_layout(struct window *win)
 	win->lines = linesPer;
 	nextCol = col + colsPer;
 	nextLine = line + linesPer;
-	// if there is a window left, it will handle the right windows, we don't want to handle them twice
+	// if there is a window left, it will not handle the right windows, we don't want to handle them twice
 	if(!win->left)
-		for(w = win->right; w; w = w->right) { w->line = line;
+		for(w = win->right; w; w = w->right) {
+			w->line = line;
 			w->col = nextCol;
 			w->lines = lines;
 			w->cols = colsPer;
@@ -348,15 +350,17 @@ window_render(struct window *win)
 						addch(' ');
 				} while((++state.col) % TABSIZE);
 			} else if(ch == '\n') {
-				state.line++;
 				if(state.line >= state.minLine && state.line < state.maxLine) {
 					// erase rest of line
 					attrset(0);
 					state.col = MAX(state.col, state.minCol);
 					if(state.col < state.maxCol)
 						printw("%*s", state.maxCol - state.col, "");
-					attrset(win == focus_window ? COLOR(11, 8) : COLOR(3, 8));
+				}
+				state.line++;
+				if(state.line >= state.minLine && state.line < state.maxLine) {
 					// draw line prefix
+					attrset(win == focus_window ? COLOR(11, 8) : COLOR(3, 8));
 					mvprintw(win->line + state.line - state.minLine, win->col, "%*d ", nLineNumbers - 1, state.line + 1);
 				}
 				state.col = 0;
