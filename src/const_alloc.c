@@ -1,9 +1,8 @@
 #include "cnergy.h"
 
 struct memptr {
-	U32 off: 10;
-	U32 sz: 10;
-	U32 nRef: 12;
+	U16 off;
+	U16 sz;
 };
 
 struct mempool {
@@ -37,21 +36,15 @@ insertptr(struct mempool *pool, U32 off, U32 sz)
 		if(off >= l && off < r) {
 			if(off + sz > r)
 				return NULL;
-			if(off == l) {
-				pool->ptrs[i].nRef++;
-				if(!pool->ptrs[i].nRef) {
-					pool->ptrs[i].nRef--;
-					return NULL;
-				}
-			} else {
-				pool->ptrs = realloc(pool->ptrs, sizeof(*pool->ptrs) * (pool->nPtrs + 1));
-				if(!pool->ptrs)
-					return NULL;
-				i++;
-				memmove(pool->ptrs + i + 1, pool->ptrs + i, sizeof(*pool->ptrs) * (pool->nPtrs - i));
-				pool->ptrs[i] = (struct memptr) { .off = off, .sz = sz, .nRef = 1 };
-				pool->nPtrs++;
-			}
+			if(off == l)
+				return NULL;
+			pool->ptrs = realloc(pool->ptrs, sizeof(*pool->ptrs) * (pool->nPtrs + 1));
+			if(!pool->ptrs)
+				return NULL;
+			i++;
+			memmove(pool->ptrs + i + 1, pool->ptrs + i, sizeof(*pool->ptrs) * (pool->nPtrs - i));
+			pool->ptrs[i] = (struct memptr) { .off = off, .sz = sz };
+			pool->nPtrs++;
 			return pool->ptrs + i;
 		}
 	}
@@ -83,34 +76,13 @@ const_alloc(const void *data, U32 szData)
 			pool->ptrs = realloc(pool->ptrs, sizeof(*pool->ptrs) * (pool->nPtrs + 1));
 			if(!pool->ptrs)
 				return NULL;
-			pool->ptrs[pool->nPtrs++] = (struct memptr) { .off = off, .sz = szAligned / sizeof(U32), .nRef = 1 };
+			pool->ptrs[pool->nPtrs++] = (struct memptr) { .off = off, .sz = szAligned / sizeof(U32) };
 			void *const d = (U32*) pool->data + off;
 			memcpy(d, data, szData);
 			return d;
 		}
 	}
 	return NULL;
-}
-
-int
-const_free(void *data)
-{
-	struct mempool *pool;
-
-	if(data < (void*) first->data)
-		return -1;
-	for(pool = first; pool; pool = pool->next)
-		if(data < (void*) pool->data + sizeof(pool->data)) {
-			for(U32 i = 0; i < pool->nPtrs; i++)
-				if((U32*) data == (U32*) pool->data + pool->ptrs[i].off) {
-					if(!pool->ptrs[i].nRef)
-						return -1;
-					pool->ptrs[i].nRef--;
-					return 0;
-				}
-			break;
-		}
-	return -1;
 }
 
 U32

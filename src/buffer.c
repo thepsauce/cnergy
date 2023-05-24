@@ -1,5 +1,70 @@
 #include "cnergy.h"
 
+struct buffer **buffers;
+U32 nBuffers;
+
+struct buffer *
+buffer_new(FILE *fp)
+{
+	struct buffer **newBuffers;
+	struct buffer *buf;
+
+	newBuffers = realloc(buffers, sizeof(*buffers) * (nBuffers + 1));
+	if(!newBuffers)
+		return NULL;
+	buf = malloc(sizeof(*buf));
+	if(!buf)
+		return NULL;
+	memset(buf, 0, sizeof(*buf));
+	if(fp) {
+		fseek(fp, 0, SEEK_END);
+		const U32 n = ftell(fp);
+		buf->data = malloc(BUFFER_GAP_SIZE + n);
+		if(!buf->data) {
+			free(buf);
+			return NULL;
+		}
+		buf->nData = n;
+		fseek(fp, 0, SEEK_SET);
+		fread(buf->data + BUFFER_GAP_SIZE, 1, n, fp);
+	} else {
+		buf->data = malloc(BUFFER_GAP_SIZE);
+		if(!buf->data) {
+			free(buf);
+			return NULL;
+		}
+	}
+	buf->nGap = BUFFER_GAP_SIZE;
+	buf->nRefs = 1;
+	buffers = newBuffers;
+	buffers[nBuffers++] = buf;
+	return buf;
+}
+
+void
+buffer_free(struct buffer *buf)
+{
+	if(!--buf->nRefs) {
+		free(buf->data);
+		for(U32 i = 0; i < buf->nEvents; i++) {
+			switch(buf->events[i].type) {
+			case EVENT_INSERT:
+				free(buf->events[i].ins);
+				break;
+			case EVENT_DELETE:
+				free(buf->events[i].del);
+				break;
+			case EVENT_REPLACE:
+				free(buf->events[i].ins);
+				free(buf->events[i].del);
+				break;
+			}
+		}
+		free(buf->events);
+		free(buf);
+	}
+}
+
 I32 
 unsafe_buffer_movecursor(struct buffer *buf, I32 distance)
 {

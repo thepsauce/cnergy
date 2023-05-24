@@ -1,5 +1,5 @@
 int
-c_state_string(struct c_state *s)
+c_state_string(struct state *s)
 {
 	if(s->data[s->index] == '\\') {
 		U32 hexChars = 0;
@@ -43,7 +43,7 @@ c_state_string(struct c_state *s)
 	} else {
 		s->attr = COLOR_PAIR(11);
 		if(s->data[s->index] == '\"' || s->data[s->index] == '\n')
-			c_popstate(s);
+			state_pop(s);
 	}
 	return 0;
 }

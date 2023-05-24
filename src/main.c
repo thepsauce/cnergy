@@ -77,6 +77,7 @@ main(int argc, char **argv)
 
 	// setup some windows for testing
 	struct window *w;
+	struct buffer *b;
 	FILE *fp;
 	// 0 right
 	// 1 below 
@@ -88,46 +89,36 @@ main(int argc, char **argv)
 		"include/cnergy.h",
 		"src/bind.c",
 	};
-	w = malloc(sizeof(*w));
-	memset(w, 0, sizeof(*w));
-	*w = (struct window) {
-		.nBuffers = 1,
-		.buffers = malloc(sizeof(*w->buffers)),
-	};
-	memset(w->buffers, 0, sizeof(*w->buffers));
 	fp = fopen("example_utf8.txt", "r");
-	buffer_insert_file(w->buffers, fp);
+	b = buffer_new(fp);
 	fclose(fp);
+	w = window_new(b);
 	first_window = w;
 	focus_window = w;
 	for(U32 i = 0; i < ARRLEN(path); i++) {
-		struct window *const new = malloc(sizeof(*new));
-		memset(new, 0, sizeof(*new));
-		if(!path[i]) {
-			w->right = new;
-			new->left = w;
-		} else {
-			w->below = new;
-			new->above = w;
-		}
-		w = new;
-		w->nBuffers = 1;
-		w->buffers = malloc(sizeof(*w->buffers));
-		memset(w->buffers, 0, sizeof(*w->buffers));
 		fp = fopen(files[i % ARRLEN(files)], "r");
-		buffer_insert_file(w->buffers, fp);
+		b = buffer_new(fp);
 		fclose(fp);
+		struct window *const new = window_new(b);
+		if(path[i])
+			window_attach(w, new, ATT_WINDOW_VERTICAL);
+		else
+			window_attach(w, new, ATT_WINDOW_HORIZONTAL);
+		w = new;
 	}
 
 	while(1) {
-		// TODO: reserve the very last line for some debug printing
+		if(!focus_window)
+			break;
+		// -1 to reserve a line to show key presses
 		first_window->lines = LINES - 1;
 		first_window->cols = COLS;
 		window_layout(first_window);
-		window_render(first_window);
+		for(U32 i = 0; i < n_windows; i++)
+			window_render(all_windows[i]);
 		move(focus_y, focus_x);
 		const int c = getch();
-		erase();
+		// 27 is Escape
 		if(c == 27 && (num || nKeys)) {
 			num = 0;
 			nKeys = 0;
@@ -137,38 +128,44 @@ main(int argc, char **argv)
 			char b[10];
 
 			b[0] = c;
-			const U32 len = !(c & 0x80) ? 1 : (c & 0xe0) == 0xc0 ? 2 : (c & 0xf0) == 0xe0 ? 3 : 4;
+			// get length of the following utf8 sequence
+			const U32 len = (c & 0xe0) == 0xc0 ? 2 : (c & 0xf0) == 0xe0 ? 3 : (c & 0xf8) == 0xf0 ? 4 : 1;
 			for(U32 i = 1; i < len; i++)
 				b[i] = getch();
-			buffer_insert(focus_window->buffers + focus_window->iBuffer, b, len);
+			buffer_insert(focus_window->buffers[focus_window->iBuffer], b, len);
 		}
 		if(!nKeys) {
 			if(isdigit(c) && (c != '0' || num)) {
 				num = SAFE_MUL(num, 10);
 				num = SAFE_ADD(num, c - '0');
-				move(LINES - 1, 0);
-				if(num)
-					printw("%d", num);
+				if(num) {
+					attrset(COLOR(7, 0));
+					mvprintw(LINES - 1, 0, "%d", num);
+					printw("%*s", COLS - getcurx(stdscr), "");
+				}
 				continue;
 			}
 		}
 		keys[nKeys] = c;
-		if(c == 0x03) // ^C
+		if(c == 'C' - 'A' + 1)
 			break;
 		move(LINES - 1, 0);
+		attrset(COLOR(3, 0));
 		if(num)
 			printw("%d", num);
 		for(U32 i = 0; i <= nKeys; i++)
 			printw("%s", keyname(keys[i]));
+		printw("%*s", COLS - getcurx(stdscr), "");
 		if(nKeys + 1 < ARRLEN(keys))
 			nKeys++;
 		keys[nKeys] = 0;
 		move(10, 0);
-		if(exec_bind(keys, num ? num : 1, focus_window) != 1) {
+		if(exec_bind(keys, num ? num : 1) != 1) {
 			nKeys = 0;
 			num = 0;
 		}
 	}
 	endwin();
+	printf("normal exit\n");
 	return 0;
 }

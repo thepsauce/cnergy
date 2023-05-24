@@ -129,7 +129,13 @@ translate_command(const char *word, U16 *pType)
 		{ "PASTE", BIND_CALL_PASTE },
 		{ "UNDO", BIND_CALL_UNDO },
 		{ "REDO", BIND_CALL_REDO },
-		{ "COLOR_TEST", BIND_CALL_COLOR_TEST },
+		{ "COLOR", BIND_CALL_COLORWINDOW },
+		{ "CLOSE", BIND_CALL_CLOSEWINDOW },
+		{ "NEW", BIND_CALL_NEWWINDOW },
+		{ "WRITE", BIND_CALL_WRITEFILE },
+		{ "READ", BIND_CALL_READFILE },
+		{ "OPEN", BIND_CALL_OPENWINDOW },
+		{ "QUIT", BIND_CALL_QUIT },
 	};
 	for(U32 i = 0; i < ARRLEN(namedCommands); i++)
 		if(!strcasecmp(namedCommands[i].word, word)) {
@@ -154,6 +160,8 @@ bind_parse(FILE *fp)
 	struct binding_mode *modes;
 	U32 nModes = 0;
 	size_t szModeBindings;
+	// the requests are necessary to allow usage before declaration
+	// append requests are added when a mode should be extended by another
 	struct append_request {
 		U32 receiver;
 		char donor[64];
@@ -161,6 +169,7 @@ bind_parse(FILE *fp)
 	U32 nAppendRequests = 0;
 	int *keys = NULL;
 	U32 nKeys = 0;
+	// param requests are added when a mode is used that is not yet defined
 	struct param_request {
 		U32 mode;
 		U32 major, minor;
@@ -342,9 +351,8 @@ bind_parse(FILE *fp)
 				}
 				if(window) {
 					if(del)
-						calls[nCalls].type = vert ? BIND_CALL_CLOSEWINDOW_BELOW : BIND_CALL_CLOSEWINDOW_RIGHT;
-					else
-						calls[nCalls].type = vert ? BIND_CALL_MOVEWINDOW_BELOW : BIND_CALL_MOVEWINDOW_RIGHT;
+						return -130;
+					calls[nCalls].type = vert ? BIND_CALL_MOVEWINDOW_BELOW : BIND_CALL_MOVEWINDOW_RIGHT;
 				} else if(del) {
 					calls[nCalls].type = vert ? BIND_CALL_DELETELINE : BIND_CALL_DELETE;
 				} else {

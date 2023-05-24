@@ -59,7 +59,6 @@ mergekeys(struct binding *b1, struct binding *b2)
 			int newKeys[b1->nKeys + n];
 			memcpy(newKeys, b1->keys, sizeof(*b1->keys) * b1->nKeys);
 			memcpy(newKeys + b1->nKeys, k2, sizeof(*k2) * n);
-			const_free(b1->keys);
 			b1->keys = const_alloc(newKeys, sizeof(newKeys));
 			if(!b1->keys)
 				return -1;
@@ -287,7 +286,7 @@ print_events(const struct event *events, U32 iEvent, U32 nEvents) {
 	}
 }
 
-int exec_bind(const int *keys, I32 amount, struct window *window)
+int exec_bind(const int *keys, I32 amount)
 {
 	const struct binding *binds;
 	U32 nBinds;
@@ -307,7 +306,7 @@ int exec_bind(const int *keys, I32 amount, struct window *window)
 				for(bcs = binds->calls, nbc = binds->nCalls; nbc; nbc--, bcs++) {
 					int r;
 					const struct binding_call bc = *bcs;
-					struct buffer *const buf = window->buffers + window->iBuffer;
+					struct buffer *const buf = focus_window->buffers[focus_window->iBuffer];
 					const I32 m = (bc.flags & FBIND_CALL_USENUMBER) ? amount * bc.param : bc.param;
 					r = m;
 					switch(bc.type) {
@@ -327,20 +326,20 @@ int exec_bind(const int *keys, I32 amount, struct window *window)
 
 						if(!buf->nData)
 							break;
-						if(window->selection > buf->iGap)
-							n = window->selection - buf->iGap + 1;
+						if(focus_window->selection > buf->iGap)
+							n = focus_window->selection - buf->iGap + 1;
 						else {
-							n = buf->iGap - window->selection + 1;
-							buffer_movecursor(buf, window->selection - buf->iGap);
+							n = buf->iGap - focus_window->selection + 1;
+							buffer_movecursor(buf, focus_window->selection - buf->iGap);
 						}
 						buffer_delete(buf, n);
-						window->selection = buf->iGap;
+						focus_window->selection = buf->iGap;
 						break;
 					}
 					case BIND_CALL_SETMODE:
 						iMode = bc.param;
 						if(modes[iMode].flags & FBIND_MODE_SELECTION)
-							window->selection = buf->iGap;
+							focus_window->selection = buf->iGap;
 						break;
 					case BIND_CALL_COPY: {
 						char *text;
@@ -348,12 +347,12 @@ int exec_bind(const int *keys, I32 amount, struct window *window)
 
 						if(!(modes[iMode].flags & FBIND_MODE_SELECTION) || !buf->nData)
 							break;
-						if(window->selection > buf->iGap) {
+						if(focus_window->selection > buf->iGap) {
 							text = buf->data + buf->iGap + buf->nGap;
-							nText = window->selection - buf->iGap + 1;
+							nText = focus_window->selection - buf->iGap + 1;
 						} else {
-							text = buf->data + window->selection;
-							nText = buf->iGap - window->selection + 1;
+							text = buf->data + focus_window->selection;
+							nText = buf->iGap - focus_window->selection + 1;
 						}
 						clipboard_copy(text, nText);
 						break;
@@ -374,31 +373,51 @@ int exec_bind(const int *keys, I32 amount, struct window *window)
 					case BIND_CALL_REDO:
 						buffer_redo(buf);
 						break;
-					case BIND_CALL_CLOSEWINDOW_RIGHT:
+					case BIND_CALL_COLORWINDOW:
+						// TODO: open a color window or focus an existing one
 						break;
-					case BIND_CALL_CLOSEWINDOW_BELOW:
+					case BIND_CALL_OPENWINDOW:
+						// TODO: show file view
 						break;
+					case BIND_CALL_CLOSEWINDOW:
+						window_close(focus_window);
+						r = focus_window ? m : m + 1;
+						break;
+					case BIND_CALL_NEWWINDOW: {
+						struct buffer *b;
+						struct window *w;
+
+						b = buffer_new(NULL);
+						if(!b)
+							break;
+						w = window_new(b);
+						if(w) {
+							window_attach(focus_window, w, ATT_WINDOW_UNSPECIFIED);
+							focus_window = w;
+						} else {
+							buffer_free(b);
+						}
+						break;
+					}
 					case BIND_CALL_MOVEWINDOW_RIGHT:
 						r = 0;
 						if(m > 0) {
-							for(; r != m && focus_window->right; r++)
-								focus_window = focus_window->right;
+							for(struct window *w = focus_window; r != m && (w = window_right(w)); r++)
+								focus_window = w;
 						} else {
-							for(; r != m && focus_window->left; r--)
-								focus_window = focus_window->left;
+							for(struct window *w = focus_window; r != m && (w = window_left(w)); r--)
+								focus_window = w;
 						}
 						break;
 					case BIND_CALL_MOVEWINDOW_BELOW:
 						r = 0;
 						if(m > 0) {
-							for(; r != m && focus_window->below; r++)
-								focus_window = focus_window->below;
+							for(struct window *w = focus_window; r != m && (w = window_below(w)); r--)
+								focus_window = w;
 						} else {
-							for(; r != m && focus_window->above; r--)
-								focus_window = focus_window->above;
+							for(struct window *w = focus_window; r != m && (w = window_above(w)); r--)
+								focus_window = w;
 						}
-						break;
-					case BIND_CALL_COLOR_TEST:
 						break;
 					}
 					if((bc.flags & FBIND_CALL_AND) && r != m)

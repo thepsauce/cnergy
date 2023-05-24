@@ -1,2 +1,2 @@
 -g  -D_PLATFORM=_X11
--lcurses -lX11 -lSDL2 -lSDL2_ttf
+-lcurses -lX11

@@ -1,19 +1,5 @@
 #include "cnergy.h"
 
-int
-c_pushstate(struct c_state *s, U32 state)
-{
-	s->stateStack[s->iStack++] = state;
-	return 0;
-}
-
-int
-c_popstate(struct c_state *s)
-{
-	s->state = s->stateStack[--s->iStack];
-	return 0;
-}
-
 static const struct {
 	int pair;
 	// note: be sure to increase this number when a list exceeds words; the word list is null terminated
@@ -40,6 +26,7 @@ static const struct {
 		"const",
 		"enum",
 		"extern",
+		"inline",
 		"register",
 		"static",
 		"struct",
@@ -459,7 +446,7 @@ static const struct {
 };
 
 int
-c_state_common(struct c_state *s)
+c_state_common(struct state *s)
 {
 	switch(s->data[s->index]) {
 	case 'a' ... 'z': case 'A' ... 'Z': case '_': {
@@ -471,29 +458,36 @@ c_state_common(struct c_state *s)
 		for(const char *const *ws = C_keywords[k].words, *w; w = *ws; ws++)
 			if(nWord == strlen(w) && !memcmp(w, s->data + startWord, nWord)) {
 				s->attr = COLOR_PAIR(C_keywords[k].pair);
-				break;
+				return 0;
 			}
+		for(U32 i = 0; i < s->nWords; i++) {
+			if(nWord == strlen(s->words[i].word) &&
+					!memcmp(s->words[i].word, s->data + startWord, nWord)) {
+				s->attr = s->words[i].attr;
+				return 0;
+			}
+		}
 		break;
 	}
 	case '.':
 		if(!isdigit(s->data[s->index + 1]))
 			goto case_char;
-		c_pushstate(s, s->state);
+		state_push(s, s->state);
 		s->state = C_STATE_NUMBER_FLOAT;
 		s->attr = COLOR_PAIR(14);
 		break;
 	case '0':
-		c_pushstate(s, s->state);
+		state_push(s, s->state);
 		s->state = C_STATE_NUMBER_ZERO;
 		s->attr = COLOR_PAIR(14);
 		break;
 	case '1' ... '9':
-		c_pushstate(s, s->state);
+		state_push(s, s->state);
 		s->state = C_STATE_NUMBER_DECIMAL;
 		s->attr = COLOR_PAIR(14);
 		break;
 	case '\"':
-		c_pushstate(s, s->state);
+		state_push(s, s->state);
 		s->state = C_STATE_STRING;
 		s->attr = COLOR_PAIR(11);
 		break;
@@ -551,22 +545,36 @@ c_state_common(struct c_state *s)
 			s->index--;
 		}
 		break;
-	case '(': case ')':
-	case '[': case ']':
-	case '{': case '}':
-		// TODO: Find a way to make paranthesis multi-colored by adding states
-		s->attr = COLOR_PAIR(C_bracketPairs[0]);
+	case '(':
+	case '[':
+	case '{':
+		if(state_addparan(s) <= 0)
+			s->attr = COLOR_PAIR(4);
+		else
+			s->attr = A_BOLD | COLOR_PAIR(7);
 		break;
+	case ')':
+	case ']':
+	case '}': {
+		const char counter = s->data[s->index] == ')' ? '(' :
+						s->data[s->index] == ']' ? '[' : '{';
+		switch(state_addcounterparan(s, counter)) {
+		case 0: s->attr = COLOR_PAIR(4); break;
+		case 1: s->attr = A_BOLD | COLOR_PAIR(7); break;
+		case 2: s->attr = A_REVERSE | COLOR_PAIR(2); break;
+		}
+		break;
+	}
 	case '/':
 		if(s->data[s->index + 1] == '/') {
 			s->index++;
-			c_pushstate(s, s->state);
+			state_push(s, s->state);
 			s->state = C_STATE_LINECOMMENT;
 			s->attr = COLOR_PAIR(5);
 			break;
 		} else if(s->data[s->index + 1] == '*') {
 			s->index++;
-			c_pushstate(s, s->state);
+			state_push(s, s->state);
 			s->state = C_STATE_MULTICOMMENT;
 			s->attr = COLOR_PAIR(5);
 			break;
@@ -597,7 +605,7 @@ c_state_common(struct c_state *s)
 #include "comment.h"
 
 int
-c_state_default(struct c_state *s)
+c_state_default(struct state *s)
 {
 	switch(s->data[s->index]) {
 	case '#':
@@ -621,7 +629,7 @@ c_state_default(struct c_state *s)
 	return 0;
 }
 
-int (*states[])(struct c_state *s) = {
+int (*c_states[])(struct state *s) = {
 	[C_STATE_DEFAULT] = c_state_default,
 
 	[C_STATE_STRING] = c_state_string,
@@ -640,16 +648,11 @@ int (*states[])(struct c_state *s) = {
 
 	[C_STATE_PREPROC] = c_state_preproc,
 	[C_STATE_PREPROC_COMMON] = c_state_preproc_common,
+	[C_STATE_PREPROC_DEFINE] = c_state_preproc_define,
 	[C_STATE_PREPROC_INCLUDE] = c_state_preproc_include,
+	[C_STATE_PREPROC_UNDEF] = c_state_preproc_undef,
 
 	[C_STATE_LINECOMMENT] = c_state_linecomment,
 	[C_STATE_MULTICOMMENT] = c_state_multicomment,
 };
-
-int
-c_feed(struct c_state *s)
-{
-	while(states[s->state](s));
-	return 0;
-}
 

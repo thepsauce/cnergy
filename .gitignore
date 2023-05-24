@@ -1,5 +1,5 @@
 out
-a.out
+*.out
 build/
 *.o
 *.gch

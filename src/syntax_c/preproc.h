@@ -2,7 +2,7 @@ static const struct {
 	const char *name;
 	U32 state;
 } C_preprocTransitions[] = {
-	{ "define"		, C_STATE_PREPROC_COMMON },
+	{ "define"		, C_STATE_PREPROC_DEFINE },
 	{ "elif"		, C_STATE_PREPROC_COMMON },
 	{ "else"		, C_STATE_PREPROC_COMMON },
 	{ "endif"		, C_STATE_PREPROC_COMMON },
@@ -11,24 +11,21 @@ static const struct {
 	{ "if"			, C_STATE_PREPROC_COMMON },
 	{ "ifdef"		, C_STATE_PREPROC_COMMON },
 	{ "ifndef"		, C_STATE_PREPROC_COMMON },
-	{ "import"		, C_STATE_PREPROC_INCLUDE },
 	{ "include"		, C_STATE_PREPROC_INCLUDE },
 	{ "include_next", C_STATE_PREPROC_INCLUDE },
 	{ "line"		, C_STATE_PREPROC_COMMON },
 	{ "pragma"		, C_STATE_PREPROC_COMMON },
 	{ "sccs"		, C_STATE_PREPROC_COMMON },
-	{ "undef"		, C_STATE_PREPROC_COMMON },
+	{ "undef"		, C_STATE_PREPROC_UNDEF },
 	{ "warning"		, C_STATE_PREPROC_COMMON },
 	{ "warn"		, C_STATE_PREPROC_COMMON },
 };
 
 int
-c_state_preproc_common(struct c_state *s)
+c_state_preproc_common(struct state *s)
 {
+	state_skipspace(s);
 	switch(s->data[s->index]) {
-	case ' ': case '\t':
-		s->attr = COLOR_PAIR(5);
-		break;
 	case '\\':
 		if(s->data[s->index + 1] == '\n')
 			s->index++;
@@ -45,8 +42,9 @@ c_state_preproc_common(struct c_state *s)
 }
 
 int
-c_state_preproc(struct c_state *s)
+c_state_preproc(struct state *s)
 {
+	state_skipspace(s);
 	switch(s->data[s->index]) {
 	case 'a' ... 'z': case 'A' ... 'Z': case '_': {
 		const U32 startWord = s->index;
@@ -71,8 +69,32 @@ c_state_preproc(struct c_state *s)
 }
 
 int
-c_state_preproc_include(struct c_state *s)
+c_state_preproc_define(struct state *s)
 {
+	state_skipspace(s);
+	switch(s->data[s->index]) {
+	case 'a' ... 'z': case 'A' ... 'Z': case '_': {
+		char *word;
+		const U32 startWord = s->index;
+		while(isalnum(s->data[++s->index]) || s->data[s->index] == '_');
+		const U32 nWord = s->index - startWord;
+		s->index--;
+		state_addword(s, 0, s->data + startWord, nWord);
+		s->attr = COLOR_PAIR(5);
+		s->state = C_STATE_PREPROC_COMMON;
+		break;
+	}
+	default:
+		s->state = C_STATE_PREPROC_COMMON;
+		return 1;
+	}
+	return 0;
+}
+
+int
+c_state_preproc_include(struct state *s)
+{
+	state_skipspace(s);
 	switch(s->data[s->index]) {
 	case '<':
 	case '\"': {
@@ -98,7 +120,30 @@ c_state_preproc_include(struct c_state *s)
 		break;
 	}
 	default:
-		return c_state_preproc_common(s);
+		s->state = C_STATE_PREPROC_COMMON;
+		return 1;
+	}
+	return 0;
+}
+
+int
+c_state_preproc_undef(struct state *s)
+{
+	state_skipspace(s);
+	switch(s->data[s->index]) {
+	case 'a' ... 'z': case 'A' ... 'Z': case '_': {
+		const U32 startWord = s->index;
+		while(isalnum(s->data[++s->index]) || s->data[s->index] == '_');
+		const U32 nWord = s->index - startWord;
+		s->index--;
+		state_removeword(s, 0, s->data + startWord, nWord);
+		s->attr = COLOR_PAIR(5);
+		s->state = C_STATE_PREPROC_COMMON;
+		break;
+	}
+	default:
+		s->state = C_STATE_PREPROC_COMMON;
+		return 1;
 	}
 	return 0;
 }

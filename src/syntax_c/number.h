@@ -1,5 +1,5 @@
 int
-c_check_intsuffix(struct c_state *s)
+c_check_intsuffix(struct state *s)
 {
 	switch(s->data[s->index]) {
 	case 'u':
@@ -22,18 +22,18 @@ c_check_intsuffix(struct c_state *s)
 }
 
 int
-c_state_number_errsuffix(struct c_state *s)
+c_state_number_errsuffix(struct state *s)
 {
 	if(isalnum(s->data[s->index])) {
 		s->attr = A_REVERSE | COLOR_PAIR(2);
 		return 0;
 	}
-	c_popstate(s);
+	state_pop(s);
 	return 1;
 }
 
 int
-c_state_number_usuffix(struct c_state *s)
+c_state_number_usuffix(struct state *s)
 {
 	switch(s->data[s->index]) {
 	case 'l':
@@ -48,7 +48,7 @@ c_state_number_usuffix(struct c_state *s)
 }
 
 int
-c_state_number_lsuffix(struct c_state *s)
+c_state_number_lsuffix(struct state *s)
 {
 	switch(s->data[s->index]) {
 	case 'l':
@@ -63,7 +63,7 @@ c_state_number_lsuffix(struct c_state *s)
 }
 
 int
-c_state_number_zero(struct c_state *s)
+c_state_number_zero(struct state *s)
 {
 	switch(s->data[s->index]) {
 	case 'x': case 'X':
@@ -93,7 +93,7 @@ c_state_number_zero(struct c_state *s)
 }
 
 int
-c_state_number_decimal(struct c_state *s)
+c_state_number_decimal(struct state *s)
 {
 	switch(s->data[s->index]) {
 	case '0' ... '9':
@@ -114,7 +114,7 @@ c_state_number_decimal(struct c_state *s)
 }
 
 int
-c_state_number_hex(struct c_state *s)
+c_state_number_hex(struct state *s)
 {
 	switch(s->data[s->index]) {
 	case 'a' ... 'f':
@@ -129,7 +129,7 @@ c_state_number_hex(struct c_state *s)
 }
 
 int
-c_state_number_octal(struct c_state *s)
+c_state_number_octal(struct state *s)
 {
 	switch(s->data[s->index]) {
 	case '0' ... '7':
@@ -142,7 +142,7 @@ c_state_number_octal(struct c_state *s)
 }
 
 int
-c_state_number_binary(struct c_state *s)
+c_state_number_binary(struct state *s)
 {
 	switch(s->data[s->index]) {
 	case '0': case '1':
@@ -155,7 +155,7 @@ c_state_number_binary(struct c_state *s)
 }
 
 int
-c_state_number_float(struct c_state *s)
+c_state_number_float(struct state *s)
 {
 	switch(s->data[s->index]) {
 	case '0' ... '9':
@@ -179,7 +179,7 @@ c_state_number_float(struct c_state *s)
 }
 
 int
-c_state_number_exp(struct c_state *s)
+c_state_number_exp(struct state *s)
 {
 	switch(s->data[s->index]) {
 	case '0' ... '9':
@@ -199,7 +199,7 @@ c_state_number_exp(struct c_state *s)
 }
 
 int
-c_state_number_negexp(struct c_state *s)
+c_state_number_negexp(struct state *s)
 {
 	s->state = C_STATE_NUMBER_EXP;
 	switch(s->data[s->index]) {

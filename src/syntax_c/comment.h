@@ -1,8 +1,8 @@
 int
-c_state_linecomment(struct c_state *s)
+c_state_linecomment(struct state *s)
 {
 	if(s->data[s->index] == '\n') {
-		c_popstate(s);
+		state_pop(s);
 		return 1;
 	}
 	if(s->data[s->index] == '\\' && s->data[s->index + 1] == '\n')
@@ -11,11 +11,11 @@ c_state_linecomment(struct c_state *s)
 }
 
 int
-c_state_multicomment(struct c_state *s)
+c_state_multicomment(struct state *s)
 {
 	if(s->data[s->index] == '*' && s->data[s->index + 1] == '/') {
 		s->index++;
-		c_popstate(s);
+		state_pop(s);
 	}
 	return 0;
 }

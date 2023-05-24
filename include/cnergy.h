@@ -1,6 +1,7 @@
 #ifndef INCLUDED_EDITOR_H
 #define INCLUDED_EDITOR_H
 
+#include <assert.h>
 #include <ctype.h>
 #include <curses.h>
 #include <limits.h>
@@ -60,7 +61,6 @@ typedef uint64_t U64;
 #define _WINDOWS 4
 
 void *const_alloc(const void *data, U32 sz);
-int const_free(void *data);
 U32 const_getid(const void *data);
 void *const_getdata(U32 id);
 
@@ -122,8 +122,18 @@ struct buffer {
 	struct event *events;
 	U32 nEvents;
 	U32 iEvent;
+	U32 nRefs;
 };
 
+extern struct buffer **buffers;
+extern U32 nBuffers;
+
+// Create a new buffer based on the given file, it may be null, then an empty buffer is created
+// This also adds it to the internal buffer list
+struct buffer *buffer_new(FILE *fp);
+// Decrement the reference counter of this buffer
+// It gets removed from memory if it hits 0
+void buffer_free(struct buffer *buf);
 // Returns the moved amount
 I32 unsafe_buffer_movecursor(struct buffer *buf, I32 distance);
 I32 buffer_movecursor(struct buffer *buf, I32 distance);
@@ -159,13 +169,16 @@ U32 buffer_getline(const struct buffer *buf, U32 line, char *dest, U32 maxDest);
 // It will store a list of states and their position and when re-rendering, it will
 // start from the closest previous state that is left to the caret.
 // When the user inserts a character, .... (TODO: think about this; lookahead makes this complicated)
+
 enum {
 	WINDOW_BUFFER,
+	WINDOW_FILEVIEW,
 	WINDOW_COLORS,
 };
 
 enum {
-	FWINDOW_PRIORITIZE_BELOW = 1 << 0,
+	// no flags yet
+	FWINDOW_______,
 };
 
 struct window {
@@ -175,28 +188,52 @@ struct window {
 	int line, col;
 	// size of the window
 	int lines, cols;
-	union {
-		struct {
-			// a window can have multiple buffers but must have at least one
-			U32 nBuffers;
-			U32 iBuffer;
-			struct buffer *buffers;
-			// scrolling values of the last render
-			U32 vScroll, hScroll;
-			// selection cursor
-			U32 selection;
-		};
-	};
-	// that window is left/right of this window
-	struct window *left, *right;
+	// a window can have multiple buffers but must have at least one
+	U32 nBuffers;
+	U32 iBuffer;
+	struct buffer **buffers;
+	// scrolling values of the last render
+	U32 vScroll, hScroll;
+	// selection cursor
+	U32 selection;
 	// that window is above/below this window
 	struct window *above, *below;
+	// that window is left/right of this window
+	struct window *left, *right;
 };
 
+extern struct window **all_windows;
+extern U32 n_windows;
 extern struct window *first_window;
 extern struct window *focus_window;
 extern int focus_y, focus_x;
 
+enum {
+	ATT_WINDOW_UNSPECIFIED,
+	ATT_WINDOW_VERTICAL,
+	ATT_WINDOW_HORIZONTAL,
+};
+
+// Create a new window and add it to the window list
+struct window *window_new(struct buffer *buf);
+// Safe function that detaches, deletes the window and changes focus-/first window if needed
+void window_close(struct window *win);
+// Delete this window from memory
+// Note: You must detach a window before deleting it, otherwise it's undefined behavior
+void window_delete(struct window *win);
+// These four functions have additional handling and may return non null values even though the internal struct value is null
+struct window *window_above(struct window *win);
+struct window *window_below(struct window *win);
+struct window *window_left(struct window *win);
+struct window *window_right(struct window *win);
+// Attach a window to another one
+// pos can be one of the following values:
+// ATT_WINDOW_UNSPECIFIED: The function decides where the window should best go
+// ATT_WINDOW_VERTICAL: The window should go below
+// ATT_WINDOW_HORIZONTAL: The window should go right 
+void window_attach(struct window *to, struct window *win, int pos);
+// Remove all connections to any other windows
+void window_detach(struct window *win);
 void window_layout(struct window *win);
 void window_render(struct window *win);
 
@@ -216,11 +253,15 @@ enum {
 	BIND_CALL_PASTE,
 	BIND_CALL_UNDO,
 	BIND_CALL_REDO,
-	BIND_CALL_CLOSEWINDOW_RIGHT,
-	BIND_CALL_CLOSEWINDOW_BELOW,
+	BIND_CALL_COLORWINDOW,
+	BIND_CALL_OPENWINDOW,
+	BIND_CALL_CLOSEWINDOW,
+	BIND_CALL_NEWWINDOW,
 	BIND_CALL_MOVEWINDOW_RIGHT,
 	BIND_CALL_MOVEWINDOW_BELOW,
-	BIND_CALL_COLOR_TEST,
+	BIND_CALL_WRITEFILE,
+	BIND_CALL_READFILE,
+	BIND_CALL_QUIT
 };
 
 enum {
@@ -259,13 +300,79 @@ int mode_getmergepos(struct binding_mode *modes, U32 nModes, U32 *pos);
 int mode_merge(struct binding_mode *modes, U32 nModes);
 
 int bind_parse(FILE *fp);
-int exec_bind(const int *keys, I32 amount, struct window *window);
+int exec_bind(const int *keys, I32 amount);
 
-/* Syntax highlighting for C */
+/* Syntax highlighting */
 
+struct state {
+	// the window we draw inside of
+	struct window *win;
+	int (**states)(struct state *s);
+	// the stack can be used to repurpose states (states within states)
+	U32 stateStack[32];
+	U32 iStack;
+	// current active state
+	U32 state;
+	// words to highlight, the word data is placed into the const_alloc space
+	// the words array should be freed when finished
+	struct {
+		int attr;
+		char *word;
+	} *words;
+	U32 nWords;
+	// paranthesis matching
+	struct state_paran {
+		int line, col;
+		int ch;
+	} *parans;
+	U32 nParans;
+	struct state_paran *misparans;
+	U32 nMisparans;
+	// set if the caret is on an opening paran
+	struct state_paran highlightparan;
+	// conceal can be set to non null to replace characters visually with other characters
+	// conceal is only used when the caret is not on the same line as the concealment
+	// conceal is not allowed to replace new lines, nor contain new lines (undefined behavior)
+	const char *conceal;
+	// attr is used when a state returns to print the character between the start and end of the state
+	int attr;
+	// this is the raw buffer data, index specifies the current index within the data
+	char *data;
+	U32 nData;
+	U32 index;
+	// cursor index for cursor assertions
+	U32 cursor;
+	// visual position of the cursor (can be used to highlight something later and not instantly)
+	U32 line, col;
+	U32 minLine, maxLine, minCol, maxCol;
+};
+
+// Push a state to the state stack
+int state_push(struct state *s, U32 state);
+// Pop the state from the state stack into the current state
+int state_pop(struct state *s);
+// Skip spaces and tabs
+void state_skipspace(struct state *s);
+// Add a word to the word list
+int state_addword(struct state *s, int attr, const char *word, U32 nWord);
+// Remove a word from the word list
+int state_removeword(struct state *s, int attr, const char *word, U32 nWord);
+// Add the current char as an opening paranthesis
+int state_addparan(struct state *s);
+// Add the current char as a closing paranthesis
+// This function will find matching paranthesis
+int state_addcounterparan(struct state *s, int counter);
+// Acquire the next syntax element
+int state_continue(struct state *s);
+// Draw a char to the window
+// Note: ONLY call this inside of c_cleanup
+void state_addchar(struct state *s, int line, int col, char ch, int attr);
+// Free all resources associated to this state
+int state_cleanup(struct state *s);
+
+// C syntax
 enum {
 	C_STATE_DEFAULT,
-	C_STATE_IDENTF,
 	C_STATE_STRING,
 
 	C_STATE_NUMBER,
@@ -283,32 +390,23 @@ enum {
 
 	C_STATE_PREPROC,
 	C_STATE_PREPROC_COMMON,
+	C_STATE_PREPROC_DEFINE,
 	C_STATE_PREPROC_INCLUDE,
+	C_STATE_PREPROC_UNDEF,
 
 	C_STATE_LINECOMMENT,
 	C_STATE_MULTICOMMENT,
 };
 
-struct c_state {
-	// the stack can be used to repurpose states (states within states)
-	U32 stateStack[32];
-	U32 iStack;
-	// current active state
-	U32 state;
-	// conceal can be set to non null to replace characters visually with other characters
-	// conceal is only used when the caret is not on the same line as the concealment
-	// conceal is not allowed to replace new lines, nor contain new lines (undefined behavior)
-	const char *conceal;
-	// attr is used when a state returns to print the character between the start and end of the state
-	int attr;
-	// this is the raw buffer data, index specifies the current index within the data
-	char *data;
-	U32 nData;
-	U32 index;
-	// cursor index for cursor assertions
-	U32 cursor;
+extern int (*c_states[])(struct state *s);
+
+// cnergy syntax
+enum {
+	CNERGY_STATE_DEFAULT,
+	CNERGY_STATE_KEYLIST,
+	CNERGY_STATE_COMMANDLIST,
 };
 
-int c_feed(struct c_state *s);
+extern int (*cnergy_states[])(struct state *s);
 
 #endif

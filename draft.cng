@@ -30,7 +30,7 @@ normal: lazy, normal_movement
 ^W l >wN
 ^W SPACE $wN
 ^W BACK $w-N
-^A a !color_test 
+^W n !new
 O >home +\n $-N
 o >end +\n :insert
 I >home :insert
@@ -48,6 +48,9 @@ p !paste
 u !undo
 ^R !redo
 v :visual
+: w !write
+: q !close
+: q a !quit
 
 $insert: lazy
 
