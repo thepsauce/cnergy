@@ -53,7 +53,10 @@ u !undo
 v :visual
 ##: w !write
 ##: r !read
+
+## Testing
 T #N (( #-1 & +"T" ))
+M ?"int" ^ +"int" ^ +"u" ^ <3 ^ <1
 
 $insert: lazy
 

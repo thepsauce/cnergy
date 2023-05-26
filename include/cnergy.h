@@ -181,6 +181,8 @@ enum {
 	FWINDOW_______,
 };
 
+struct state;
+
 struct window {
 	U32 flags;
 	U32 type;
@@ -200,6 +202,8 @@ struct window {
 	struct window *above, *below;
 	// that window is left/right of this window
 	struct window *left, *right;
+	// syntax states
+	int (**states)(struct state *s);
 };
 
 extern struct window **all_windows;
@@ -272,6 +276,7 @@ enum {
 	FBIND_CALL_USENUMBER = 1 << 0,
 	FBIND_CALL_AND = 1 << 1,
 	FBIND_CALL_OR = 1 << 2,
+	FBIND_CALL_XOR = 1 << 4,
 };
 
 struct binding_call {
@@ -313,7 +318,6 @@ int exec_bind(const int *keys, I32 amount);
 struct state {
 	// the window we draw inside of
 	struct window *win;
-	int (**states)(struct state *s);
 	// the stack can be used to repurpose states (states within states)
 	U32 stateStack[32];
 	U32 iStack;
@@ -380,42 +384,8 @@ void state_addchar(struct state *s, int line, int col, char ch, int attr);
 int state_cleanup(struct state *s);
 
 // C syntax
-enum {
-	C_STATE_DEFAULT,
-	C_STATE_STRING,
-
-	C_STATE_NUMBER,
-	C_STATE_NUMBER_ZERO,
-	C_STATE_NUMBER_DECIMAL,
-	C_STATE_NUMBER_HEX,
-	C_STATE_NUMBER_OCTAL,
-	C_STATE_NUMBER_BINARY,
-	C_STATE_NUMBER_EXP,
-	C_STATE_NUMBER_NEGEXP,
-	C_STATE_NUMBER_FLOAT,
-	C_STATE_NUMBER_ERRSUFFIX,
-	C_STATE_NUMBER_LSUFFIX,
-	C_STATE_NUMBER_USUFFIX,
-
-	C_STATE_PREPROC,
-	C_STATE_PREPROC_COMMON,
-	C_STATE_PREPROC_DEFINE,
-	C_STATE_PREPROC_INCLUDE,
-	C_STATE_PREPROC_UNDEF,
-
-	C_STATE_LINECOMMENT,
-	C_STATE_MULTICOMMENT,
-};
-
 extern int (*c_states[])(struct state *s);
-
 // cnergy syntax
-enum {
-	CNERGY_STATE_DEFAULT,
-	CNERGY_STATE_KEYLIST,
-	CNERGY_STATE_COMMANDLIST,
-};
-
 extern int (*cnergy_states[])(struct state *s);
 
 #endif

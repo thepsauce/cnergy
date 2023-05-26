@@ -40,6 +40,7 @@ enum {
 	ERR_LOOP_TOO_DEEP,
 	ERR_END_OF_LOOP_WITHOUT_START,
 	ERR_EMPTY_LOOP,
+	ERR_XOR_LOOP,
 };
 
 static const char *error_messages[] = {
@@ -57,6 +58,7 @@ static const char *error_messages[] = {
 	[ERR_LOOP_TOO_DEEP] = "loop is too deep",
 	[ERR_END_OF_LOOP_WITHOUT_START] = "reached an end of a loop but there is no start",
 	[ERR_EMPTY_LOOP] = "loop cannot be empty",
+	[ERR_XOR_LOOP] = "xor is not allowed before the start or end of a loop",
 };
 
 struct bind_parser {
@@ -522,17 +524,19 @@ read_call(struct bind_parser *parser)
 	if(!newCalls)
 		return OUTOFMEMORY;
 	parser->calls = newCalls;
-	parser->calls[parser->nCalls].flags = 0;
-again:
 	switch(parser->c) {
 	case '|':
-		while(isblank(parser_getc(parser)));
-		parser->calls[parser->nCalls].flags |= FBIND_CALL_OR;
-		goto again;
 	case '&':
+	case '^':
 		while(isblank(parser_getc(parser)));
-		parser->calls[parser->nCalls].flags |= FBIND_CALL_AND;
-		goto again;
+		parser->calls[parser->nCalls].flags = 
+			parser->c == '|' ? FBIND_CALL_OR : 
+			parser->c == '&' ? FBIND_CALL_AND : FBIND_CALL_XOR;
+		break;
+	default:
+		parser->calls[parser->nCalls].flags = 0;
+	}
+	switch(parser->c) {
 	case '(':
 		if(parser_getc(parser) != '(') {
 			parser_pusherror(parser, ERR_INVALID_COMMAND);
@@ -541,6 +545,10 @@ again:
 		parser_getc(parser);
 		if(parser->nLoopStack == ARRLEN(parser->loopStack)) {
 			parser_pusherror(parser, ERR_LOOP_TOO_DEEP);
+			return SKIP;
+		}
+		if(parser->calls[parser->nCalls].flags & FBIND_CALL_XOR) {
+			parser_pusherror(parser, ERR_XOR_LOOP);
 			return SKIP;
 		}
 		parser->loopStack[parser->nLoopStack++] = parser->nCalls;
@@ -554,6 +562,10 @@ again:
 		parser_getc(parser);
 		if(!parser->nLoopStack) {
 			parser_pusherror(parser, ERR_END_OF_LOOP_WITHOUT_START);
+			return SKIP;
+		}
+		if(parser->calls[parser->nCalls].flags & FBIND_CALL_XOR) {
+			parser_pusherror(parser, ERR_XOR_LOOP);
 			return SKIP;
 		}
 		parser->calls[parser->nCalls].param = parser->nCalls - parser->loopStack[--parser->nLoopStack];
@@ -847,6 +859,7 @@ bind_parse(FILE *fp)
 	}
 	errCode = parser.nErrors ? 1 : 0;
 err:
+	free(parser.str);
 	free(parser.keys);
 	free(parser.calls);
 	for(U32 i = 0; i < parser.nModes; i++)

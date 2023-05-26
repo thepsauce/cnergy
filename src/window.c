@@ -239,18 +239,24 @@ window_render(struct window *win)
 	}
 	buf->data[buf->nData] = EOF;
 
-	// get width of line numbers
-	nLineNumbers = 1; // initial padding to the right side
-	if(win->left)
-		nLineNumbers++; // add some padding
-	for(U32 i = buffer_line(buf) + 1; i; i /= 10)
-		nLineNumbers++;
+	// prepare state
+	memset(&state, 0, sizeof(state));
 
 	// scroll the text if the caret is out of view
 	if(curLine < win->vScroll)
 		win->vScroll = curLine;
 	if(curLine >= win->lines - 1 + win->vScroll)
 		win->vScroll = curLine - (win->lines - 2);
+
+	state.minLine = win->vScroll;
+	state.maxLine = win->vScroll + win->lines - 1;
+
+	// get width of line numbers
+	nLineNumbers = 1; // initial padding to the right side
+	if(win->left)
+		nLineNumbers++; // add some padding
+	for(U32 i = state.maxLine; i; i /= 10)
+		nLineNumbers++;
 
 	// note that we scroll a little extra horizontally
 	// TODO: fix bug where scrolling will sometimes cause the cursor to be misaligned with a multi width character
@@ -259,10 +265,6 @@ window_render(struct window *win)
 	if(curCol >= win->cols - nLineNumbers + win->hScroll)
 		win->hScroll = curCol - (win->cols - nLineNumbers - 2) + win->cols / 4;
 
-	// get bounds of text
-	memset(&state, 0, sizeof(state));
-	state.minLine = win->vScroll;
-	state.maxLine = win->vScroll + win->lines - 1;
 	state.minCol = win->hScroll;
 	state.maxCol = win->hScroll - nLineNumbers + win->cols;
 
@@ -286,10 +288,9 @@ window_render(struct window *win)
 	// draw first line if needed
 	if(!win->vScroll) {
 		attrset(win == focus_window ? COLOR(11, 8) : COLOR(3, 8));
-		mvprintw(win->line, win->col, "%*d ", nLineNumbers - 1, 1);
+		printw("%*d ", nLineNumbers - 1, 1);
 	}
 	state.win = win;
-	state.states = c_states;
 	state.data = buf->data;
 	state.nData = buf->nData;
 	state.cursor = saveiGap;
@@ -298,7 +299,8 @@ window_render(struct window *win)
 
 	// draw all data
 	for(U32 i = 0; i < buf->nData; state.index = i) {
-		state_continue(&state);
+		if(win->states)
+			state_continue(&state);
 		if(state.conceal) {
 			const char *conceal;
 				
@@ -354,13 +356,14 @@ window_render(struct window *win)
 			} else if(ch == '\n') {
 				if(state.line >= state.minLine && state.line < state.maxLine) {
 					// draw extra space for selection
-					if(i >= minSel && i <= maxSel && state.col >= state.minCol && state.col < state.maxCol) {
-						attrset(A_REVERSE);
-						addch(' ');
+					if(i >= minSel && i <= maxSel) {
+						if(state.col >= state.minCol && state.col < state.maxCol) {
+							attrset(A_REVERSE);
+							addch(' ');
+						}
+						state.col++;
 					}
-					state.col++;
 					// erase rest of line
-					// TODO: there is some bug where on lines with visible content, the very last character is not erased
 					attrset(0);
 					state.col = MAX(state.col, state.minCol);
 					if(state.col < state.maxCol)

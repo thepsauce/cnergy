@@ -175,6 +175,6 @@ state_cleanup(struct state *s)
 int
 state_continue(struct state *s)
 {
-	while(s->states[s->state](s));
+	while(s->win->states[s->state](s));
 	return 0;
 }

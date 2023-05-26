@@ -341,6 +341,11 @@ exec_bind(const int *keys, I32 amount)
 					const I32 m = (bc.flags & FBIND_CALL_USENUMBER) ? SAFE_MUL(amount, bc.param) : bc.param;
 					if((bc.flags & FBIND_CALL_AND) && !frame.state)
 						goto end_frame;
+					if((bc.flags & FBIND_CALL_XOR) && frame.state) {
+						// note that startloop and endloop are not allowed to have the xor flag, this is checked for in the parser
+						frame.state = false;
+						continue;
+					}
 					switch(bc.type) {
 					case BIND_CALL_ASSERT: {
 						const char *const str = const_getdata(bc.param);

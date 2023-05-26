@@ -34,15 +34,15 @@ main(int argc, char **argv)
 
 	if(has_colors()) {
 		static const U8 gruvbox_colors[16][3] = {
-			{ 40, 40, 40 },   // 1: Black
+			{ 35, 35, 35 },   // 1: Black
 			{ 204, 36, 29 },  // 2: Red
 			{ 152, 151, 26 }, // 3: Green
 			{ 215, 153, 33 }, // 4: Yellow
 			{ 69, 133, 136 }, // 5: Blue
 			{ 177, 98, 134 }, // 6: Magenta
 			{ 104, 157, 106 }, // 7: Cyan
-			{ 204, 204, 204 }, // 8: Light gray
-			{ 55, 54, 54 },   // 9: Dark gray
+			{ 184, 184, 184 }, // 8: Light gray
+			{ 70, 69, 69 },   // 9: Dark gray
 			{ 251, 73, 52 },  // 10: Bright red
 			{ 184, 187, 38 }, // 11: Bright green
 			{ 250, 189, 47 }, // 12: Bright yellow
@@ -80,10 +80,11 @@ main(int argc, char **argv)
 		"include/cnergy.h",
 		"src/bind.c",
 	};
-	fp = fopen("example_utf8.txt", "r");
+	fp = fopen("draft.cng", "r");
 	b = buffer_new(fp);
 	fclose(fp);
 	w = window_new(b);
+	w->states = cnergy_states;
 	first_window = w;
 	focus_window = w;
 	for(U32 i = 0; i < ARRLEN(path); i++) {
@@ -96,6 +97,7 @@ main(int argc, char **argv)
 		else
 			window_attach(w, new, ATT_WINDOW_HORIZONTAL);
 		w = new;
+		w->states = c_states;
 	}
 
 	while(1) {
