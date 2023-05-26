@@ -241,6 +241,10 @@ void window_render(struct window *win);
 
 enum {
 	BIND_CALL_NULL,
+	BIND_CALL_STARTLOOP,
+	BIND_CALL_ENDLOOP,
+	BIND_CALL_REGISTER,
+	BIND_CALL_ASSERT,
 	BIND_CALL_MOVECURSOR,
 	BIND_CALL_MOVEHORZ,
 	BIND_CALL_MOVEVERT,
@@ -267,6 +271,7 @@ enum {
 enum {
 	FBIND_CALL_USENUMBER = 1 << 0,
 	FBIND_CALL_AND = 1 << 1,
+	FBIND_CALL_OR = 1 << 2,
 };
 
 struct binding_call {
@@ -296,6 +301,7 @@ struct binding_mode {
 };
 
 U32 mode_has(U32 flags);
+const char *mode_name(void);
 int mode_getmergepos(struct binding_mode *modes, U32 nModes, U32 *pos);
 int mode_merge(struct binding_mode *modes, U32 nModes);
 
@@ -325,10 +331,8 @@ struct state {
 	struct state_paran {
 		int line, col;
 		int ch;
-	} *parans;
-	U32 nParans;
-	struct state_paran *misparans;
-	U32 nMisparans;
+	} *parans, *misparans;
+	U32 nParans, nMisparans;
 	// set if the caret is on an opening paran
 	struct state_paran highlightparan;
 	// conceal can be set to non null to replace characters visually with other characters

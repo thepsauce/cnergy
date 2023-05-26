@@ -291,7 +291,6 @@ buffer_addevent(struct buffer *buf)
 U32
 buffer_insert(struct buffer *buf, const char *str, U32 nStr)
 {
-	U32 i;
 	struct event *ev;
 
 	// if gap is too small to insert n characters, increase gap size
@@ -312,12 +311,7 @@ buffer_insert(struct buffer *buf, const char *str, U32 nStr)
 	buf->nData += nStr;
 	// update vct
 	const U32 prevVct = buf->vct;
-	for(i = nStr; i > 0; i--)
-		if(str[i - 1] == '\n') {
-			buf->vct = 0;
-			break;
-		}
-	buf->vct += utf8_widthnstr(str + i, nStr - i);
+	buf->vct = buffer_col(buf);
 	// try to join events
 	if(buf->iEvent) {
 		ev = buf->events + buf->iEvent - 1;
@@ -341,8 +335,10 @@ buffer_insert(struct buffer *buf, const char *str, U32 nStr)
 		.ins = malloc(nStr),
 		.nIns = nStr,
 	};
-	if(!ev->ins)
+	if(!ev->ins) {
+		buf->nEvents--;
 		return nStr;
+	}
 	memcpy(ev->ins, str, nStr);
 	return nStr;
 }
@@ -374,7 +370,6 @@ buffer_delete(struct buffer *buf, I32 amount)
 	if(!amount)
 		return 0;
 	// add event
-	// TODO: CODE REPETITION
 	if(!(ev = buffer_addevent(buf)))
 		return amount;
 	*ev = (struct event) {
@@ -384,8 +379,10 @@ buffer_delete(struct buffer *buf, I32 amount)
 		.del = malloc(ABS(amount)),
 		.nDel = ABS(amount),
 	};
-	if(!ev->del)
+	if(!ev->del) {
+		buf->nEvents--;
 		return 0;
+	}
 	if(amount > 0) {
 		memcpy(ev->del, buf->data + buf->iGap + buf->nGap, amount);
 		ev->iGap = buf->iGap;
@@ -399,18 +396,8 @@ buffer_delete(struct buffer *buf, I32 amount)
 		ev->vct = buf->vct;
 		buf->nGap -= amount;
 		buf->nData += amount;
-		// update vct
-		for(U32 i = buf->iGap; i < buf->iGap - amount; i++)
-			if(buf->data[i] == '\n') {
-				const U32 end = i;
-				for(; i > 0; i--)
-					if(buf->data[i - 1] == '\n')
-						break;
-				buf->vct = utf8_widthnstr(buf->data + i, end - i);
-				return amount;
-			}
-		buf->vct -= utf8_widthnstr(buf->data + buf->iGap, -amount);
 	}
+	buf->vct = buffer_col(buf);
 	return amount;
 }
 
@@ -457,7 +444,6 @@ buffer_deleteline(struct buffer *buf, I32 amount)
 	buf->nGap = r - l;
 	buf->nData -= amount;
 	// add event
-	// TODO: CODE REPETITION
 	if(!(ev = buffer_addevent(buf)))
 		return nLinesDeleted;
 	*ev = (struct event) {
@@ -469,8 +455,10 @@ buffer_deleteline(struct buffer *buf, I32 amount)
 		.del = malloc(amount),
 		.nDel = amount,
 	};
-	if(!ev->del)
+	if(!ev->del) {
+		buf->nEvents--;
 		return nLinesDeleted;
+	}
 	memcpy(ev->del, buf->data + l, amount);
 	return nLinesDeleted;
 }

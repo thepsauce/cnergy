@@ -11,9 +11,8 @@ DOWN .N
 
 0 >home
 $ >end
-G $end
-g g `home .N & `1
-g G .end `N & .1
+g g .home .N & `1
+g G, G .end `N & .1
 BACK $-N
 SPACE $N
 ^J .1 & >home
@@ -32,7 +31,8 @@ normal: lazy, normal_movement
 ^W BACK $w-N
 ^W n !new
 ^W w !close
-O >home +\n $-N
+O >home +\n $-1 :insert
+O >home +\n :insert
 o >end +\n :insert
 I >home :insert
 A >end :insert
@@ -45,13 +45,15 @@ d D `xN
 d d .xN
 d k `x1 `xN
 d j .x1 .xN
-##TODO: J >end >x1 & (( ?"\t" | ?" " & >x1 )) & +" "
+## .1 & `1 checks if there is a line below
+J .1 & `1 >end +" " >x1 (( ?"\t" | ?" " & >x1 ))
 p !paste
 u !undo
 ^R !redo
 v :visual
-: w !write
+##: w !write
 ##: r !read
+T #N (( #-1 & +"T" ))
 
 $insert: lazy
 
@@ -63,7 +65,7 @@ ESC :normal
 ## some tests for interactive coding
 i f ( +) $-1
 i f { <x1 +"() {\n}" $-5
-m a i n <x4 +"int\nmain(int argc, char **argv)\n{\n\treturn 0;\n}"
+m a i n <x4 +"int\nmain(int argc, char **argv)\n{\n\treturn 0;\n}" $-13
 w h i l e ( 1 ) <x8 +for(;;)
 ^W b e g <x3 $home
 ^W e n d <x3 $end

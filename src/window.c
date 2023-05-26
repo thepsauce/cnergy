@@ -285,7 +285,7 @@ window_render(struct window *win)
 	move(win->line, win->col);
 	// draw first line if needed
 	if(!win->vScroll) {
-		attrset(COLOR(3, 8));
+		attrset(win == focus_window ? COLOR(11, 8) : COLOR(3, 8));
 		mvprintw(win->line, win->col, "%*d ", nLineNumbers - 1, 1);
 	}
 	state.win = win;
@@ -324,8 +324,10 @@ window_render(struct window *win)
 			attrset(state.attr);
 			const U32 len = utf8_len(buf->data + i, buf->nData - i);
 			if(state.col >= state.minCol && state.col < state.maxCol) {
+				if(i >= minSel && i <= maxSel)
+					attron(A_REVERSE);
 				if(!utf8_valid(buf->data + i, buf->nData - i)) {
-					attrset(COLOR(4, 0));
+					attron(COLOR(4, 0));
 					if(state.col >= state.minCol && state.col < state.maxCol)
 						addch('^');
 					if(state.col + 1 >= state.minCol && state.col + 1 < state.maxCol)
@@ -351,7 +353,14 @@ window_render(struct window *win)
 				} while((++state.col) % TABSIZE);
 			} else if(ch == '\n') {
 				if(state.line >= state.minLine && state.line < state.maxLine) {
+					// draw extra space for selection
+					if(i >= minSel && i <= maxSel && state.col >= state.minCol && state.col < state.maxCol) {
+						attrset(A_REVERSE);
+						addch(' ');
+					}
+					state.col++;
 					// erase rest of line
+					// TODO: there is some bug where on lines with visible content, the very last character is not erased
 					attrset(0);
 					state.col = MAX(state.col, state.minCol);
 					if(state.col < state.maxCol)
@@ -366,7 +375,7 @@ window_render(struct window *win)
 				state.col = 0;
 			} else if(iscntrl(ch)) {
 				if(state.line >= state.minLine && state.line < state.maxLine) {
-					attrset(COLOR(4, 0));
+					attron(COLOR(4, 0));
 					if(state.col >= state.minCol && state.col < state.maxCol)
 						addch('^');
 					if(state.col + 1 >= state.minCol && state.col + 1 < state.maxCol)

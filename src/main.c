@@ -11,24 +11,14 @@ main(int argc, char **argv)
 	// all below here is pretty much test code
 	FILE *f;
 
-	for(int i = 0; i < 3; i++) {
+	for(int i = 0; i < 1; i++) {
 		f = fopen("draft.cng", "r");
 
-		printf("RET: %d\n", bind_parse(f));
-
-		long pos = ftell(f);
-		int line = 1;
-		int col = 1;
-		fseek(f, 0, SEEK_SET);
-		while(--pos) {
-			if(fgetc(f) == '\n') {
-				line++;
-				col = 1;
-			} else
-				col++;
+		const int r = bind_parse(f);
+		if(r) {
+			printf("error parsing: %d\n", r);
+			return -1;
 		}
-		printf("l: %d, c: %d\n", line, col);
-
 		fclose(f);
 		print_modes(NULL, 0);
 	}
@@ -121,15 +111,25 @@ main(int argc, char **argv)
 		window_layout(first_window);
 		for(U32 i = n_windows; i > 0;)
 			window_render(all_windows[--i]);
-		move(focus_y, focus_x);
+		if(!mode_has(FBIND_MODE_SELECTION)) {
+			curs_set(1);	
+			move(focus_y, focus_x);
+		} else
+			curs_set(0);
 		c = getch();
-		if(c == 0x7f)
+		if(c == 0x03) // ^C
+			break;
+		switch(c) {
+		case 0x7f: // delete
 			c = KEY_BACKSPACE;
-		// 27 is Escape
-		if(c == 27 && (num || nKeys)) {
-			num = 0;
-			nKeys = 0;
-			continue;
+			break;
+		case 0x1b: // escape
+			if(num || nKeys) {
+				num = 0;
+				nKeys = 0;
+				continue;
+			}
+			break;
 		}
 		if(mode_has(FBIND_MODE_TYPE) && (isprint(c) || isspace(c))) {
 			char b[10];
@@ -141,23 +141,20 @@ main(int argc, char **argv)
 				b[i] = getch();
 			buffer_insert(focus_window->buffers[focus_window->iBuffer], b, len);
 		}
+		attrset(COLOR(3, 0));
+		mvprintw(LINES - 1, 0, "%s ", mode_name());
 		if(!nKeys) {
 			if(isdigit(c) && (c != '0' || num)) {
 				num = SAFE_MUL(num, 10);
 				num = SAFE_ADD(num, c - '0');
 				if(num) {
-					attrset(COLOR(7, 0));
-					mvprintw(LINES - 1, 0, "%d", num);
+					printw("%d", num);
 					printw("%*s", COLS - getcurx(stdscr), "");
 				}
 				continue;
 			}
 		}
 		keys[nKeys] = c;
-		if(c == 'C' - 'A' + 1)
-			break;
-		move(LINES - 1, 0);
-		attrset(COLOR(3, 0));
 		if(num)
 			printw("%d", num);
 		for(U32 i = 0; i <= nKeys; i++)
@@ -166,7 +163,6 @@ main(int argc, char **argv)
 		if(nKeys + 1 < ARRLEN(keys))
 			nKeys++;
 		keys[nKeys] = 0;
-		move(10, 0);
 		if(exec_bind(keys, num ? num : 1) != 1) {
 			nKeys = 0;
 			num = 0;

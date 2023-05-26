@@ -10,6 +10,12 @@ mode_has(U32 flags)
 	return modes[iMode].flags & flags;
 }
 
+inline const char *
+mode_name(void)
+{
+	return modes[iMode].name;
+}
+
 static inline struct binding_mode *
 getmode(const char *name, U32 *pIndex)
 {
@@ -152,13 +158,30 @@ print_escaped_string(const char *str) {
 	putchar('"');
 }
 
-static void
+void
 print_binding_calls(struct binding_call *calls, U32 nCalls) {
 	printf("{ ");
 	for(; nCalls; nCalls--, calls++) {
+		if(calls->flags & FBIND_CALL_AND)
+			printf("& ");
+		if(calls->flags & FBIND_CALL_OR)
+			printf("| ");
 		switch(calls->type) {
 		case BIND_CALL_NULL:
 			printf("NULL ");
+			break;
+		case BIND_CALL_ASSERT:
+			printf("ASSERT");
+			print_escaped_string(const_getdata(calls->param));
+			break;
+		case BIND_CALL_STARTLOOP:
+			printf("((");
+			break;
+		case BIND_CALL_ENDLOOP:
+			printf("))");
+			break;
+		case BIND_CALL_REGISTER:
+			printf("REGISTER %d", calls->param);
 			break;
 		case BIND_CALL_MOVECURSOR:
 			printf("MOVECURSOR %d", calls->param);
@@ -174,10 +197,10 @@ print_binding_calls(struct binding_call *calls, U32 nCalls) {
 			print_escaped_string(const_getdata(calls->param));
 			break;
 		case BIND_CALL_DELETE:
-			printf("DELETE");
+			printf("DELETE %d", calls->param);
 			break;
 		case BIND_CALL_DELETELINE:
-			printf("DELETELINE");
+			printf("DELETELINE %d", calls->param);
 			break;
 		case BIND_CALL_DELETESELECTION:
 			printf("DELETESELECTION");
@@ -196,8 +219,6 @@ print_binding_calls(struct binding_call *calls, U32 nCalls) {
 		}
 		if(calls->flags & FBIND_CALL_USENUMBER)
 			printf("N");
-		if(calls->flags & FBIND_CALL_AND)
-			printf("&");
 		putchar(' ');
 	}
 	printf("}");
@@ -286,7 +307,8 @@ print_events(const struct event *events, U32 iEvent, U32 nEvents) {
 	}
 }
 
-int exec_bind(const int *keys, I32 amount)
+int
+exec_bind(const int *keys, I32 amount)
 {
 	const struct binding *binds;
 	U32 nBinds;
@@ -294,7 +316,6 @@ int exec_bind(const int *keys, I32 amount)
 	const int *k;
 	const struct binding_mode *const mode = modes + iMode;
 	for(binds = mode->bindings, nBinds = mode->nBindings; nBinds; binds++, nBinds--) {
-		// TODO: maybe too much code repetition
 		for(const int *ks = binds->keys, *es = ks + binds->nKeys; ks != es; ks++) {
 			for(k = keys; *ks; ks++, k++)
 				if(*ks != *k)
@@ -302,30 +323,65 @@ int exec_bind(const int *keys, I32 amount)
 			if(!*ks && !*k) {
 				const struct binding_call *bcs;
 				U32 nbc;
+				struct state_frame {
+					bool state;
+					bool run;
+				} stateStack[32], frame;
+				U32 nStateStack = 0;
+				int reg = 0;
 
+				frame.state = true;
+				frame.run = false;
 				for(bcs = binds->calls, nbc = binds->nCalls; nbc; nbc--, bcs++) {
-					int r;
-					const struct binding_call bc = *bcs;
+					struct binding_call bc;
+					bool b = true;
+
+					bc = *bcs;
 					struct buffer *const buf = focus_window->buffers[focus_window->iBuffer];
-					const I32 m = (bc.flags & FBIND_CALL_USENUMBER) ? amount * bc.param : bc.param;
-					r = m;
+					const I32 m = (bc.flags & FBIND_CALL_USENUMBER) ? SAFE_MUL(amount, bc.param) : bc.param;
+					if((bc.flags & FBIND_CALL_AND) && !frame.state)
+						goto end_frame;
 					switch(bc.type) {
-					case BIND_CALL_MOVECURSOR: r = buffer_movecursor(buf, m); break;
-					case BIND_CALL_MOVEHORZ: r = buffer_movehorz(buf, m); break;
-					case BIND_CALL_MOVEVERT: r = buffer_movevert(buf, m); break;
-					case BIND_CALL_INSERT: {
-						const void *const p = const_getdata(bc.param);
-						if(p)
-							buffer_insert(buf, p, strlen(p));
+					case BIND_CALL_ASSERT: {
+						const char *const str = const_getdata(bc.param);
+						b = str && !memcmp(str, buf->data + buf->iGap + buf->nGap, MIN(strlen(str), buf->nData - buf->iGap));
 						break;
 					}
-					case BIND_CALL_DELETE: r = buffer_delete(buf, m); break;
-					case BIND_CALL_DELETELINE: r = buffer_deleteline(buf, m); break;
+					case BIND_CALL_STARTLOOP:
+						frame.state = true;
+						stateStack[nStateStack++] = frame;
+						frame.run = false;
+						// continue to ignore flags like and/or (they wouldn't do anything for startloop anyway)
+						continue;
+					case BIND_CALL_ENDLOOP:
+						bcs -= bc.param;
+						nbc += bc.param;
+						frame.state = true;
+						frame.run = true;
+						// continue to ignore flags like and/or
+						continue;
+					case BIND_CALL_REGISTER:
+						b = !!reg;
+						reg += m;
+						break;
+					case BIND_CALL_MOVECURSOR: b = buffer_movecursor(buf, m) == m; break;
+					case BIND_CALL_MOVEHORZ: b = buffer_movehorz(buf, m) == m; break;
+					case BIND_CALL_MOVEVERT: b = buffer_movevert(buf, m) == m; break;
+					case BIND_CALL_INSERT: {
+						const char *const str = const_getdata(bc.param);
+						if(str)
+							buffer_insert(buf, str, strlen(str));
+						break;
+					}
+					case BIND_CALL_DELETE: b = buffer_delete(buf, m) == m; break;
+					case BIND_CALL_DELETELINE: b = buffer_deleteline(buf, m) == m; break;
 					case BIND_CALL_DELETESELECTION: {
 						U32 n;
 
-						if(!buf->nData)
+						if(!(mode->flags & FBIND_MODE_SELECTION) || !buf->nData) {
+							b = false;
 							break;
+						}
 						if(focus_window->selection > buf->iGap)
 							n = focus_window->selection - buf->iGap + 1;
 						else {
@@ -368,10 +424,10 @@ int exec_bind(const int *keys, I32 amount)
 					}
 					case BIND_CALL_UNDO:
 						//print_events(buf->events, buf->iEvent, buf->nEvents);
-						buffer_undo(buf);
+						b = buffer_undo(buf);
 						break;
 					case BIND_CALL_REDO:
-						buffer_redo(buf);
+						b = buffer_redo(buf);
 						break;
 					case BIND_CALL_COLORWINDOW:
 						// TODO: open a color window or focus an existing one
@@ -381,25 +437,25 @@ int exec_bind(const int *keys, I32 amount)
 						break;
 					case BIND_CALL_CLOSEWINDOW:
 						window_close(focus_window);
-						r = focus_window ? m : m + 1;
+						b = !!focus_window;
 						break;
 					case BIND_CALL_NEWWINDOW: {
-						struct buffer *b;
-						struct window *w;
+						struct buffer *buf;
+						struct window *win;
 
-						b = buffer_new(NULL);
-						if(!b)
+						buf = buffer_new(NULL);
+						if(!buf)
 							break;
-						w = window_new(b);
-						if(w) {
-							window_attach(focus_window, w, ATT_WINDOW_UNSPECIFIED);
-							focus_window = w;
+						win = window_new(buf);
+						if(win) {
+							window_attach(focus_window, win, ATT_WINDOW_UNSPECIFIED);
+							focus_window = win;
 						} else {
-							buffer_free(b);
+							buffer_free(buf);
 						}
 						break;
 					}
-					case BIND_CALL_MOVEWINDOW_RIGHT:
+					/*case BIND_CALL_MOVEWINDOW_RIGHT:
 						r = 0;
 						if(m > 0) {
 							for(struct window *w = focus_window; r != m && (w = window_right(w)); r++)
@@ -418,12 +474,25 @@ int exec_bind(const int *keys, I32 amount)
 							for(struct window *w = focus_window; r != m && (w = window_above(w)); r--)
 								focus_window = w;
 						}
-						break;
+						break;*/
 					}
-					if((bc.flags & FBIND_CALL_AND) && r != m)
-						break;
+					while(((bc.flags & FBIND_CALL_OR) && !(frame.state |= b))
+							|| ((bc.flags & FBIND_CALL_AND) && !(frame.state &= b))) {
+					end_frame:
+						do {
+							nbc--;
+							bcs++;
+							if(!nbc)
+								return 0; // found end of program without any endloop in our way
+							bc = *bcs;
+						} while(bc.type != BIND_CALL_ENDLOOP);
+						b = frame.run;
+						frame = stateStack[--nStateStack];
+					}
+					if(!(bc.flags & (FBIND_CALL_AND | FBIND_CALL_OR)))
+						frame.state = b;
 				}
-				return 0;
+				return 0; // program finished normally
 			}
 			do ks++; while(*ks);
 			ret = !*k ? 1 : ret;
