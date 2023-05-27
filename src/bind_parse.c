@@ -419,7 +419,8 @@ read_key(struct bind_parser *parser)
 		{ "ESC", 27 },
 	};
 	key = parser->c;
-	if(isblank(parser_getc(parser)) || parser->c == ',')
+	parser_getc(parser);
+	if(isblank(parser->c) || parser->c == ',')
 		goto got_key;
 	if(key == '^') {
 		key = parser->c - ('A' - 1);
@@ -528,10 +529,10 @@ read_call(struct bind_parser *parser)
 	case '|':
 	case '&':
 	case '^':
-		while(isblank(parser_getc(parser)));
 		parser->calls[parser->nCalls].flags = 
 			parser->c == '|' ? FBIND_CALL_OR : 
 			parser->c == '&' ? FBIND_CALL_AND : FBIND_CALL_XOR;
+		while(isblank(parser_getc(parser)));
 		break;
 	default:
 		parser->calls[parser->nCalls].flags = 0;

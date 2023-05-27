@@ -51,7 +51,8 @@ p !paste
 u !undo
 ^R !redo
 v :visual
-##: w !write
+: w !write
+: e !open
 ##: r !read
 
 ## Testing

@@ -4,12 +4,18 @@
 #include <assert.h>
 #include <ctype.h>
 #include <curses.h>
+#include <dirent.h>
 #include <limits.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 /* General purpose */
 #define MAX(a, b) ({ \
@@ -54,6 +60,10 @@ typedef uint32_t U32;
 typedef uint64_t U64;
 
 #define COLOR(bg, fg) COLOR_PAIR(1 + ((bg) | ((fg) * 16)))
+#define ersline(max) ({ \
+	__auto_type _m = (max); \
+	printw("%*s", MAX((int) _m - getcurx(stdscr), 0), ""); \
+})
 
 #define _MACOS 1
 #define _X11 2
@@ -78,6 +88,11 @@ int utf8_len(const char *str, U32 nStr);
 // Checks if the given character is valid utf8
 // Note: nStr is not allowed to be 0, might cause segfault
 bool utf8_valid(const char *utf8, U32 nStr);
+
+/* Dialog */
+const char *choosefile(void);
+int messagebox(const char *title, const char *msg, ...);
+int getfiletime(const char *file, time_t *pTime);
 
 /* Clipboard */
 
@@ -186,6 +201,13 @@ struct state;
 struct window {
 	U32 flags;
 	U32 type;
+	// file that is open inside of this window
+	// this value can be null
+	char *file;
+	// time in milliseconds
+	time_t fileTime;
+	// this is the event on which the file was last saved
+	U32 saveEvent;
 	// position of the window
 	int line, col;
 	// size of the window

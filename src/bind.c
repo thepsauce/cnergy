@@ -80,7 +80,7 @@ mergebinds(struct binding_mode *m1, struct binding_mode *m2)
 {
 	struct binding *b1, *b2;
 	U32 n1, n2;
-	
+
 	for(b2 = m2->bindings, n2 = m2->nBindings; n2; n2--, b2++) {
 		for(b1 = m1->bindings, n1 = m1->nBindings; n1; n1--, b1++) {
 			struct binding_call *c1, *c2;
@@ -437,9 +437,35 @@ exec_bind(const int *keys, I32 amount)
 					case BIND_CALL_COLORWINDOW:
 						// TODO: open a color window or focus an existing one
 						break;
-					case BIND_CALL_OPENWINDOW:
-						// TODO: show file view
+					case BIND_CALL_OPENWINDOW: {
+						const char *const file = choosefile();
+						if(file) {
+							FILE *fp;
+							struct buffer *buf;
+							struct window *win;
+
+							fp = fopen(file, "r");
+							if(!fp) {
+								b = false;
+								break;
+							}
+							buf = buffer_new(fp);
+							fclose(fp);
+							if(!buf) {
+								b = false;
+								break;
+							}
+							win = window_new(buf);
+							if(win) {
+								window_attach(focus_window, win, ATT_WINDOW_UNSPECIFIED);
+								focus_window = win;
+							} else {
+								buffer_free(buf);
+								b = false;
+							}
+						}
 						break;
+					}
 					case BIND_CALL_CLOSEWINDOW:
 						window_close(focus_window);
 						b = !!focus_window;
@@ -449,17 +475,23 @@ exec_bind(const int *keys, I32 amount)
 						struct window *win;
 
 						buf = buffer_new(NULL);
-						if(!buf)
+						if(!buf) {
+							b = false;
 							break;
+						}
 						win = window_new(buf);
 						if(win) {
 							window_attach(focus_window, win, ATT_WINDOW_UNSPECIFIED);
 							focus_window = win;
 						} else {
 							buffer_free(buf);
+							b = false;
 						}
 						break;
 					}
+					case BIND_CALL_WRITEFILE:
+						messagebox("Hello there", "Are you sure?", "[Y]es", "[N]o", NULL);
+						break;
 					/*case BIND_CALL_MOVEWINDOW_RIGHT:
 						r = 0;
 						if(m > 0) {

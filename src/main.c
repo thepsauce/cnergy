@@ -84,11 +84,14 @@ main(int argc, char **argv)
 	b = buffer_new(fp);
 	fclose(fp);
 	w = window_new(b);
+	w->file = const_alloc("draft.cng", strlen("draft.cng") + 1);
+	getfiletime(w->file, &w->fileTime);
 	w->states = cnergy_states;
 	first_window = w;
 	focus_window = w;
 	for(U32 i = 0; i < ARRLEN(path); i++) {
-		fp = fopen(files[i % ARRLEN(files)], "r");
+		const char *file = files[i % ARRLEN(files)];
+		fp = fopen(file, "r");
 		b = buffer_new(fp);
 		fclose(fp);
 		struct window *const new = window_new(b);
@@ -97,6 +100,8 @@ main(int argc, char **argv)
 		else
 			window_attach(w, new, ATT_WINDOW_HORIZONTAL);
 		w = new;
+		w->file = const_alloc(file, strlen(file) + 1);
+		getfiletime(w->file, &w->fileTime);
 		w->states = c_states;
 	}
 

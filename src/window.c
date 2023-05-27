@@ -69,6 +69,44 @@ window_delete(struct window *win)
 	free(win);
 }
 
+// TODO: find a better place for this function
+int
+getfiletime(const char *file, time_t *pTime)
+{
+	struct stat statbuf;
+	if(stat(file, &statbuf) < 0)
+		return -1;
+	*pTime = statbuf.st_mtime;
+	return 0;
+}
+
+int
+window_write_buffer(struct window *win)
+{
+	FILE *fp;
+	time_t time;
+	const struct buffer *buf = win->buffers[win->iBuffer];
+	if(!win->file) {
+		win->file = choosefile();
+		if(!win->file)
+			return 1;
+	}
+	if(getfiletime(win->file, &time) < 0)
+		return -1;
+	if(time != win->fileTime) {
+		const int m = messagebox("File is not in line!", "The file you're trying to write to was modified outside the editor, do you still want to write to it?", "[Y]es", "[N]o", NULL);
+		if(m != 0)
+			return 1;
+	}
+	fp = fopen(win->file, "w");
+	if(!fp)
+		return -1;
+	fwrite(buf->data, 1, buf->iGap, fp);
+	fwrite(buf->data + buf->iGap + buf->nGap, 1, buf->nData - buf->iGap, fp);
+	fclose(fp);
+	return 0;
+}
+
 // TODO: add the special handling based on the focus_y and focus_x
 struct window *
 window_above(struct window *win)
@@ -407,9 +445,13 @@ window_render(struct window *win)
 	state_cleanup(&state);
 	// draw status bar (TODO: what if the status bar doesn't fit?)
 	attrset(win == focus_window ? COLOR(14, 8) : COLOR(6, 8));
-	mvaddstr(win->line + win->lines - 1, win->col, " Buffer ");
+	mvaddstr(win->line + win->lines - 1, win->col, " Buffer");
 	attrset(win == focus_window ? COLOR(11, 8) : COLOR(3, 8));
-	printw("%u, %u", curLine, curCol);
+	if(win->saveEvent != buf->iEvent)
+		addch('*');
+	if(win->file)
+		printw(" %s", win->file);
+	printw(" %u, %u", curLine, curCol);
 	printw("%*s", MAX(win->col + win->cols - getcurx(stdscr), 0), "");
 	// set the global end caret position
 	if(win == focus_window) {
