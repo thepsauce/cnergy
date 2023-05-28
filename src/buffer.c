@@ -1,7 +1,7 @@
 #include "cnergy.h"
 
-struct buffer **buffers;
-U32 nBuffers;
+struct buffer **all_buffers;
+U32 n_buffers;
 
 struct buffer *
 buffer_new(const char *file)
@@ -9,7 +9,16 @@ buffer_new(const char *file)
 	struct buffer **newBuffers;
 	struct buffer *buf;
 
-	newBuffers = safe_realloc(buffers, sizeof(*buffers) * (nBuffers + 1));
+	// find buffer with the same file
+	if(file) {
+		for(U32 i = 0; i < n_buffers; i++) {
+			buf = all_buffers[i];
+			if(buf->file && !strcmp(buf->file, file))
+				return buf;
+		}
+	}
+
+	newBuffers = safe_realloc(all_buffers, sizeof(*all_buffers) * (n_buffers + 1));
 	if(!newBuffers)
 		return NULL;
 	buf = safe_alloc(sizeof(*buf));
@@ -42,8 +51,8 @@ buffer_new(const char *file)
 		}
 	}
 	buf->nGap = BUFFER_GAP_SIZE;
-	buffers = newBuffers;
-	buffers[nBuffers++] = buf;
+	all_buffers = newBuffers;
+	all_buffers[n_buffers++] = buf;
 	return buf;
 }
 

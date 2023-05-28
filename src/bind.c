@@ -440,7 +440,7 @@ exec_bind(const int *keys, I32 amount)
 					case BIND_CALL_VSPLIT: {
 						struct window *win;
 
-						win = window_new(focus_window->buffer);
+						win = edit_new(focus_window->buffer, focus_window->states);
 						if(!win) {
 							b = false;
 							break;
@@ -451,7 +451,7 @@ exec_bind(const int *keys, I32 amount)
 					case BIND_CALL_HSPLIT: {
 						struct window *win;
 
-						win = window_new(focus_window->buffer);
+						win = edit_new(focus_window->buffer, focus_window->states);
 						if(!win) {
 							b = false;
 							break;
@@ -470,7 +470,7 @@ exec_bind(const int *keys, I32 amount)
 								b = false;
 								break;
 							}
-							win = window_new(buf);
+							win = edit_new(buf, edit_statesfromfiletype(file));
 							if(win) {
 								window_attach(focus_window, win, ATT_WINDOW_UNSPECIFIED);
 								focus_window = win;
@@ -494,7 +494,7 @@ exec_bind(const int *keys, I32 amount)
 							b = false;
 							break;
 						}
-						win = window_new(buf);
+						win = edit_new(buf, NULL);
 						if(win) {
 							window_attach(focus_window, win, ATT_WINDOW_UNSPECIFIED);
 							focus_window = win;

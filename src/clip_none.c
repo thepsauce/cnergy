@@ -1,6 +1,6 @@
-#include "cnergy.h"
+#ifndef __x11__
 
-#if _PLATFORM != _X11
+#include "cnergy.h"
 
 int
 clipboard_copy(const char *text, U32 nText)

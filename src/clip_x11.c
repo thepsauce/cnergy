@@ -1,6 +1,6 @@
-#include "cnergy.h"
+#ifdef __x11__
 
-#if _PLATFORM == _X11
+#include "cnergy.h"
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>

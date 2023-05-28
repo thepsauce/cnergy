@@ -67,11 +67,6 @@ typedef uint64_t U64;
 	printw("%*s", MAX((int) _m - getcurx(stdscr), 0), ""); \
 })
 
-#define _MACOS 1
-#define _X11 2
-#define _UNIX 3
-#define _WINDOWS 4
-
 void *const_alloc(const void *data, U32 sz);
 U32 const_getid(const void *data);
 void *const_getdata(U32 id);
@@ -150,8 +145,8 @@ struct buffer {
 	U32 iEvent;
 };
 
-extern struct buffer **buffers;
-extern U32 nBuffers;
+extern struct buffer **all_buffers;
+extern U32 n_buffers;
 
 // Create a new buffer based on the given file, it may be null, then an empty buffer is created
 // This also adds it to the internal buffer list
@@ -198,9 +193,8 @@ U32 buffer_getline(const struct buffer *buf, U32 line, char *dest, U32 maxDest);
 // When the user inserts a character, .... (TODO: think about this; lookahead makes this complicated)
 
 enum {
-	WINDOW_BUFFER,
-	WINDOW_FILEVIEW,
-	WINDOW_COLORS,
+	WINDOW_EDIT,
+	// TODO: add more
 };
 
 enum {
@@ -217,8 +211,6 @@ struct window {
 	int line, col;
 	// size of the window
 	int lines, cols;
-	// text buffer
-	struct buffer *buffer;
 	// scrolling values of the last render
 	U32 vScroll, hScroll;
 	// selection cursor
@@ -227,8 +219,15 @@ struct window {
 	struct window *above, *below;
 	// that window is left/right of this window
 	struct window *left, *right;
-	// syntax states
-	int (**states)(struct state *s);
+	union {
+		struct {
+			// text buffer
+			struct buffer *buffer;
+			// syntax states
+			int (**states)(struct state *s);
+		};
+		// TODO: add more...
+	};
 };
 
 extern struct window **all_windows;
@@ -244,7 +243,7 @@ enum {
 };
 
 // Create a new window and add it to the window list
-struct window *window_new(struct buffer *buf);
+struct window *window_new(void);
 // Safe function that detaches, deletes the window and changes focus-/first window if needed
 int window_close(struct window *win);
 // Delete this window from memory
@@ -266,7 +265,14 @@ void window_attach(struct window *to, struct window *win, int pos);
 // Remove all connections to any other windows
 void window_detach(struct window *win);
 void window_layout(struct window *win);
-void window_render(struct window *win);
+// Return values of 1 mean that the window wasn't rendered
+int window_render(struct window *win);
+
+// specific window types
+int (**edit_statesfromfiletype(const char *file))(struct state *s);
+struct window *edit_new(struct buffer *buf, int (**states)(struct state *s));
+int edit_render(struct window *win);
+// TODO: add more...
 
 /* Key bindings */
 

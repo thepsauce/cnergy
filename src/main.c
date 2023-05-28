@@ -80,20 +80,18 @@ main(int argc, char **argv)
 		"src/bind.c",
 	};
 	b = buffer_new("draft.cng");
-	w = window_new(b);
-	w->states = cnergy_states;
+	w = edit_new(b, cnergy_states);
 	first_window = w;
 	focus_window = w;
 	for(U32 i = 0; i < ARRLEN(path); i++) {
 		const char *file = files[i % ARRLEN(files)];
 		b = buffer_new(file);
-		struct window *const new = window_new(b);
+		struct window *const new = edit_new(b, c_states);
 		if(path[i])
 			window_attach(w, new, ATT_WINDOW_VERTICAL);
 		else
 			window_attach(w, new, ATT_WINDOW_HORIZONTAL);
 		w = new;
-		w->states = c_states;
 	}
 
 	while(1) {
