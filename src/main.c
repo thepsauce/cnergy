@@ -69,7 +69,6 @@ main(int argc, char **argv)
 	// setup some windows for testing
 	struct window *w;
 	struct buffer *b;
-	FILE *fp;
 	// 0 right
 	// 1 below 
 	int path[] = {
@@ -80,28 +79,20 @@ main(int argc, char **argv)
 		"include/cnergy.h",
 		"src/bind.c",
 	};
-	fp = fopen("draft.cng", "r");
-	b = buffer_new(fp);
-	fclose(fp);
+	b = buffer_new("draft.cng");
 	w = window_new(b);
-	w->file = const_alloc("draft.cng", strlen("draft.cng") + 1);
-	getfiletime(w->file, &w->fileTime);
 	w->states = cnergy_states;
 	first_window = w;
 	focus_window = w;
 	for(U32 i = 0; i < ARRLEN(path); i++) {
 		const char *file = files[i % ARRLEN(files)];
-		fp = fopen(file, "r");
-		b = buffer_new(fp);
-		fclose(fp);
+		b = buffer_new(file);
 		struct window *const new = window_new(b);
 		if(path[i])
 			window_attach(w, new, ATT_WINDOW_VERTICAL);
 		else
 			window_attach(w, new, ATT_WINDOW_HORIZONTAL);
 		w = new;
-		w->file = const_alloc(file, strlen(file) + 1);
-		getfiletime(w->file, &w->fileTime);
 		w->states = c_states;
 	}
 
@@ -146,7 +137,7 @@ main(int argc, char **argv)
 			const U32 len = (c & 0xe0) == 0xc0 ? 2 : (c & 0xf0) == 0xe0 ? 3 : (c & 0xf8) == 0xf0 ? 4 : 1;
 			for(U32 i = 1; i < len; i++)
 				b[i] = getch();
-			buffer_insert(focus_window->buffers[focus_window->iBuffer], b, len);
+			buffer_insert(focus_window->buffer, b, len);
 		}
 		attrset(COLOR(3, 0));
 		mvprintw(LINES - 1, 0, "%s ", mode_name());

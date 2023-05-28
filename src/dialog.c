@@ -20,7 +20,16 @@ drawframe(const char *title, int y, int x, int ny, int nx)
 		mvaddch(y + ny, x + n, ' ');
 }
 
+enum {
+	FFILEVIEW_USECURSOR = 1 << 0,
+	FFILEVIEW_SORTALPHA = 1 << 1,
+	FFILEVIEW_SORTMODIFY = 1 << 2,
+	FFILEVIEW_SORTCHANGE = 1 << 3,
+	FFILEVIEW_SHOWHIDDEN = 1 << 4,
+	FFILEVIEW_SORTTYPE = 1 << 5,
+};
 static struct fileview {
+	U32 flags;
 	char workingDir[PATH_MAX];
 	char selectedPath[PATH_MAX];
 	char path[PATH_MAX];
@@ -33,10 +42,128 @@ static struct fileview {
 	U32 nCollapsedPaths;
 	struct fileview_stack {
 		U32 stop;
-		DIR *dir;
+		char **dirs;
+		U32 nDirs;
+		U32 iDir;
 	} *stack;
 	U32 depth; // nStack - 1
 } fileview;
+
+enum {
+	FILETYPE_FOLDER,
+	FILETYPE_NORMAL,
+	FILETYPE_EXEC,
+	FILETYPE_OTHER,
+};
+
+// TODO: Maybe create filesystem.c
+int
+getfiletime(const char *file, time_t *pTime)
+{
+	struct stat statbuf;
+	if(stat(file, &statbuf) < 0)
+		return -1;
+	*pTime = statbuf.st_mtime;
+	return 0;
+}
+
+static inline int
+extractfiletype(struct stat *statbuf)
+{
+	bool isDir, isReg, isExec;
+
+	isDir = S_ISDIR(statbuf->st_mode);
+	isReg = S_ISREG(statbuf->st_mode);
+	isExec = isReg && (statbuf->st_mode & 0111);
+	return isDir ? FILETYPE_FOLDER : isExec ? FILETYPE_EXEC : isReg ? FILETYPE_NORMAL : FILETYPE_OTHER;
+}
+
+static int
+files_compare(const void *a, const void *b)
+{
+	const char *n1, *n2;
+	char *path1, *path2;
+	U32 nPath, nPath1, nPath2;
+	struct stat sb1, sb2;
+	int cmp = 0;
+
+	nPath = strlen(fileview.path);
+
+	n1 = *(const char *const *) a;
+	nPath1 = strlen(n1);
+	path1 = malloc(nPath + 1 + nPath1 + 1);
+	memcpy(path1, fileview.path, nPath);
+	path1[nPath] = '/';
+	strcpy(path1 + nPath + 1, n1);
+
+	n2 = *(const char *const *) b;
+	nPath2 = strlen(n2);
+	path2 = malloc(nPath + 1 + nPath2 + 1);
+	memcpy(path2, fileview.path, nPath);
+	path2[nPath] = '/';
+	strcpy(path2 + nPath + 1, n2);
+
+	if(path1)
+		lstat(path1, &sb1);
+	if(path2)
+		lstat(path2, &sb2);
+	if(fileview.flags & FFILEVIEW_SORTALPHA)
+		cmp = strcasecmp(n1, n2);
+	else if(fileview.flags & FFILEVIEW_SORTMODIFY)
+		cmp = sb1.st_mtime - sb2.st_mtime;
+	else if(fileview.flags & FFILEVIEW_SORTCHANGE)
+		cmp = sb1.st_ctime - sb2.st_ctime;
+	if(fileview.flags & FFILEVIEW_SORTTYPE) {
+		const int t1 = extractfiletype(&sb1);
+		const int t2 = extractfiletype(&sb2);
+		if(t1 != t2)
+			cmp = t1 - t2;
+	}
+	free(path1);
+	free(path2);	
+	return cmp;
+}
+
+static inline int
+fileview_prepareframe(U32 stop)
+{
+	DIR *dir;
+	struct dirent *ent;
+	char **dirs;
+	char **newDirs;
+	U32 nDirs;
+	char *name;
+
+	fileview.stack[fileview.depth].stop = stop;
+	fileview.stack[fileview.depth].iDir = 0;
+	fileview.stack[fileview.depth].nDirs = 0;
+	dir = opendir(fileview.path);
+	if(!dir)
+		return -1;
+	dirs = NULL;
+	newDirs = NULL;
+	nDirs = 0;
+	dirs = malloc(sizeof(*dirs) * 6);
+	if(!dirs) {
+		closedir(dir);
+		return -1;
+	}
+	while((ent = readdir(dir))) {
+		newDirs = realloc(dirs, sizeof(*dirs) * (nDirs + 1));
+		if(!newDirs)
+			break;
+		dirs = newDirs;
+		name = const_alloc(ent->d_name, strlen(ent->d_name) + 1);
+		if(!name)
+			break;
+		dirs[nDirs++] = name;
+	}
+	closedir(dir);
+	qsort(dirs, nDirs, sizeof(*dirs), files_compare);
+	fileview.stack[fileview.depth].dirs = dirs;
+	fileview.stack[fileview.depth].nDirs = nDirs;
+	return 0;
+}
 
 static inline int
 fileview_init(void)
@@ -44,7 +171,7 @@ fileview_init(void)
 	struct fileview_stack *newStack;
 	char **newCollapsedPaths;
 
-	newStack = realloc(fileview.stack, sizeof(*fileview.stack) * 10);
+	newStack = realloc(fileview.stack, sizeof(*fileview.stack) * 4);
 	if(!newStack)
 		return -1;
 	fileview.stack = newStack;
@@ -54,11 +181,7 @@ fileview_init(void)
 	fileview.collapsedPaths = newCollapsedPaths;
 	fileview.depth = 0;
 	strcpy(fileview.path, fileview.workingDir);
-	fileview.stack[0].stop = 0;
-	fileview.stack[0].dir = opendir(fileview.path);
-	if(!fileview.stack[0].dir)
-		return -1;
-	return 0;
+	return fileview_prepareframe(0);
 }
 
 static inline U32
@@ -83,13 +206,7 @@ fileview_enter(const char *name)
 	const U32 len = fileview_append(name);
 	if(!len)
 		return -1;
-	// save the old path length for later
-	fileview.stack[fileview.depth].stop = len;
-	// append name and try to open dir
-	fileview.stack[fileview.depth].dir = opendir(fileview.path);
-	if(!fileview.stack[fileview.depth].dir)
-		return -1;
-	return 0;
+	return fileview_prepareframe(len);
 }
 
 static inline bool
@@ -138,7 +255,7 @@ fileview_iscollapsed(const char *realPath)
 static inline void
 fileview_leave(void)
 {
-	closedir(fileview.stack[fileview.depth].dir);
+	free(fileview.stack[fileview.depth].dirs);
 	// cut the end off the path
 	fileview.path[fileview.stack[fileview.depth].stop] = 0;
 	// go up the stack
@@ -148,15 +265,17 @@ fileview_leave(void)
 static inline const char *
 fileview_nextentry(void)
 {
-	struct dirent *ent;
+	const char *name;
 	do {
-		while(!(ent = readdir(fileview.stack[fileview.depth].dir))) {
+		while(fileview.stack[fileview.depth].iDir == fileview.stack[fileview.depth].nDirs) {
 			if(!fileview.depth)
 				return NULL;
 			fileview_leave();
 		}
-	} while(!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, ".."));
-	return ent->d_name;
+		name = fileview.stack[fileview.depth].dirs[fileview.stack[fileview.depth].iDir++];
+	} while((!(fileview.flags & FFILEVIEW_SHOWHIDDEN) && name[0] == '.')
+		   	|| !strcmp(name, ".") || !strcmp(name, ".."));
+	return name;
 }
 
 const char *
@@ -190,9 +309,7 @@ choosefile(void)
 		while((ent_name = fileview_nextentry())) {
 			char path[PATH_MAX + 1];
 			char real[PATH_MAX + 1];
-			bool isDir;
-			bool isReg;
-			bool isExec;
+			int type;
 			bool isCollapsed;
 			bool isSelected = false;
 			int rHighlight = 0;
@@ -203,12 +320,12 @@ choosefile(void)
 			strcpy(path + l + 1, ent_name);
 			realpath(path, real);
 			lstat(path, &statbuf);
-			if(fileview.selected == fileview.height && !fileview.useCursor) {
+			if(fileview.selected == fileview.height && !(fileview.flags & FFILEVIEW_USECURSOR)) {
 				strcpy(fileview.selectedPath, path);
 				fileview.cursor = l + 1 + strlen(ent_name);
 				isSelected = true;
 			}
-			if(fileview.useCursor) {
+			if(fileview.flags & FFILEVIEW_USECURSOR) {
 				char real2[PATH_MAX + 1];
 				realpath(fileview.selectedPath, real2);
 				if(!strcmp(real, real2)) {
@@ -223,21 +340,19 @@ choosefile(void)
 				}
 			}
 			fileview.height++;
-			isDir = S_ISDIR(statbuf.st_mode);
-			isReg = S_ISREG(statbuf.st_mode);
-			isExec = isReg && (statbuf.st_mode & 0111);
-			isCollapsed = isDir && fileview_iscollapsed(real);
+			type = extractfiletype(&statbuf);
+			isCollapsed = type == FILETYPE_FOLDER && fileview_iscollapsed(real);
 			if(y >= line && y < line + lines) {
-				attrset(COLOR(isDir ? 4 : isExec || !isReg ? 3 : 7, isSelected ? 8 : 0));
+				attrset(COLOR(type == FILETYPE_FOLDER ? 4 : type == FILETYPE_NORMAL ? 7 : 3, isSelected ? 8 : 0));
 				move(y, col + 1);
 				printw("%*s", fileview.depth * 2, "");
 				attron(A_BOLD);
 				addnstr(ent_name, rHighlight);
 				attroff(A_BOLD);
 				addstr(ent_name + rHighlight);
-				if(isExec)
+				if(type == FILETYPE_EXEC)
 					addch('*');
-				if(isDir)
+				if(type == FILETYPE_FOLDER)
 					addch('/');
 				ersline(col + cols);
 			}
@@ -261,7 +376,12 @@ choosefile(void)
 		const int c = getch();
 		if(c == 0x1b) // escape
 			return NULL;
-		if(fileview.useCursor) {
+		if(c == '\n') {
+			if(!isdir(fileview.selectedPath))
+				return fileview.selectedPath;
+			fileview_collapse(fileview.selectedPath);
+		}
+		if(fileview.flags & FFILEVIEW_USECURSOR) {
 			switch(c) {
 			case '\t': fileview.useCursor = false; break;
 			case KEY_LEFT: if(fileview.cursor) fileview.cursor--; break;
@@ -276,11 +396,6 @@ choosefile(void)
 			case KEY_DC:
 				memcpy(fileview.selectedPath + fileview.cursor, fileview.selectedPath + fileview.cursor + 1, strlen(fileview.selectedPath + fileview.cursor));
 				break;
-			case '\n':
-				if(!isdir(fileview.selectedPath))
-					return fileview.selectedPath;
-				fileview_collapse(fileview.selectedPath);
-				break;
 			default:
 				if(isprint(c)) {
 					if(strlen(fileview.selectedPath) == sizeof(fileview.selectedPath))
@@ -291,7 +406,12 @@ choosefile(void)
 			}
 		} else {
 			switch(c) {
-			case '\t': fileview.useCursor = true; break;
+			case '\t': fileview.flags ^= FFILEVIEW_USECURSOR; break;
+			case 'I': case 'h': fileview.flags ^= FFILEVIEW_SHOWHIDDEN; break;
+			case 'S': case 's': fileview.flags ^= FFILEVIEW_SORTALPHA; fileview.flags &= ~(FFILEVIEW_SORTMODIFY | FFILEVIEW_SORTCHANGE); break;
+			case 'O': case 't': fileview.flags ^= FFILEVIEW_SORTTYPE; break;
+			case 'U': fileview.flags ^= FFILEVIEW_SORTMODIFY; fileview.flags &= ~(FFILEVIEW_SORTALPHA | FFILEVIEW_SORTCHANGE); break;
+			case 'P': fileview.flags ^= FFILEVIEW_SORTCHANGE; fileview.flags &= ~(FFILEVIEW_SORTALPHA | FFILEVIEW_SORTMODIFY); break;
 			case KEY_HOME: case 'g':
 				fileview.selected = 0;
 				fileview.scroll = 0;
@@ -314,11 +434,6 @@ choosefile(void)
 				if(fileview.selected - fileview.scroll >= lines - 3)
 					fileview.scroll++;
 				break;
-			case '\n':
-				if(!isdir(fileview.selectedPath))
-					return fileview.selectedPath;
-				fileview_collapse(fileview.selectedPath);
-				break;
 			}
 		}
 	}
@@ -328,11 +443,13 @@ choosefile(void)
 int
 messagebox(const char *title, const char *msg, ...)
 {
+	va_list l;
+	const char *opt;
+	const char *storedMsg;
+	char buf[88];
 	char options[8];
 	int nOption = 0;
 	int defaultOption = -1;
-	va_list l;
-	const char *opt;
 	int line, col;
 	int lines, cols;
 	int y, x;
@@ -349,20 +466,61 @@ messagebox(const char *title, const char *msg, ...)
 	maxY = line + lines * 4 / 5;
 	maxX = col + cols * 4 / 5;
 	move(y, x);
-	while(*msg) {
-		addch(*msg);
-		x++;
-		if(x == maxX) {
+	// for format
+	va_start(l, msg);
+	while(1) {
+		char *space;
+		U32 n;
+
+		while(!*msg) {
+			if(!storedMsg)
+				break;
+			msg = storedMsg;
+			storedMsg = NULL;
+		}
+		// intepret %
+		if(*msg == '%') {
+			msg++;
+			switch(*msg) {
+			case 0: msg--; break;
+			case 's':
+				storedMsg = msg;
+				msg = va_arg(l, const char*);
+				break;
+			case 'u':
+				storedMsg = msg;
+				snprintf(buf, sizeof(buf), "%u", va_arg(l, U32));
+				msg = buf;
+				break;
+			case 'd':
+				storedMsg = msg;
+				snprintf(buf, sizeof(buf), "%d", va_arg(l, I32));
+				msg = buf;
+				break;
+			}
+		}
+		// break words at spaces
+		space = strchr(msg, ' ');
+		n = space ? space - msg : strlen(msg);
+		if(x + n >= maxX && x != col + cols / 5) {
 			x = col + cols / 5;
 			y++;
 			if(y == maxY)
 				break;
 			move(y, x);
 		}
-		msg++;
+		n = MIN(n, maxX - x);
+		addnstr(msg, n);
+		if(space && x + n < maxX) {
+			addch(' ');
+			x++;
+		}
+		if(space)
+			msg++;
+		msg += n;
+		x += n;
 	}
 
-	va_start(l, msg);
 	move(line + lines - 1, col + 3);
 	while((opt = va_arg(l, const char*))) {
 		const char *b = strchr(opt, '[');
@@ -383,3 +541,30 @@ messagebox(const char *title, const char *msg, ...)
 			return i;
 	return defaultOption;
 }
+
+void *
+safe_alloc(U32 sz)
+{
+	void *ptr;
+
+	do {
+		ptr = malloc(sz);
+	} while(!ptr && !messagebox("Memory error", 
+				"Your system returned NULL when trying to allocate %u bytes of memory, what do you want to do?", 
+				sz, "[T]ry again", "[C]ancel", NULL));
+	return ptr;
+}
+
+void *
+safe_realloc(void *ptr, U32 newSz)
+{
+	do {
+		ptr = realloc(ptr, newSz);
+	} while(!ptr && !messagebox("Memory error", 
+				"Your system returned NULL when trying to allocate %u bytes of memory, what do you want to do?", 
+				newSz, "[T]ry again", "[C]ancel", NULL));
+	return ptr;
+}
+
+
+

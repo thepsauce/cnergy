@@ -3,9 +3,6 @@
 // All windows in here are rendered
 struct window **all_windows;
 U32 n_windows;
-// We just store these here as global variables since they shall only exist once
-struct window *fileview_window;
-struct window *colors_window;
 // THE origin (used for layout)
 struct window *first_window;
 // Active window
@@ -18,38 +15,33 @@ window_new(struct buffer *buf)
 	struct window **newWindows;
 	struct window *win;
 
-	newWindows = realloc(all_windows, sizeof(*all_windows) * (n_windows + 1));
+	newWindows = safe_realloc(all_windows, sizeof(*all_windows) * (n_windows + 1));
 	if(!newWindows)
 		return NULL;
-	win = malloc(sizeof(*win));
+	win = safe_alloc(sizeof(*win));
 	if(!win)
 		return NULL;
 	memset(win, 0, sizeof(*win));
 	win->type = WINDOW_BUFFER;
-	win->nBuffers = 1;
-	win->buffers = malloc(sizeof(*win->buffers));
-	if(!win->buffers) {
-		free(win);
-		return NULL;
-	}
-	win->buffers[0] = buf;
+	win->buffer = buf;
 	all_windows = newWindows;
 	all_windows[n_windows++] = win;
 	return win;
 }
 
-void
+int
 window_close(struct window *win)
 {
 	if(win == first_window)
 		first_window = win->below ? win->below : win->right;
 	if(win == focus_window)
-		focus_window = win->above ? win->above : 
+		focus_window = win->above ? win->above :
 			win->below ? win->below :
 			win->right ? win->right :
 			win->left ? win->left : first_window;
 	window_detach(win);
 	window_delete(win);
+	return 0;
 }
 
 // Note: make sure to detach a window before deleting it
@@ -57,9 +49,6 @@ void
 window_delete(struct window *win)
 {
 	assert(win->type == WINDOW_BUFFER && "Also only windows of type WINDOW_BUFFER are allowed here");
-	for(U32 i = 0; i < win->nBuffers; i++)
-		buffer_free(win->buffers[i]);
-	free(win->buffers);
 	for(U32 i = 0; i < n_windows; i++)
 		if(all_windows[i] == win) {
 			n_windows--;
@@ -69,70 +58,48 @@ window_delete(struct window *win)
 	free(win);
 }
 
-// TODO: find a better place for this function
-int
-getfiletime(const char *file, time_t *pTime)
+struct window *
+window_atpos(int y, int x)
 {
-	struct stat statbuf;
-	if(stat(file, &statbuf) < 0)
-		return -1;
-	*pTime = statbuf.st_mtime;
-	return 0;
+	for(U32 i = 0; i < n_windows; i++) {
+		struct window *const w = all_windows[i];
+		if(y >= w->line && y < w->line + w->lines &&
+				x >= w->col && x < w->col + w->cols)
+			return w;
+	}
+	return NULL;
 }
 
-int
-window_write_buffer(struct window *win)
-{
-	FILE *fp;
-	time_t time;
-	const struct buffer *buf = win->buffers[win->iBuffer];
-	if(!win->file) {
-		win->file = choosefile();
-		if(!win->file)
-			return 1;
-	}
-	if(getfiletime(win->file, &time) < 0)
-		return -1;
-	if(time != win->fileTime) {
-		const int m = messagebox("File is not in line!", "The file you're trying to write to was modified outside the editor, do you still want to write to it?", "[Y]es", "[N]o", NULL);
-		if(m != 0)
-			return 1;
-	}
-	fp = fopen(win->file, "w");
-	if(!fp)
-		return -1;
-	fwrite(buf->data, 1, buf->iGap, fp);
-	fwrite(buf->data + buf->iGap + buf->nGap, 1, buf->nData - buf->iGap, fp);
-	fclose(fp);
-	return 0;
-}
-
-// TODO: add the special handling based on the focus_y and focus_x
 struct window *
 window_above(struct window *win)
 {
-	if(!win->above) {
-		
-	}
-	return win->above;
+	const int yHit = win->line - 1;
+	const int xHit = win == focus_window ? focus_x : win->col + win->cols / 2;
+	return window_atpos(yHit, xHit);
 }
 
 struct window *
 window_below(struct window *win)
 {
-	return win->below;
+	const int yHit = win->line + win->lines;
+	const int xHit = win == focus_window ? focus_x : win->col + win->cols / 2;
+	return window_atpos(yHit, xHit);
 }
 
 struct window *
 window_left(struct window *win)
 {
-	return win->left;
+	const int yHit = win == focus_window ? focus_y : win->line + win->lines / 2;
+	const int xHit = win->col - 1;
+	return window_atpos(yHit, xHit);
 }
 
 struct window *
 window_right(struct window *win)
 {
-	return win->right;
+	const int yHit = win == focus_window ? focus_y : win->line + win->lines / 2;
+	const int xHit = win->col + win->cols;
+	return window_atpos(yHit, xHit);
 }
 
 void
@@ -201,7 +168,6 @@ window_layout(struct window *win)
 	const int line = win->line;
 	const int col = win->col;
 	const int lines = win->lines;
-	const int cols = win->cols;
 
 	if(!win->left)
 		for(w = win->right; w; w = w->right)
@@ -237,7 +203,7 @@ window_layout(struct window *win)
 			w->line = nextLine;
 			w->col = col;
 			w->lines = linesPer;
-			w->cols = cols;
+			w->cols = colsPer;
 			if(linesRemainder) {
 				linesRemainder--;
 				w->lines++;
@@ -261,15 +227,15 @@ window_render(struct window *win)
 	if(win->lines <= 0 || win->cols <= 0)
 		return;
 	// get buffer and cursor position
-	buf = win->buffers[win->iBuffer];
+	buf = win->buffer;
 	curLine = buffer_line(buf);
 	curCol = buffer_col(buf);
 	// move gap out of the way
 	saveiGap = buf->iGap;
 	unsafe_buffer_movecursor(buf, buf->nData - buf->iGap);
-	// make sure there is an EOF at the end of the data
+	// make sure there is an EOF at the end of the data (this is for convenience)
 	if(!buf->nGap) {
-		char *const newData = realloc(buf->data, buf->nData + BUFFER_GAP_SIZE);
+		char *const newData = safe_realloc(buf->data, buf->nData + BUFFER_GAP_SIZE);
 		if(!newData)
 			return;
 		buf->data = newData;
@@ -291,7 +257,7 @@ window_render(struct window *win)
 
 	// get width of line numbers
 	nLineNumbers = 1; // initial padding to the right side
-	if(win->left)
+	if(window_left(win))
 		nLineNumbers++; // add some padding
 	for(U32 i = state.maxLine; i; i /= 10)
 		nLineNumbers++;
@@ -320,7 +286,7 @@ window_render(struct window *win)
 		minSel = 1;
 		maxSel = 0;
 	}
-	
+
 	// setup loop
 	move(win->line, win->col);
 	// draw first line if needed
@@ -341,7 +307,7 @@ window_render(struct window *win)
 			state_continue(&state);
 		if(state.conceal) {
 			const char *conceal;
-				
+
 			conceal = state.conceal;
 			state.conceal = NULL;
 			if(state.line != curLine) {
@@ -447,10 +413,10 @@ window_render(struct window *win)
 	attrset(win == focus_window ? COLOR(14, 8) : COLOR(6, 8));
 	mvaddstr(win->line + win->lines - 1, win->col, " Buffer");
 	attrset(win == focus_window ? COLOR(11, 8) : COLOR(3, 8));
-	if(win->saveEvent != buf->iEvent)
+	if(buf->saveEvent != buf->iEvent)
 		addch('*');
-	if(win->file)
-		printw(" %s", win->file);
+	if(buf->file)
+		printw(" %s", buf->file);
 	printw(" %u, %u", curLine, curCol);
 	printw("%*s", MAX(win->col + win->cols - getcurx(stdscr), 0), "");
 	// set the global end caret position

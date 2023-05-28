@@ -31,6 +31,8 @@ normal: lazy, normal_movement
 ^W BACK $w-N
 ^W n !new
 ^W w !close
+^W v !vsplit
+^W s !hsplit
 O >home +\n $-1 :insert
 O >home +\n :insert
 o >end +\n :insert

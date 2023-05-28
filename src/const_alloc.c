@@ -6,7 +6,7 @@ struct memptr {
 };
 
 struct mempool {
-	U8 data[4 * 1024]; // 4 * pow(2, 10)
+	U8 data[8 * 1024]; // 8 * pow(2, 10)
 	struct memptr *ptrs;
 	U32 nPtrs;
 	struct mempool *next;
@@ -38,7 +38,7 @@ insertptr(struct mempool *pool, U32 off, U32 sz)
 				return NULL;
 			if(off == l)
 				return NULL;
-			pool->ptrs = realloc(pool->ptrs, sizeof(*pool->ptrs) * (pool->nPtrs + 1));
+			pool->ptrs = safe_realloc(pool->ptrs, sizeof(*pool->ptrs) * (pool->nPtrs + 1));
 			if(!pool->ptrs)
 				return NULL;
 			i++;
@@ -73,7 +73,7 @@ const_alloc(const void *data, U32 szData)
 	for(pool = first; pool; pool = pool->next) {
 		const U32 off = !pool->nPtrs ? 0 : pool->ptrs[pool->nPtrs - 1].off + pool->ptrs[pool->nPtrs - 1].sz; 
 		if(off + szAligned / sizeof(U32) <= sizeof(pool->data) / sizeof(U32)) {
-			pool->ptrs = realloc(pool->ptrs, sizeof(*pool->ptrs) * (pool->nPtrs + 1));
+			pool->ptrs = safe_realloc(pool->ptrs, sizeof(*pool->ptrs) * (pool->nPtrs + 1));
 			if(!pool->ptrs)
 				return NULL;
 			pool->ptrs[pool->nPtrs++] = (struct memptr) { .off = off, .sz = szAligned / sizeof(U32) };
@@ -82,6 +82,18 @@ const_alloc(const void *data, U32 szData)
 			return d;
 		}
 	}
+	pool = pool->next = safe_alloc(sizeof(*pool->next));
+	if(!pool)
+		return NULL;
+	pool->next = NULL;
+	pool->nPtrs = 0;
+	pool->ptrs = safe_alloc(sizeof(*pool->ptrs));
+	if(!pool->ptrs)
+		return NULL;
+	pool->nPtrs = 1;
+	pool->ptrs[0].off = 0;
+	pool->ptrs[0].sz = szAligned / sizeof(U32);
+	memcpy(pool->data, data, szData);
 	return NULL;
 }
 

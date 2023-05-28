@@ -4,38 +4,44 @@ struct buffer **buffers;
 U32 nBuffers;
 
 struct buffer *
-buffer_new(FILE *fp)
+buffer_new(const char *file)
 {
 	struct buffer **newBuffers;
 	struct buffer *buf;
 
-	newBuffers = realloc(buffers, sizeof(*buffers) * (nBuffers + 1));
+	newBuffers = safe_realloc(buffers, sizeof(*buffers) * (nBuffers + 1));
 	if(!newBuffers)
 		return NULL;
-	buf = malloc(sizeof(*buf));
+	buf = safe_alloc(sizeof(*buf));
 	if(!buf)
 		return NULL;
 	memset(buf, 0, sizeof(*buf));
-	if(fp) {
-		fseek(fp, 0, SEEK_END);
-		const U32 n = ftell(fp);
-		buf->data = malloc(BUFFER_GAP_SIZE + n);
-		if(!buf->data) {
-			free(buf);
-			return NULL;
+	if(file) {
+		FILE *fp;
+
+		fp = fopen(file, "r");
+		if(fp && (buf->file = const_alloc(file, strlen(file) + 1))) {
+			getfiletime(file, &buf->fileTime);
+			fseek(fp, 0, SEEK_END);
+			const U32 n = ftell(fp);
+			buf->data = safe_alloc(BUFFER_GAP_SIZE + n);
+			if(!buf->data) {
+				free(buf);
+				return NULL;
+			}
+			buf->nData = n;
+			fseek(fp, 0, SEEK_SET);
+			fread(buf->data + BUFFER_GAP_SIZE, 1, n, fp);
+			fclose(fp);
 		}
-		buf->nData = n;
-		fseek(fp, 0, SEEK_SET);
-		fread(buf->data + BUFFER_GAP_SIZE, 1, n, fp);
 	} else {
-		buf->data = malloc(BUFFER_GAP_SIZE);
+		buf->data = safe_alloc(BUFFER_GAP_SIZE);
 		if(!buf->data) {
 			free(buf);
 			return NULL;
 		}
 	}
 	buf->nGap = BUFFER_GAP_SIZE;
-	buf->nRefs = 1;
 	buffers = newBuffers;
 	buffers[nBuffers++] = buf;
 	return buf;
@@ -44,28 +50,57 @@ buffer_new(FILE *fp)
 void
 buffer_free(struct buffer *buf)
 {
-	if(!--buf->nRefs) {
-		free(buf->data);
-		for(U32 i = 0; i < buf->nEvents; i++) {
-			switch(buf->events[i].type) {
-			case EVENT_INSERT:
-				free(buf->events[i].ins);
-				break;
-			case EVENT_DELETE:
-				free(buf->events[i].del);
-				break;
-			case EVENT_REPLACE:
-				free(buf->events[i].ins);
-				free(buf->events[i].del);
-				break;
-			}
+	free(buf->data);
+	for(U32 i = 0; i < buf->nEvents; i++) {
+		switch(buf->events[i].type) {
+		case EVENT_INSERT:
+			free(buf->events[i].ins);
+			break;
+		case EVENT_DELETE:
+			free(buf->events[i].del);
+			break;
+		case EVENT_REPLACE:
+			free(buf->events[i].ins);
+			free(buf->events[i].del);
+			break;
 		}
-		free(buf->events);
-		free(buf);
 	}
+	free(buf->events);
+	free(buf);
 }
 
-I32 
+int
+buffer_save(struct buffer *buf)
+{
+	FILE *fp;
+	time_t time;
+
+	if(!buf->file) {
+		const char *file = choosefile();
+		if(!file)
+			return 1;
+		buf->file = const_alloc(file, strlen(file) + 1);
+		if(!buf->file)
+			return -1;
+	}
+	if(getfiletime(buf->file, &time) < 0)
+		return -1;
+	if(time != buf->fileTime) {
+		const int m = messagebox("File not in line", "The file you're trying to write to was modified outside the editor, do you still want to write to it?", "[Y]es", "[N]o", NULL);
+		if(m != 0)
+			return 1;
+	}
+	fp = fopen(buf->file, "w");
+	if(!fp)
+		return -1;
+	fwrite(buf->data, 1, buf->iGap, fp);
+	fwrite(buf->data + buf->iGap + buf->nGap, 1, buf->nData - buf->iGap, fp);
+	fclose(fp);
+	buf->saveEvent = buf->iEvent;
+	return 0;
+}
+
+I32
 unsafe_buffer_movecursor(struct buffer *buf, I32 distance)
 {
 	/*This method retained the gap content
@@ -279,7 +314,7 @@ buffer_addevent(struct buffer *buf)
 			}
 		}
 	}
-	buf->events = realloc(buf->events, sizeof(*buf->events) * (buf->iEvent + 1));
+	buf->events = safe_realloc(buf->events, sizeof(*buf->events) * (buf->iEvent + 1));
 	if(!buf->events)
 		return NULL;
 	ev = buf->events + buf->iEvent;
@@ -295,7 +330,7 @@ buffer_insert(struct buffer *buf, const char *str, U32 nStr)
 
 	// if gap is too small to insert n characters, increase gap size
 	if(nStr > buf->nGap) {
-		char *const newData = realloc(buf->data, buf->nData + nStr + BUFFER_GAP_SIZE);
+		char *const newData = safe_realloc(buf->data, buf->nData + nStr + BUFFER_GAP_SIZE);
 		if(!newData)
 			return 0;
 		memmove(newData + buf->iGap + nStr + BUFFER_GAP_SIZE,
@@ -316,7 +351,7 @@ buffer_insert(struct buffer *buf, const char *str, U32 nStr)
 	if(buf->iEvent) {
 		ev = buf->events + buf->iEvent - 1;
 		if(ev->type == EVENT_INSERT && ev->iGap + ev->nIns == buf->iGap - nStr) {
-			ev->ins = realloc(ev->ins, ev->nIns + nStr);
+			ev->ins = safe_realloc(ev->ins, ev->nIns + nStr);
 			memcpy(ev->ins + ev->nIns, str, nStr);
 			ev->vct = buf->vct;
 			ev->nIns += nStr;
@@ -332,7 +367,7 @@ buffer_insert(struct buffer *buf, const char *str, U32 nStr)
 		.iGap = buf->iGap - nStr,
 		.vct = buf->vct,
 		.prevVct = prevVct,
-		.ins = malloc(nStr),
+		.ins = safe_alloc(nStr),
 		.nIns = nStr,
 	};
 	if(!ev->ins) {
@@ -351,7 +386,7 @@ buffer_insert_file(struct buffer *buf, FILE *fp)
 
 	fseek(fp, 0, SEEK_END);
 	const long n = ftell(fp);
-	if(n <= 0 || !(s = malloc(n)))
+	if(n <= 0 || !(s = safe_alloc(n)))
 		return 0;
 	fseek(fp, 0, SEEK_SET);
 	fread(s, 1, n, fp);
@@ -376,7 +411,7 @@ buffer_delete(struct buffer *buf, I32 amount)
 		.flags = 0,
 		.type = EVENT_DELETE,
 		.prevVct = buf->vct,
-		.del = malloc(ABS(amount)),
+		.del = safe_alloc(ABS(amount)),
 		.nDel = ABS(amount),
 	};
 	if(!ev->del) {
@@ -452,7 +487,7 @@ buffer_deleteline(struct buffer *buf, I32 amount)
 		.iGap = buf->iGap,
 		.vct = buf->vct,
 		.prevVct = buf->vct,
-		.del = malloc(amount),
+		.del = safe_alloc(amount),
 		.nDel = amount,
 	};
 	if(!ev->del) {

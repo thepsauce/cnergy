@@ -50,6 +50,7 @@
 })
 
 #define ARRLEN(a) (sizeof(a)/sizeof*(a))
+
 typedef int8_t I8;
 typedef int16_t I16;
 typedef int32_t I32;
@@ -59,6 +60,7 @@ typedef uint16_t U16;
 typedef uint32_t U32;
 typedef uint64_t U64;
 
+// TODO: COLOR is a temporary macro, it should get removed soon
 #define COLOR(bg, fg) COLOR_PAIR(1 + ((bg) | ((fg) * 16)))
 #define ersline(max) ({ \
 	__auto_type _m = (max); \
@@ -73,6 +75,12 @@ typedef uint64_t U64;
 void *const_alloc(const void *data, U32 sz);
 U32 const_getid(const void *data);
 void *const_getdata(U32 id);
+
+// Note: Implemented in src/dialog.c
+// This functions show a dialog to the user if the allocation failed
+// The user may then retry allocating
+void *safe_alloc(U32 sz);
+void *safe_realloc(void *ptr, U32 newSz);
 
 /* UTF8 */
 
@@ -134,10 +142,12 @@ struct buffer {
 	U32 iGap;
 	U32 nGap;
 	U32 vct;
+	char *file;
+	time_t fileTime;
+	U32 saveEvent;
 	struct event *events;
 	U32 nEvents;
 	U32 iEvent;
-	U32 nRefs;
 };
 
 extern struct buffer **buffers;
@@ -145,10 +155,12 @@ extern U32 nBuffers;
 
 // Create a new buffer based on the given file, it may be null, then an empty buffer is created
 // This also adds it to the internal buffer list
-struct buffer *buffer_new(FILE *fp);
-// Decrement the reference counter of this buffer
-// It gets removed from memory if it hits 0
+struct buffer *buffer_new(const char *file);
+// Free all resources associated to this buffer
+// Make sure to delete all windows associated to this buffer before calling this function
 void buffer_free(struct buffer *buf);
+// Saves the buffer to its file; if it has none, the user will be asked to choose a file
+int buffer_save(struct buffer *buf);
 // Returns the moved amount
 I32 unsafe_buffer_movecursor(struct buffer *buf, I32 distance);
 I32 buffer_movecursor(struct buffer *buf, I32 distance);
@@ -201,21 +213,12 @@ struct state;
 struct window {
 	U32 flags;
 	U32 type;
-	// file that is open inside of this window
-	// this value can be null
-	char *file;
-	// time in milliseconds
-	time_t fileTime;
-	// this is the event on which the file was last saved
-	U32 saveEvent;
 	// position of the window
 	int line, col;
 	// size of the window
 	int lines, cols;
-	// a window can have multiple buffers but must have at least one
-	U32 nBuffers;
-	U32 iBuffer;
-	struct buffer **buffers;
+	// text buffer
+	struct buffer *buffer;
 	// scrolling values of the last render
 	U32 vScroll, hScroll;
 	// selection cursor
@@ -243,10 +246,12 @@ enum {
 // Create a new window and add it to the window list
 struct window *window_new(struct buffer *buf);
 // Safe function that detaches, deletes the window and changes focus-/first window if needed
-void window_close(struct window *win);
+int window_close(struct window *win);
 // Delete this window from memory
 // Note: You must detach a window before deleting it, otherwise it's undefined behavior
 void window_delete(struct window *win);
+// This gets the window at given position
+struct window *window_atpos(int y, int x);
 // These four functions have additional handling and may return non null values even though the internal struct value is null
 struct window *window_above(struct window *win);
 struct window *window_below(struct window *win);
@@ -287,6 +292,8 @@ enum {
 	BIND_CALL_OPENWINDOW,
 	BIND_CALL_CLOSEWINDOW,
 	BIND_CALL_NEWWINDOW,
+	BIND_CALL_VSPLIT,
+	BIND_CALL_HSPLIT,
 	BIND_CALL_MOVEWINDOW_RIGHT,
 	BIND_CALL_MOVEWINDOW_BELOW,
 	BIND_CALL_WRITEFILE,

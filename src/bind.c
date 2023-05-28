@@ -17,7 +17,7 @@ mode_name(void)
 }
 
 static inline struct binding_mode *
-getmode(const char *name, U32 *pIndex)
+mode_get(const char *name, U32 *pIndex)
 {
 	for(U32 i = 0; i < nModes; i++)
 		if(!strcmp(modes[i].name, name)) {
@@ -34,7 +34,7 @@ mode_getmergepos(struct binding_mode *m, U32 n, U32 *pos)
 	for(U32 i = 0, next = 0; i < n; i++) {
 		if(m[i].flags & FBIND_MODE_SUPPLEMENTARY)
 			continue;
-		if(!getmode(m[i].name, pos + i))
+		if(!mode_get(m[i].name, pos + i))
 			pos[i] = nModes + next++;
 	}
 	return 0;
@@ -337,7 +337,7 @@ exec_bind(const int *keys, I32 amount)
 					bool b = true;
 
 					bc = *bcs;
-					struct buffer *const buf = focus_window->buffers[focus_window->iBuffer];
+					struct buffer *const buf = focus_window->buffer;
 					const I32 m = (bc.flags & FBIND_CALL_USENUMBER) ? SAFE_MUL(amount, bc.param) : bc.param;
 					if((bc.flags & FBIND_CALL_AND) && !frame.state)
 						goto end_frame;
@@ -437,20 +437,35 @@ exec_bind(const int *keys, I32 amount)
 					case BIND_CALL_COLORWINDOW:
 						// TODO: open a color window or focus an existing one
 						break;
+					case BIND_CALL_VSPLIT: {
+						struct window *win;
+
+						win = window_new(focus_window->buffer);
+						if(!win) {
+							b = false;
+							break;
+						}
+						window_attach(focus_window, win, ATT_WINDOW_HORIZONTAL);
+						break;
+					}
+					case BIND_CALL_HSPLIT: {
+						struct window *win;
+
+						win = window_new(focus_window->buffer);
+						if(!win) {
+							b = false;
+							break;
+						}
+						window_attach(focus_window, win, ATT_WINDOW_VERTICAL);
+						break;
+					}
 					case BIND_CALL_OPENWINDOW: {
 						const char *const file = choosefile();
 						if(file) {
-							FILE *fp;
 							struct buffer *buf;
 							struct window *win;
 
-							fp = fopen(file, "r");
-							if(!fp) {
-								b = false;
-								break;
-							}
-							buf = buffer_new(fp);
-							fclose(fp);
+							buf = buffer_new(file);
 							if(!buf) {
 								b = false;
 								break;
@@ -490,28 +505,22 @@ exec_bind(const int *keys, I32 amount)
 						break;
 					}
 					case BIND_CALL_WRITEFILE:
-						messagebox("Hello there", "Are you sure?", "[Y]es", "[N]o", NULL);
+						buffer_save(focus_window->buffer);
 						break;
-					/*case BIND_CALL_MOVEWINDOW_RIGHT:
-						r = 0;
-						if(m > 0) {
-							for(struct window *w = focus_window; r != m && (w = window_right(w)); r++)
-								focus_window = w;
-						} else {
-							for(struct window *w = focus_window; r != m && (w = window_left(w)); r--)
-								focus_window = w;
-						}
+					case BIND_CALL_MOVEWINDOW_RIGHT:
+					case BIND_CALL_MOVEWINDOW_BELOW: {
+						// get the right directional function
+						struct window *(*const next)(struct window*) =
+							bc.type == BIND_CALL_MOVEWINDOW_RIGHT ? 
+								(m > 0 ? window_right : window_left) :
+							m > 0 ? window_below : window_above;
+						int i = 0;
+						int di = m < 0 ? -1 : 1;
+						for(struct window *w = focus_window; i != m && (w = (*next)(w)); i += di)
+							focus_window = w;
+						b = i == m;
 						break;
-					case BIND_CALL_MOVEWINDOW_BELOW:
-						r = 0;
-						if(m > 0) {
-							for(struct window *w = focus_window; r != m && (w = window_below(w)); r--)
-								focus_window = w;
-						} else {
-							for(struct window *w = focus_window; r != m && (w = window_above(w)); r--)
-								focus_window = w;
-						}
-						break;*/
+					}
 					}
 					while(((bc.flags & FBIND_CALL_OR) && !(frame.state |= b))
 							|| ((bc.flags & FBIND_CALL_AND) && !(frame.state &= b))) {

@@ -16,7 +16,7 @@ int
 cnergy_state_default(struct state *s)
 {
 	bool hasFlags = false;
-	U32 index, nWord;
+	U32 index;
 
 	s->attr = COLOR_PAIR(0);
 	if(isspace(s->data[s->index]))
@@ -39,7 +39,6 @@ cnergy_state_default(struct state *s)
 		index = s->index;
 		while(isalnum(s->data[s->index + 1]) || s->data[s->index + 1] == '_')
 			s->index++;
-		nWord = s->index + 1 - index;
 		if(s->data[s->index + 1] == '*') {
 			s->index++;
 			hasFlags = true;

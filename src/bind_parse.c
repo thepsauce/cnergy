@@ -41,6 +41,7 @@ enum {
 	ERR_END_OF_LOOP_WITHOUT_START,
 	ERR_EMPTY_LOOP,
 	ERR_XOR_LOOP,
+	ERR_MODE_NOT_EXIST,
 };
 
 static const char *error_messages[] = {
@@ -54,11 +55,12 @@ static const char *error_messages[] = {
 	[ERR_BIND_NEEDS_MODE] = "a bind must be below a mode e.g. 'mode:\\n...'",
 	[ERR_EXPECTED_PARAM] = "expected parameter after command",
 	[ERR_INVALID_PARAM] = "invalid parameter after command",
-	[ERR_WINDOW_DEL] = "can't use x with w",
+	[ERR_WINDOW_DEL] = "cannot use x with w",
 	[ERR_LOOP_TOO_DEEP] = "loop is too deep",
 	[ERR_END_OF_LOOP_WITHOUT_START] = "reached an end of a loop but there is no start",
 	[ERR_EMPTY_LOOP] = "loop cannot be empty",
 	[ERR_XOR_LOOP] = "xor is not allowed before the start or end of a loop",
+	[ERR_MODE_NOT_EXIST] = "mode does not exist",
 };
 
 struct bind_parser {
@@ -517,6 +519,8 @@ read_call(struct bind_parser *parser)
 		{ "WRITE", BIND_CALL_WRITEFILE },
 		{ "READ", BIND_CALL_READFILE },
 		{ "OPEN", BIND_CALL_OPENWINDOW },
+		{ "HSPLIT", BIND_CALL_HSPLIT },
+		{ "VSPLIT", BIND_CALL_VSPLIT },
 		{ "QUIT", BIND_CALL_QUIT },
 	};
 	struct binding_call *newCalls;
@@ -529,8 +533,8 @@ read_call(struct bind_parser *parser)
 	case '|':
 	case '&':
 	case '^':
-		parser->calls[parser->nCalls].flags = 
-			parser->c == '|' ? FBIND_CALL_OR : 
+		parser->calls[parser->nCalls].flags =
+			parser->c == '|' ? FBIND_CALL_OR :
 			parser->c == '&' ? FBIND_CALL_AND : FBIND_CALL_XOR;
 		while(isblank(parser_getc(parser)));
 		break;
@@ -815,8 +819,10 @@ bind_parse(FILE *fp)
 			for(m = 0; m < parser.nModes; m++)
 				if(!strcmp(parser.modes[m].name, parser.paramRequests[i].target))
 					break;
-			if(m == parser.nModes)
-				return -17;
+			if(m == parser.nModes) {
+				parser_pusherror(&parser, ERR_MODE_NOT_EXIST);
+				continue;
+			}
 			parser.modes[parser.paramRequests[i].mode].
 			bindings[parser.paramRequests[i].major].
 			calls   [parser.paramRequests[i].minor].
@@ -826,14 +832,18 @@ bind_parse(FILE *fp)
 			for(m = 0; m < parser.nModes; m++)
 				if(!strcmp(parser.modes[m].name, parser.appendRequests[i].donor))
 					break;
-			if(m == parser.nModes)
-				return -18;
+			if(m == parser.nModes) {
+				parser_pusherror(&parser, ERR_MODE_NOT_EXIST);
+				continue;
+			}
 			const struct binding_mode *const donor = parser.modes + m;
 			struct binding_mode *const receiver = parser.modes + parser.appendRequests[i].receiver;
 			receiver->bindings = realloc(receiver->bindings,
 					sizeof(*receiver->bindings) * (receiver->nBindings + donor->nBindings));
-			if(!receiver->bindings)
-				return -19;
+			if(!receiver->bindings) {
+				errCode = -1;
+				goto err;
+			}
 			memcpy(receiver->bindings + receiver->nBindings,
 					donor->bindings,
 					sizeof(*donor->bindings) * donor->nBindings);
