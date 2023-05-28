@@ -28,19 +28,20 @@ static struct mempool *first = internal;
 static inline struct memptr *
 insertptr(struct mempool *pool, U32 off, U32 sz)
 {
+	struct memptr *newPtrs;
+
 	off /= 4;
 	sz /= 4;
 	for(U32 i = 0; i < pool->nPtrs; i++) {
 		const U32 l = pool->ptrs[i].off;
 		const U32 r = l + pool->ptrs[i].sz;
 		if(off >= l && off < r) {
-			if(off + sz > r)
-				return NULL;
 			if(off == l)
+				return pool->ptrs + i; // pointer already exists
+			newPtrs = safe_realloc(pool->ptrs, sizeof(*pool->ptrs) * (pool->nPtrs + 1));
+			if(!newPtrs)
 				return NULL;
-			pool->ptrs = safe_realloc(pool->ptrs, sizeof(*pool->ptrs) * (pool->nPtrs + 1));
-			if(!pool->ptrs)
-				return NULL;
+			pool->ptrs = newPtrs;
 			i++;
 			memmove(pool->ptrs + i + 1, pool->ptrs + i, sizeof(*pool->ptrs) * (pool->nPtrs - i));
 			pool->ptrs[i] = (struct memptr) { .off = off, .sz = sz };
@@ -55,7 +56,7 @@ void *
 const_alloc(const void *data, U32 szData)
 {
 	struct mempool *pool;
-
+	struct memptr *newPtrs;
 	const U32 szAligned = (szData + sizeof(U32) - 1) & ~(sizeof(U32) - 1);
 	for(pool = first; pool; pool = pool->next) {
 		if(!pool->nPtrs)
@@ -63,19 +64,20 @@ const_alloc(const void *data, U32 szData)
 		for(U32 *d = (U32*) pool->data; d != (U32*) (pool->data + sizeof(pool->data) - szAligned); d++) {
 			if(!memcmp(d, data, szData)) {
 				struct memptr *const ptr = insertptr(pool, (U8*) d - pool->data, szAligned);
-				if(ptr) {
-					memcpy(d, data, szData);
-					return d;
-				}
+				if(!ptr)
+					return NULL;
+				memcpy(d, data, szData);
+				return d;
 			}
 		}
 	}
 	for(pool = first; pool; pool = pool->next) {
 		const U32 off = !pool->nPtrs ? 0 : pool->ptrs[pool->nPtrs - 1].off + pool->ptrs[pool->nPtrs - 1].sz; 
 		if(off + szAligned / sizeof(U32) <= sizeof(pool->data) / sizeof(U32)) {
-			pool->ptrs = safe_realloc(pool->ptrs, sizeof(*pool->ptrs) * (pool->nPtrs + 1));
-			if(!pool->ptrs)
+			newPtrs = safe_realloc(pool->ptrs, sizeof(*pool->ptrs) * (pool->nPtrs + 1));
+			if(!newPtrs)
 				return NULL;
+			pool->ptrs = newPtrs;
 			pool->ptrs[pool->nPtrs++] = (struct memptr) { .off = off, .sz = szAligned / sizeof(U32) };
 			void *const d = (U32*) pool->data + off;
 			memcpy(d, data, szData);
@@ -122,7 +124,9 @@ void *
 const_getdata(U32 id)
 {
 	struct mempool *pool;
-	U16 iPool = id >> 16;
+	U16 iPool;
+	
+	iPool = id >> 16;
 	for(pool = first; iPool && pool; pool = pool->next, iPool--);
 	if(!pool)
 		return NULL;

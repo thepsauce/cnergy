@@ -44,11 +44,9 @@ window_close(struct window *win)
 	return 0;
 }
 
-// Note: make sure to detach a window before deleting it
 void
 window_delete(struct window *win)
 {
-	assert(win->type == WINDOW_BUFFER && "Also only windows of type WINDOW_BUFFER are allowed here");
 	for(U32 i = 0; i < n_windows; i++)
 		if(all_windows[i] == win) {
 			n_windows--;
@@ -202,6 +200,7 @@ window_layout(struct window *win)
 		for(i = 1, w = win->below; w; w = w->below, i++) {
 			w->line = nextLine;
 			w->col = col;
+			// note that we use linesPer and not lines here
 			w->lines = linesPer;
 			w->cols = colsPer;
 			if(linesRemainder) {

@@ -355,7 +355,7 @@ struct state {
 	// words to highlight, the word data is placed into the const_alloc space
 	// this list is alphabetically sorted
 	// the words array should be freed when finished
-	struct {
+	struct state_word {
 		int attr;
 		char *word;
 	} *words;

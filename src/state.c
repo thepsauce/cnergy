@@ -52,12 +52,14 @@ state_addword(struct state *s, int attr, const char *word, U32 nWord)
 {
 	U32 index;
 	char *w;
+	struct state_word *newWords;
 
 	if(state_getbestindex(s, word, nWord, &index))
 		return 1;
-	s->words = realloc(s->words, sizeof(*s->words) * (s->nWords + 1));
-	if(!s->words)
+	newWords = realloc(s->words, sizeof(*s->words) * (s->nWords + 1));
+	if(!newWords)
 		return -1;
+	s->words = newWords;
 	w = alloca(nWord + 1);
 	if(!w)
 		return -1;
@@ -112,7 +114,7 @@ state_addparan(struct state *s)
 }
 
 int
-state_addcounterparan(struct state *s, int counter) 
+state_addcounterparan(struct state *s, int counter)
 {
 	while(s->nParans && s->parans[s->nParans - 1].ch != counter) {
 		struct state_paran *newMisparans;
