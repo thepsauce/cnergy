@@ -231,11 +231,11 @@ print_modes(struct binding_mode *m, U32 n)
 		m = modes;
 		n = nModes;
 	}
-	printf("Got %u modes\n", nModes);
-	for(U32 i = 0; i < nModes; i++) {
-		printf("MODE: %s (%#x)(%u bindings)\n", modes[i].name, modes[i].flags, modes[i].nBindings);
-		for(U32 j = 0; j < modes[i].nBindings; j++) {
-			const struct binding bind = modes[i].bindings[j];
+	printf("Got %u modes\n", n);
+	for(U32 i = 0; i < n; i++) {
+		printf("MODE: %s (%#x)(%u bindings)\n", m[i].name, m[i].flags, m[i].nBindings);
+		for(U32 j = 0; j < m[i].nBindings; j++) {
+			const struct binding bind = m[i].bindings[j];
 			printf("  BIND([%p]%u, [%p]%u): ", bind.keys, bind.nKeys, bind.calls, bind.nCalls);
 			fflush(stdout);
 			for(int *k = bind.keys, *e = k + bind.nKeys;;) {
@@ -294,7 +294,7 @@ mode_merge(struct binding_mode *m, U32 n)
 	return 0;
 }
 
-static void
+/*static void
 print_events(const struct event *events, U32 iEvent, U32 nEvents) {
 	move(11, 0);
 	printw("Index | Type | Flags | iIns | iDel | vct | data\n");
@@ -305,7 +305,7 @@ print_events(const struct event *events, U32 iEvent, U32 nEvents) {
 			events[i].flags, events[i].vct, events[i].nIns, events[i].nDel);
 		printw("\n");
 	}
-}
+}*/
 
 int
 exec_bind(const int *keys, I32 amount)
@@ -337,7 +337,6 @@ exec_bind(const int *keys, I32 amount)
 					bool b = true;
 
 					bc = *bcs;
-					struct buffer *const buf = focus_window->buffer;
 					const I32 m = (bc.flags & FBIND_CALL_USENUMBER) ? SAFE_MUL(amount, bc.param) : bc.param;
 					if((bc.flags & FBIND_CALL_AND) && !frame.state)
 						goto end_frame;
@@ -347,11 +346,6 @@ exec_bind(const int *keys, I32 amount)
 						continue;
 					}
 					switch(bc.type) {
-					case BIND_CALL_ASSERT: {
-						const char *const str = const_getdata(bc.param);
-						b = str && !memcmp(str, buf->data + buf->iGap + buf->nGap, MIN(strlen(str), buf->nData - buf->iGap));
-						break;
-					}
 					case BIND_CALL_STARTLOOP:
 						frame.state = true;
 						stateStack[nStateStack++] = frame;
@@ -369,78 +363,31 @@ exec_bind(const int *keys, I32 amount)
 						b = !!reg;
 						reg += m;
 						break;
-					case BIND_CALL_MOVECURSOR: b = buffer_movecursor(buf, m) == m; break;
-					case BIND_CALL_MOVEHORZ: b = buffer_movehorz(buf, m) == m; break;
-					case BIND_CALL_MOVEVERT: b = buffer_movevert(buf, m) == m; break;
-					case BIND_CALL_INSERT: {
-						const char *const str = const_getdata(bc.param);
-						if(str)
-							buffer_insert(buf, str, strlen(str));
-						break;
-					}
-					case BIND_CALL_DELETE: b = buffer_delete(buf, m) == m; break;
-					case BIND_CALL_DELETELINE: b = buffer_deleteline(buf, m) == m; break;
-					case BIND_CALL_DELETESELECTION: {
-						U32 n;
-
-						if(!(mode->flags & FBIND_MODE_SELECTION) || !buf->nData) {
-							b = false;
-							break;
-						}
-						if(focus_window->selection > buf->iGap)
-							n = focus_window->selection - buf->iGap + 1;
-						else {
-							n = buf->iGap - focus_window->selection + 1;
-							buffer_movecursor(buf, focus_window->selection - buf->iGap);
-						}
-						buffer_delete(buf, n);
-						focus_window->selection = buf->iGap;
-						break;
-					}
 					case BIND_CALL_SETMODE:
 						iMode = bc.param;
-						if(modes[iMode].flags & FBIND_MODE_SELECTION)
-							focus_window->selection = buf->iGap;
 						break;
-					case BIND_CALL_COPY: {
-						char *text;
-						U32 nText;
-
-						if(!(modes[iMode].flags & FBIND_MODE_SELECTION) || !buf->nData)
-							break;
-						if(focus_window->selection > buf->iGap) {
-							text = buf->data + buf->iGap + buf->nGap;
-							nText = focus_window->selection - buf->iGap + 1;
-						} else {
-							text = buf->data + focus_window->selection;
-							nText = buf->iGap - focus_window->selection + 1;
-						}
-						clipboard_copy(text, nText);
+					case BIND_CALL_CLOSEWINDOW:
+						window_close(focus_window);
+						b = !!focus_window;
 						break;
-					}
-					case BIND_CALL_PASTE: {
-						char *text;
-
-						if(!clipboard_paste(&text)) {
-							buffer_insert(buf, text, strlen(text));
-							free(text);
-						}
+					case BIND_CALL_MOVEWINDOW_RIGHT:
+					case BIND_CALL_MOVEWINDOW_BELOW: {
+						int i = 0;
+						// get the right directional function
+						struct window *(*const next)(const struct window*) =
+							bc.type == BIND_CALL_MOVEWINDOW_RIGHT ?
+								(m > 0 ? window_right : window_left) :
+							m > 0 ? window_below : window_above;
+						const int di = m < 0 ? -1 : 1;
+						for(struct window *w = focus_window; i != m && (w = (*next)(w)); i += di)
+							focus_window = w;
+						b = i == m;
 						break;
 					}
-					case BIND_CALL_UNDO:
-						//print_events(buf->events, buf->iEvent, buf->nEvents);
-						b = buffer_undo(buf);
-						break;
-					case BIND_CALL_REDO:
-						b = buffer_redo(buf);
-						break;
-					case BIND_CALL_COLORWINDOW:
-						// TODO: open a color window or focus an existing one
-						break;
 					case BIND_CALL_VSPLIT: {
 						struct window *win;
 
-						win = edit_new(focus_window->buffer, focus_window->states);
+						win = window_dup(focus_window);
 						if(!win) {
 							b = false;
 							break;
@@ -451,7 +398,7 @@ exec_bind(const int *keys, I32 amount)
 					case BIND_CALL_HSPLIT: {
 						struct window *win;
 
-						win = edit_new(focus_window->buffer, focus_window->states);
+						win = window_dup(focus_window);
 						if(!win) {
 							b = false;
 							break;
@@ -460,7 +407,7 @@ exec_bind(const int *keys, I32 amount)
 						break;
 					}
 					case BIND_CALL_OPENWINDOW: {
-						const char *const file = choosefile();
+						const char *const file = NULL; // TODO: add choosefile(); again
 						if(file) {
 							struct buffer *buf;
 							struct window *win;
@@ -481,10 +428,6 @@ exec_bind(const int *keys, I32 amount)
 						}
 						break;
 					}
-					case BIND_CALL_CLOSEWINDOW:
-						window_close(focus_window);
-						b = !!focus_window;
-						break;
 					case BIND_CALL_NEWWINDOW: {
 						struct buffer *buf;
 						struct window *win;
@@ -504,24 +447,11 @@ exec_bind(const int *keys, I32 amount)
 						}
 						break;
 					}
-					case BIND_CALL_WRITEFILE:
-						buffer_save(focus_window->buffer);
-						break;
-					case BIND_CALL_MOVEWINDOW_RIGHT:
-					case BIND_CALL_MOVEWINDOW_BELOW: {
-						// get the right directional function
-						struct window *(*const next)(struct window*) =
-							bc.type == BIND_CALL_MOVEWINDOW_RIGHT ? 
-								(m > 0 ? window_right : window_left) :
-							m > 0 ? window_below : window_above;
-						int i = 0;
-						int di = m < 0 ? -1 : 1;
-						for(struct window *w = focus_window; i != m && (w = (*next)(w)); i += di)
-							focus_window = w;
-						b = i == m;
+					case BIND_CALL_COLORWINDOW:
+						// TODO: open a color window or focus an existing one
 						break;
 					}
-					}
+					b &= window_types[focus_window->type].bindcall(focus_window, &bc, m);
 					while(((bc.flags & FBIND_CALL_OR) && !(frame.state |= b))
 							|| ((bc.flags & FBIND_CALL_AND) && !(frame.state &= b))) {
 					end_frame:

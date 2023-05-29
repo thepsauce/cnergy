@@ -1,5 +1,37 @@
 #include "cnergy.h"
 
+int
+null_render(struct window *win)
+{
+	(void) win;
+	return 1;
+}
+
+bool
+null_bindcall(struct window *win, struct binding_call *bc, int param)
+{
+	(void) win;
+	(void) bc;
+	(void) param;
+	return false;
+}
+
+// edit
+int edit_render(struct window *win);
+bool edit_bindcall(struct window *win, struct binding_call *bc, int param);
+// buffer viewer
+int buffer_viewer_render(struct window *win);
+bool buffer_viewer_bindcall(struct window *win, struct binding_call *bc, int param);
+// file view 
+int file_viewer_render(struct window *win);
+bool file_viewer_bindcall(struct window *win, struct binding_call *bc, int param);
+
+struct window_type window_types[] = {
+	[WINDOW_EDIT] = { edit_render, edit_bindcall },
+	[WINDOW_BUFFER_VIEWER] = { buffer_viewer_render, buffer_viewer_bindcall },
+	[WINDOW_FILE_VIEWER] = { file_viewer_render, file_viewer_bindcall },
+};
+
 // All windows in here are rendered
 struct window **all_windows;
 U32 n_windows;
@@ -55,6 +87,18 @@ window_delete(struct window *win)
 }
 
 struct window *
+window_dup(const struct window *win)
+{
+	struct window *dup;
+
+	dup = window_new();
+	if(!dup)
+		return NULL;
+	memcpy(dup, win, sizeof(*win));
+	return dup;
+}
+
+struct window *
 window_atpos(int y, int x)
 {
 	for(U32 i = 0; i < n_windows; i++) {
@@ -67,7 +111,7 @@ window_atpos(int y, int x)
 }
 
 struct window *
-window_above(struct window *win)
+window_above(const struct window *win)
 {
 	const int yHit = win->line - 1;
 	const int xHit = win == focus_window ? focus_x : win->col + win->cols / 2;
@@ -75,7 +119,7 @@ window_above(struct window *win)
 }
 
 struct window *
-window_below(struct window *win)
+window_below(const struct window *win)
 {
 	const int yHit = win->line + win->lines;
 	const int xHit = win == focus_window ? focus_x : win->col + win->cols / 2;
@@ -83,7 +127,7 @@ window_below(struct window *win)
 }
 
 struct window *
-window_left(struct window *win)
+window_left(const struct window *win)
 {
 	const int yHit = win == focus_window ? focus_y : win->line + win->lines / 2;
 	const int xHit = win->col - 1;
@@ -91,7 +135,7 @@ window_left(struct window *win)
 }
 
 struct window *
-window_right(struct window *win)
+window_right(const struct window *win)
 {
 	const int yHit = win == focus_window ? focus_y : win->line + win->lines / 2;
 	const int xHit = win->col + win->cols;
@@ -216,11 +260,6 @@ window_render(struct window *win)
 	// don't need to render empty windows
 	if(win->lines <= 0 || win->cols <= 0)
 		return 1;
-	switch(win->type) {
-	case WINDOW_EDIT: edit_render(win); break;
-	default:
-		// this window type doesn't support rendering
-		return 1;
-	}
+	window_types[win->type].render(win);
 	return 0;
 }

@@ -9,7 +9,7 @@ struct uc_interval {
 
 /* auxiliary function for binary search in interval table */
 static int
-uc_bsearch(U32 ucs, const struct uc_interval *table, int max) {
+uc_bsearch(int ucs, const struct uc_interval *table, int max) {
 	int min = 0;
 	int mid;
 
@@ -83,7 +83,7 @@ utf8_width(const char *utf8, U32 nStr, U32 tabRef)
 		{ 0x1D242, 0x1D244 }, { 0xE0001, 0xE0001 }, { 0xE0020, 0xE007F },
 		{ 0xE0100, 0xE01EF }
 	};
-	U32 ucs;
+	int ucs;
 
 	// convert utf8 to unicode
 	const U8 firstByte = utf8[0];

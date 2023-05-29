@@ -253,3 +253,79 @@ edit_render(struct window *win)
 	unsafe_buffer_movecursor(buf, saveiGap - buf->iGap);
 	return 0;
 }
+
+bool
+edit_bindcall(struct window *win, struct binding_call *bc, int param)
+{
+	struct buffer *const buf = win->buffer;
+	switch(bc->type) {
+	case BIND_CALL_SETMODE:
+		if(mode_has(FBIND_MODE_SELECTION))
+			win->selection = buf->iGap;
+		return true;
+	case BIND_CALL_ASSERT: {
+		const char *const str = const_getdata(bc->param);
+		return str && !memcmp(str, buf->data + buf->iGap + buf->nGap, MIN(strlen(str), buf->nData - buf->iGap));
+	}
+	case BIND_CALL_MOVECURSOR: return buffer_movecursor(buf, param) == param;
+	case BIND_CALL_MOVEHORZ: return buffer_movehorz(buf, param) == param;
+	case BIND_CALL_MOVEVERT: return buffer_movevert(buf, param) == param;
+	case BIND_CALL_INSERT: {
+		const char *const str = const_getdata(bc->param);
+		if(str) {
+			buffer_insert(buf, str, strlen(str));
+			return true;
+		}
+		return false;
+	}
+	case BIND_CALL_DELETE: return buffer_delete(buf, param) == param;
+	case BIND_CALL_DELETELINE: return buffer_deleteline(buf, param) == param;
+	case BIND_CALL_DELETESELECTION: {
+		U32 n;
+
+		if(!mode_has(FBIND_MODE_SELECTION) || !buf->nData)
+			return false;
+		if(win->selection > buf->iGap)
+			n = win->selection - buf->iGap + 1;
+		else {
+			n = buf->iGap - win->selection + 1;
+			buffer_movecursor(buf, win->selection - buf->iGap);
+		}
+		buffer_delete(buf, n);
+		win->selection = buf->iGap;
+		return true;
+	}
+	case BIND_CALL_COPY: {
+		char *text;
+		U32 nText;
+
+		if(!mode_has(FBIND_MODE_SELECTION) || !buf->nData)
+			break;
+		if(win->selection > buf->iGap) {
+			text = buf->data + buf->iGap + buf->nGap;
+			nText = win->selection - buf->iGap + 1;
+		} else {
+			text = buf->data + win->selection;
+			nText = buf->iGap - win->selection + 1;
+		}
+		return !clipboard_copy(text, nText);
+	}
+	case BIND_CALL_PASTE: {
+		char *text;
+
+		if(!clipboard_paste(&text)) {
+			buffer_insert(buf, text, strlen(text));
+			free(text);
+			return true;
+		}
+		return false;
+	}
+	case BIND_CALL_UNDO:
+		return buffer_undo(buf);
+	case BIND_CALL_REDO:
+		return buffer_redo(buf);
+	case BIND_CALL_WRITEFILE:
+		return buffer_save(win->buffer);
+	}
+	return true;
+}

@@ -142,7 +142,7 @@ state_addcounterparan(struct state *s, int counter)
 
 // Note: ONLY call this inside of c_cleanup
 void
-state_addchar(struct state *s, int line, int col, char ch, int attr)
+state_addchar(struct state *s, U32 line, U32 col, char ch, int attr)
 {
 	if(col >= s->minCol && col < s->maxCol &&
 			line >= s->minLine && line < s->maxLine) {

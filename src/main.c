@@ -6,6 +6,9 @@ int print_modes(struct binding_mode *mode, int);
 int
 main(int argc, char **argv)
 {
+	(void) argc;
+	(void) argv;
+
 	setlocale(LC_ALL, "");
 
 	// all below here is pretty much test code
@@ -79,8 +82,8 @@ main(int argc, char **argv)
 		"include/cnergy.h",
 		"src/bind.c",
 	};
-	b = buffer_new("draft.cng");
-	w = edit_new(b, cnergy_states);
+	w = window_new();
+	w->type = WINDOW_FILE_VIEWER;
 	first_window = w;
 	focus_window = w;
 	for(U32 i = 0; i < ARRLEN(path); i++) {
@@ -156,7 +159,7 @@ main(int argc, char **argv)
 		for(U32 i = 0; i <= nKeys; i++)
 			printw("%s", keyname(keys[i]));
 		printw("%*s", COLS - getcurx(stdscr), "");
-		if(nKeys + 1 < ARRLEN(keys))
+		if(nKeys + 1 < (int) ARRLEN(keys))
 			nKeys++;
 		keys[nKeys] = 0;
 		if(exec_bind(keys, num ? num : 1) != 1) {

@@ -1,64 +1,14 @@
 #ifndef INCLUDED_EDITOR_H
 #define INCLUDED_EDITOR_H
 
-#include <assert.h>
-#include <ctype.h>
+#include "base.h"
+#include "filesystem.h"
+
 #include <curses.h>
 #include <dirent.h>
-#include <limits.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-/* General purpose */
-#define MAX(a, b) ({ \
-	__auto_type _a = (a); \
-	__auto_type _b = (b); \
-	_a > _b ? _a : _b; \
-})
-#define MIN(a, b) ({ \
-	__auto_type _a = (a); \
-	__auto_type _b = (b); \
-	_a < _b ? _a : _b; \
-})
-#define ABS(a) ({ \
-	__auto_type _a = (a); \
-	_a < 0 ? -_a : _a; \
-})
-#define SAFE_ADD(a, b) ({ \
-	__auto_type _a = (a); \
-	__auto_type _b = (b); \
-	typeof(_a) _c; \
-	if(__builtin_add_overflow(_a, _b, &_c)) \
-		_c = _a > 0 && _b > 0 ? INT_MAX : INT_MIN; \
-	_c; \
-})
-#define SAFE_MUL(a, b) ({ \
-	__auto_type _a = (a); \
-	__auto_type _b = (b); \
-	typeof(_a) _c; \
-	if(__builtin_mul_overflow(_a, _b, &_c)) \
-		_c = (a > 0 && b > 0) || (a < 0 && b < 0) ? INT_MAX : INT_MIN; \
-	_c; \
-})
-
-#define ARRLEN(a) (sizeof(a)/sizeof*(a))
-
-typedef int8_t I8;
-typedef int16_t I16;
-typedef int32_t I32;
-typedef int64_t I64;
-typedef uint8_t U8;
-typedef uint16_t U16;
-typedef uint32_t U32;
-typedef uint64_t U64;
 
 // TODO: COLOR is a temporary macro, it should get removed soon
 #define COLOR(bg, fg) COLOR_PAIR(1 + ((bg) | ((fg) * 16)))
@@ -67,12 +17,8 @@ typedef uint64_t U64;
 	printw("%*s", MAX((int) _m - getcurx(stdscr), 0), ""); \
 })
 
-void *const_alloc(const void *data, U32 sz);
-U32 const_getid(const void *data);
-void *const_getdata(U32 id);
-
 // Note: Implemented in src/dialog.c
-// This functions show a dialog to the user if the allocation failed
+// These functions show a dialog to the user if the allocation failed
 // The user may then retry allocating
 void *safe_alloc(U32 sz);
 void *safe_realloc(void *ptr, U32 newSz);
@@ -194,6 +140,8 @@ U32 buffer_getline(const struct buffer *buf, U32 line, char *dest, U32 maxDest);
 
 enum {
 	WINDOW_EDIT,
+	WINDOW_BUFFER_VIEWER,
+	WINDOW_FILE_VIEWER,
 	// TODO: add more
 };
 
@@ -203,6 +151,7 @@ enum {
 };
 
 struct state;
+struct binding_call;
 
 struct window {
 	U32 flags;
@@ -230,6 +179,10 @@ struct window {
 	};
 };
 
+extern struct window_type {
+	int (*render)(struct window *win);
+	bool (*bindcall)(struct window *win, struct binding_call *bc, int param);
+} window_types[];
 extern struct window **all_windows;
 extern U32 n_windows;
 extern struct window *first_window;
@@ -249,18 +202,20 @@ int window_close(struct window *win);
 // Delete this window from memory
 // Note: You must detach a window before deleting it, otherwise it's undefined behavior
 void window_delete(struct window *win);
+// Creates a duplicate of the given window
+struct window *window_dup(const struct window *win);
 // This gets the window at given position
 struct window *window_atpos(int y, int x);
 // These four functions have additional handling and may return non null values even though the internal struct value is null
-struct window *window_above(struct window *win);
-struct window *window_below(struct window *win);
-struct window *window_left(struct window *win);
-struct window *window_right(struct window *win);
+struct window *window_above(const struct window *win);
+struct window *window_below(const struct window *win);
+struct window *window_left(const struct window *win);
+struct window *window_right(const struct window *win);
 // Attach a window to another one
 // pos can be one of the following values:
 // ATT_WINDOW_UNSPECIFIED: The function decides where the window should best go
 // ATT_WINDOW_VERTICAL: The window should go below
-// ATT_WINDOW_HORIZONTAL: The window should go right 
+// ATT_WINDOW_HORIZONTAL: The window should go right
 void window_attach(struct window *to, struct window *win, int pos);
 // Remove all connections to any other windows
 void window_detach(struct window *win);
@@ -268,20 +223,31 @@ void window_layout(struct window *win);
 // Return values of 1 mean that the window wasn't rendered
 int window_render(struct window *win);
 
-// specific window types
+/* Additional functions for specific window types */
+// edit
 int (**edit_statesfromfiletype(const char *file))(struct state *s);
 struct window *edit_new(struct buffer *buf, int (**states)(struct state *s));
-int edit_render(struct window *win);
-// TODO: add more...
 
 /* Key bindings */
 
 enum {
 	BIND_CALL_NULL,
+	// general bindings calls, these have a default behavior which cannot be overwritten but only extended
 	BIND_CALL_STARTLOOP,
 	BIND_CALL_ENDLOOP,
 	BIND_CALL_REGISTER,
 	BIND_CALL_ASSERT,
+	BIND_CALL_SETMODE,
+	BIND_CALL_VSPLIT,
+	BIND_CALL_HSPLIT,
+	BIND_CALL_COLORWINDOW,
+	BIND_CALL_OPENWINDOW,
+	BIND_CALL_CLOSEWINDOW,
+	BIND_CALL_NEWWINDOW,
+	BIND_CALL_MOVEWINDOW_RIGHT,
+	BIND_CALL_MOVEWINDOW_BELOW,
+	BIND_CALL_QUIT,
+	// these have no default behavior and it solely depends on the window type what the behavior is
 	BIND_CALL_MOVECURSOR,
 	BIND_CALL_MOVEHORZ,
 	BIND_CALL_MOVEVERT,
@@ -289,22 +255,12 @@ enum {
 	BIND_CALL_DELETE,
 	BIND_CALL_DELETELINE,
 	BIND_CALL_DELETESELECTION,
-	BIND_CALL_SETMODE,
 	BIND_CALL_COPY,
 	BIND_CALL_PASTE,
 	BIND_CALL_UNDO,
 	BIND_CALL_REDO,
-	BIND_CALL_COLORWINDOW,
-	BIND_CALL_OPENWINDOW,
-	BIND_CALL_CLOSEWINDOW,
-	BIND_CALL_NEWWINDOW,
-	BIND_CALL_VSPLIT,
-	BIND_CALL_HSPLIT,
-	BIND_CALL_MOVEWINDOW_RIGHT,
-	BIND_CALL_MOVEWINDOW_BELOW,
 	BIND_CALL_WRITEFILE,
 	BIND_CALL_READFILE,
-	BIND_CALL_QUIT
 };
 
 enum {
@@ -386,7 +342,7 @@ struct state {
 	U32 index;
 	// cursor index for cursor assertions
 	U32 cursor;
-	// visual position of the cursor (can be used to highlight something later and not instantly)
+	// visual position of the cursor (relative to the scrolled window origin) (can be used to highlight something later and not instantly)
 	U32 line, col;
 	U32 minLine, maxLine, minCol, maxCol;
 };
@@ -414,7 +370,7 @@ int state_addcounterparan(struct state *s, int counter);
 int state_continue(struct state *s);
 // Draw a char to the window
 // Note: ONLY call this inside of c_cleanup
-void state_addchar(struct state *s, int line, int col, char ch, int attr);
+void state_addchar(struct state *s, U32 line, U32 col, char ch, int attr);
 // Free all resources associated to this state
 int state_cleanup(struct state *s);
 

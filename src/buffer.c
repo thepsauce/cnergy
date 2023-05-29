@@ -30,7 +30,12 @@ buffer_new(const char *file)
 
 		fp = fopen(file, "r");
 		if(fp && (buf->file = const_alloc(file, strlen(file) + 1))) {
-			getfiletime(file, &buf->fileTime);
+			struct file_info fi;
+
+			if(getfileinfo(&fi, file) < 0)
+				buf->fileTime = 0;
+			else
+				buf->fileTime = fi.modTime;
 			fseek(fp, 0, SEEK_END);
 			const U32 n = ftell(fp);
 			buf->data = safe_alloc(BUFFER_GAP_SIZE + n);
@@ -82,19 +87,19 @@ int
 buffer_save(struct buffer *buf)
 {
 	FILE *fp;
-	time_t time;
+	struct file_info fi;
 
 	if(!buf->file) {
-		const char *file = choosefile();
+		const char *file = NULL; // TODO: add choosefile call again
 		if(!file)
 			return 1;
 		buf->file = const_alloc(file, strlen(file) + 1);
 		if(!buf->file)
 			return -1;
 	}
-	if(getfiletime(buf->file, &time) < 0)
+	if(getfileinfo(&fi, buf->file) < 0)
 		return -1;
-	if(time != buf->fileTime) {
+	if(fi.modTime != buf->fileTime) {
 		const int m = messagebox("File not in line", "The file you're trying to write to was modified outside the editor, do you still want to write to it?", "[Y]es", "[N]o", NULL);
 		if(m != 0)
 			return 1;

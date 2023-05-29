@@ -96,9 +96,9 @@ struct bind_parser {
 		int err;
 		long pos;
 	} errStack[32];
-	int nErrStack;
-	int nErrors;
-	int nWarnings;
+	U32 nErrStack;
+	U32 nErrors;
+	U32 nWarnings;
 };
 
 /** Read the next character from the file */

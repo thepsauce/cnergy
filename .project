@@ -1,2 +1,2 @@
--g -Wall -D__x11__
--lcurses -lX11
+-g -Wall
+-lcurses

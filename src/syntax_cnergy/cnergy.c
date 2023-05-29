@@ -35,6 +35,7 @@ cnergy_state_default(struct state *s)
 			break;
 		}
 		s->index++;
+	/* fall through */
 	case 'a' ... 'z': case 'A' ... 'Z': case '_':
 		index = s->index;
 		while(isalnum(s->data[s->index + 1]) || s->data[s->index + 1] == '_')
