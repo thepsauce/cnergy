@@ -7,8 +7,17 @@ null_render(struct window *win)
 	return 1;
 }
 
+int
+null_type(struct window *win, const char *str, U32 nStr)
+{
+	(void) win;
+	(void) str;
+	(void) nStr;
+	return 1;
+}
+
 bool
-null_bindcall(struct window *win, struct binding_call *bc, int param)
+null_bindcall(struct window *win, struct binding_call *bc, I32 param)
 {
 	(void) win;
 	(void) bc;
@@ -18,18 +27,19 @@ null_bindcall(struct window *win, struct binding_call *bc, int param)
 
 // edit
 int edit_render(struct window *win);
-bool edit_bindcall(struct window *win, struct binding_call *bc, int param);
+int edit_type(struct window *win, const char *str, U32 nStr);
+bool edit_bindcall(struct window *win, struct binding_call *bc, I32 param);
 // buffer viewer
-int buffer_viewer_render(struct window *win);
-bool buffer_viewer_bindcall(struct window *win, struct binding_call *bc, int param);
+int bufferviewer_render(struct window *win);
+bool bufferviewer_bindcall(struct window *win, struct binding_call *bc, I32 param);
 // file view 
-int file_viewer_render(struct window *win);
-bool file_viewer_bindcall(struct window *win, struct binding_call *bc, int param);
+int fileviewer_render(struct window *win);
+bool fileviewer_bindcall(struct window *win, struct binding_call *bc, I32 param);
 
 struct window_type window_types[] = {
-	[WINDOW_EDIT] = { edit_render, edit_bindcall },
-	[WINDOW_BUFFER_VIEWER] = { buffer_viewer_render, buffer_viewer_bindcall },
-	[WINDOW_FILE_VIEWER] = { file_viewer_render, file_viewer_bindcall },
+	[WINDOW_EDIT] = { edit_render, edit_type, edit_bindcall },
+	[WINDOW_BUFFERVIEWER] = { bufferviewer_render, null_type, bufferviewer_bindcall },
+	[WINDOW_FILEVIEWER] = { fileviewer_render, null_type, fileviewer_bindcall },
 };
 
 // All windows in here are rendered
@@ -42,7 +52,7 @@ struct window *focus_window;
 int focus_y, focus_x;
 
 struct window *
-window_new(void)
+window_new(U32 type)
 {
 	struct window **newWindows;
 	struct window *win;
@@ -54,6 +64,8 @@ window_new(void)
 	if(!win)
 		return NULL;
 	memset(win, 0, sizeof(*win));
+	win->type = type;
+	win->bindMode = all_modes[type];
 	all_windows = newWindows;
 	all_windows[n_windows++] = win;
 	return win;
@@ -62,13 +74,15 @@ window_new(void)
 int
 window_close(struct window *win)
 {
+	struct window *near;
+
 	if(win == first_window)
 		first_window = win->below ? win->below : win->right;
 	if(win == focus_window)
-		focus_window = win->above ? win->above :
+		focus_window = win->right ? win->right :
 			win->below ? win->below :
-			win->right ? win->right :
-			win->left ? win->left : first_window;
+			win->left ? win->left :
+			win->above ? win->above : first_window;
 	window_detach(win);
 	window_delete(win);
 	return 0;
@@ -91,7 +105,7 @@ window_dup(const struct window *win)
 {
 	struct window *dup;
 
-	dup = window_new();
+	dup = window_new(0);
 	if(!dup)
 		return NULL;
 	memcpy(dup, win, sizeof(*win));
@@ -183,18 +197,32 @@ horizontal_attach:
 void
 window_detach(struct window *win)
 {
-	if(win->above)
-		win->above->below = win->below;
-	if(win->below)
-		win->below->above = win->above;
-	if(win->left)
-		win->left->right = win->right;
-	if(win->right)
-		win->right->left = win->left;
+	struct window *a, *b, *l, *r;
+
+	a = win->above;
+	b = win->below;
+	l = win->left;
+	r = win->right;
 	win->above = NULL;
 	win->below = NULL;
 	win->left = NULL;
 	win->right = NULL;
+	if(a)
+		a->below = b;
+	if(b)
+		b->above = a;
+	if(l)
+		l->right = r;
+	if(r)
+		r->left = l;
+	if(b && !a && l) {
+		b->left = l;
+		l->right = b;
+	}
+	if(r && !l && a) {
+		r->above = a;
+		a->below = r;
+	}
 }
 
 void
@@ -263,3 +291,4 @@ window_render(struct window *win)
 	window_types[win->type].render(win);
 	return 0;
 }
+

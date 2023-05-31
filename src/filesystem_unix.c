@@ -1,6 +1,6 @@
 #ifdef __unix__
 
-#include "filesystem.h"
+#include "cnergy.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -22,7 +22,6 @@ getfileinfo(struct file_info *fi, const char *path)
 	fi->chgTime = statbuf.st_ctime;
 	fi->modTime = statbuf.st_mtime;
 	fi->accTime = statbuf.st_atime;
-	fi->hash = fi->modTime;
 	return 0;
 }
 

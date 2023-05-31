@@ -32,13 +32,19 @@ edit_new(struct buffer *buf, int (**states)(struct state *s))
 {
 	struct window *win;
 
-	win = window_new();
+	win = window_new(WINDOW_EDIT);
 	if(!win)
 		return NULL;
-	win->type = WINDOW_EDIT;
 	win->buffer = buf;
 	win->states = states;
 	return win;
+}
+
+int
+edit_type(struct window *win, const char *str, U32 nStr)
+{
+	buffer_insert(win->buffer, str, nStr);
+	return 0;
 }
 
 int
@@ -98,7 +104,7 @@ edit_render(struct window *win)
 	state.maxCol = win->hScroll - nLineNumbers + win->cols;
 
 	// get bounds of selection
-	if(win == focus_window && mode_has(FBIND_MODE_SELECTION)) {
+	if(win == focus_window && (win->bindMode->flags & FBIND_MODE_SELECTION)) {
 		if(win->selection > saveiGap) {
 			minSel = saveiGap;
 			maxSel = win->selection;
@@ -255,35 +261,28 @@ edit_render(struct window *win)
 }
 
 bool
-edit_bindcall(struct window *win, struct binding_call *bc, int param)
+edit_bindcall(struct window *win, struct binding_call *bc, I32 param)
 {
 	struct buffer *const buf = win->buffer;
 	switch(bc->type) {
 	case BIND_CALL_SETMODE:
-		if(mode_has(FBIND_MODE_SELECTION))
+		if(win->bindMode->flags & FBIND_MODE_SELECTION)
 			win->selection = buf->iGap;
 		return true;
-	case BIND_CALL_ASSERT: {
-		const char *const str = const_getdata(bc->param);
-		return str && !memcmp(str, buf->data + buf->iGap + buf->nGap, MIN(strlen(str), buf->nData - buf->iGap));
-	}
+	case BIND_CALL_ASSERT:
+		return !memcmp(bc->str, buf->data + buf->iGap + buf->nGap, MIN(strlen(bc->str), buf->nData - buf->iGap));
 	case BIND_CALL_MOVECURSOR: return buffer_movecursor(buf, param) == param;
 	case BIND_CALL_MOVEHORZ: return buffer_movehorz(buf, param) == param;
 	case BIND_CALL_MOVEVERT: return buffer_movevert(buf, param) == param;
-	case BIND_CALL_INSERT: {
-		const char *const str = const_getdata(bc->param);
-		if(str) {
-			buffer_insert(buf, str, strlen(str));
-			return true;
-		}
-		return false;
-	}
+	case BIND_CALL_INSERT:
+		buffer_insert(buf, bc->str, strlen(bc->str));
+		return true;
 	case BIND_CALL_DELETE: return buffer_delete(buf, param) == param;
 	case BIND_CALL_DELETELINE: return buffer_deleteline(buf, param) == param;
 	case BIND_CALL_DELETESELECTION: {
 		U32 n;
 
-		if(!mode_has(FBIND_MODE_SELECTION) || !buf->nData)
+		if(!(win->bindMode->flags & FBIND_MODE_SELECTION) || !buf->nData)
 			return false;
 		if(win->selection > buf->iGap)
 			n = win->selection - buf->iGap + 1;
@@ -299,7 +298,7 @@ edit_bindcall(struct window *win, struct binding_call *bc, int param)
 		char *text;
 		U32 nText;
 
-		if(!mode_has(FBIND_MODE_SELECTION) || !buf->nData)
+		if(!(win->bindMode->flags & FBIND_MODE_SELECTION) || !buf->nData)
 			break;
 		if(win->selection > buf->iGap) {
 			text = buf->data + buf->iGap + buf->nGap;

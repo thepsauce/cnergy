@@ -1,43 +1,14 @@
 #include "cnergy.h"
 
-struct binding_mode *modes;
-U32 nModes;
-U32 iMode;
+struct binding_mode *all_modes[WINDOW_MAX];
 
-inline U32
-mode_has(U32 flags)
+static struct binding_mode *
+mode_find(U32 windowType, const char *name)
 {
-	return modes[iMode].flags & flags;
-}
-
-inline const char *
-mode_name(void)
-{
-	return modes[iMode].name;
-}
-
-static inline struct binding_mode *
-mode_get(const char *name, U32 *pIndex)
-{
-	for(U32 i = 0; i < nModes; i++)
-		if(!strcmp(modes[i].name, name)) {
-			if(pIndex)
-				*pIndex = i;
-			return modes + i;
-		}
+	for(struct binding_mode *m = all_modes[windowType]; m; m = m->next)
+		if(!strcmp(m->name, name))
+			return m;
 	return NULL;
-}
-
-int
-mode_getmergepos(struct binding_mode *m, U32 n, U32 *pos)
-{
-	for(U32 i = 0, next = 0; i < n; i++) {
-		if(m[i].flags & FBIND_MODE_SUPPLEMENTARY)
-			continue;
-		if(!mode_get(m[i].name, pos + i))
-			pos[i] = nModes + next++;
-	}
-	return 0;
 }
 
 static inline int
@@ -215,7 +186,7 @@ print_binding_calls(struct binding_call *calls, U32 nCalls) {
 			printf("PASTE");
 			break;
 		default:
-			printf("UNKWOWN[%d]", calls->type);
+			printf("UNKWOWN[%u]", calls->type);
 		}
 		if(calls->flags & FBIND_CALL_USENUMBER)
 			printf("N");
@@ -225,71 +196,74 @@ print_binding_calls(struct binding_call *calls, U32 nCalls) {
 }
 
 void
-print_modes(struct binding_mode *m, U32 n)
+print_modes(struct binding_mode *m)
 {
-	if(!m) {
-		m = modes;
-		n = nModes;
-	}
-	printf("Got %u modes\n", n);
-	for(U32 i = 0; i < n; i++) {
-		printf("MODE: %s (%#x)(%u bindings)\n", m[i].name, m[i].flags, m[i].nBindings);
-		for(U32 j = 0; j < m[i].nBindings; j++) {
-			const struct binding bind = m[i].bindings[j];
-			printf("  BIND([%p]%u, [%p]%u): ", bind.keys, bind.nKeys, bind.calls, bind.nCalls);
-			fflush(stdout);
-			for(int *k = bind.keys, *e = k + bind.nKeys;;) {
-				for(;;) {
-					printf("%s", keyname(*k));
-					k++;
-					if(!*k)
-						break;
-					putchar(' ');
-				}
+	if(!m)
+		return;
+	printf("MODE: %s (%#x)(%u bindings)\n", m->name, m->flags, m->nBindings);
+	for(U32 j = 0; j < m->nBindings; j++) {
+		const struct binding bind = m->bindings[j];
+		printf("  BIND([%p]%u, [%p]%u): ", bind.keys, bind.nKeys, bind.calls, bind.nCalls);
+		fflush(stdout);
+		for(int *k = bind.keys, *e = k + bind.nKeys;;) {
+			for(;;) {
+				printf("%s", keyname(*k));
 				k++;
-				if(k == e)
+				if(!*k)
 					break;
-				printf(", ");
+				putchar(' ');
 			}
-			putchar(' ');
-			print_binding_calls(bind.calls, bind.nCalls);
-			putchar('\n');
+			k++;
+			if(k == e)
+				break;
+			printf(", ");
 		}
+		putchar(' ');
+		print_binding_calls(bind.calls, bind.nCalls);
+		putchar('\n');
 	}
 }
 
 int
-mode_merge(struct binding_mode *m, U32 n)
+modes_add(struct binding_mode *modes[WINDOW_MAX])
 {
-	for(U32 i; n; n--, m++) {
-		if(m->flags & FBIND_MODE_SUPPLEMENTARY)
-			continue;
-		for(i = 0; i < nModes; i++) {
-			if(!strcmp(modes[i].name, m->name)) {
-				if(mergebinds(modes + i, m) < 0)
-					return -1;
-				break;
+	for(U32 i = 0; i < WINDOW_MAX; i++) {
+		struct binding_mode *m = modes[i];
+		for(; m; m = m->next) {
+			struct binding_mode *e, *prev_e;
+			struct binding_mode *newMode;
+
+			for(e = all_modes[i], prev_e = NULL; e; prev_e = e, e = e->next) {
+				if(!strcmp(m->name, e->name)) {
+					if(mergebinds(m, e) < 0)
+						return -1;
+					break;
+				}
 			}
+			if(e)
+				continue;
+			newMode = malloc(sizeof(*newMode));
+			if(!newMode)
+				return -1;
+			memset(newMode, 0, sizeof(*newMode));
+			strcpy(newMode->name, m->name);
+			newMode->flags = m->flags;
+			newMode->bindings = malloc(sizeof(*newMode->bindings) * m->nBindings);
+			for(U32 b = 0; b < m->nBindings; b++) {
+				const struct binding bind = m->bindings[b];
+				newMode->bindings[b] = (struct binding) {
+					.nKeys = bind.nKeys,
+					.nCalls = bind.nCalls,
+					.keys = const_alloc(bind.keys, sizeof(*bind.keys) * bind.nKeys),
+					.calls = const_alloc(bind.calls, sizeof(*bind.calls) * bind.nCalls),
+				};
+			}
+			newMode->nBindings = m->nBindings;
+			if(prev_e)
+				prev_e->next = newMode;
+			else
+				all_modes[i] = newMode;
 		}
-		if(i != nModes)
-			continue;
-		modes = realloc(modes, sizeof(*modes) * (nModes + 1));
-		if(!modes)
-			return -1;
-		strcpy(modes[nModes].name, m->name);
-		modes[nModes].flags = m->flags;
-		modes[nModes].bindings = malloc(sizeof(*modes[nModes].bindings) * m->nBindings);
-		for(U32 b = 0; b < m->nBindings; b++) {
-			const struct binding bind = m->bindings[b];
-			modes[nModes].bindings[b] = (struct binding) {
-				.nKeys = bind.nKeys,
-				.nCalls = bind.nCalls,
-				.keys = const_alloc(bind.keys, sizeof(*bind.keys) * bind.nKeys),
-				.calls = const_alloc(bind.calls, sizeof(*bind.calls) * bind.nCalls),
-			};
-		}
-		modes[nModes].nBindings = m->nBindings;
-		nModes++;
 	}
 	return 0;
 }
@@ -306,174 +280,193 @@ print_events(const struct event *events, U32 iEvent, U32 nEvents) {
 		printw("\n");
 	}
 }*/
-
-int
-exec_bind(const int *keys, I32 amount)
+static inline struct binding *
+mode_findbind(struct binding_mode *mode, const int *keys)
 {
-	const struct binding *binds;
+	struct binding *binds;
 	U32 nBinds;
-	int ret = 2;
-	const int *k;
-	const struct binding_mode *const mode = modes + iMode;
+	struct binding *ret = NULL;
+
+	if(!mode)
+		return NULL;
 	for(binds = mode->bindings, nBinds = mode->nBindings; nBinds; binds++, nBinds--) {
 		for(const int *ks = binds->keys, *es = ks + binds->nKeys; ks != es; ks++) {
+			const int *k;
 			for(k = keys; *ks; ks++, k++)
 				if(*ks != *k)
 					break;
-			if(!*ks && !*k) {
-				const struct binding_call *bcs;
-				U32 nbc;
-				struct state_frame {
-					bool state;
-					bool run;
-				} stateStack[32], frame;
-				U32 nStateStack = 0;
-				int reg = 0;
-
-				frame.state = true;
-				frame.run = false;
-				for(bcs = binds->calls, nbc = binds->nCalls; nbc; nbc--, bcs++) {
-					struct binding_call bc;
-					bool b = true;
-
-					bc = *bcs;
-					const I32 m = (bc.flags & FBIND_CALL_USENUMBER) ? SAFE_MUL(amount, bc.param) : bc.param;
-					if((bc.flags & FBIND_CALL_AND) && !frame.state)
-						goto end_frame;
-					if((bc.flags & FBIND_CALL_XOR) && frame.state) {
-						// note that startloop and endloop are not allowed to have the xor flag, this is checked for in the parser
-						frame.state = false;
-						continue;
-					}
-					switch(bc.type) {
-					case BIND_CALL_STARTLOOP:
-						frame.state = true;
-						stateStack[nStateStack++] = frame;
-						frame.run = false;
-						// continue to ignore flags like and/or (they wouldn't do anything for startloop anyway)
-						continue;
-					case BIND_CALL_ENDLOOP:
-						bcs -= bc.param;
-						nbc += bc.param;
-						frame.state = true;
-						frame.run = true;
-						// continue to ignore flags like and/or
-						continue;
-					case BIND_CALL_REGISTER:
-						b = !!reg;
-						reg += m;
-						break;
-					case BIND_CALL_SETMODE:
-						iMode = bc.param;
-						break;
-					case BIND_CALL_CLOSEWINDOW:
-						window_close(focus_window);
-						b = !!focus_window;
-						break;
-					case BIND_CALL_MOVEWINDOW_RIGHT:
-					case BIND_CALL_MOVEWINDOW_BELOW: {
-						int i = 0;
-						// get the right directional function
-						struct window *(*const next)(const struct window*) =
-							bc.type == BIND_CALL_MOVEWINDOW_RIGHT ?
-								(m > 0 ? window_right : window_left) :
-							m > 0 ? window_below : window_above;
-						const int di = m < 0 ? -1 : 1;
-						for(struct window *w = focus_window; i != m && (w = (*next)(w)); i += di)
-							focus_window = w;
-						b = i == m;
-						break;
-					}
-					case BIND_CALL_VSPLIT: {
-						struct window *win;
-
-						win = window_dup(focus_window);
-						if(!win) {
-							b = false;
-							break;
-						}
-						window_attach(focus_window, win, ATT_WINDOW_HORIZONTAL);
-						break;
-					}
-					case BIND_CALL_HSPLIT: {
-						struct window *win;
-
-						win = window_dup(focus_window);
-						if(!win) {
-							b = false;
-							break;
-						}
-						window_attach(focus_window, win, ATT_WINDOW_VERTICAL);
-						break;
-					}
-					case BIND_CALL_OPENWINDOW: {
-						const char *const file = NULL; // TODO: add choosefile(); again
-						if(file) {
-							struct buffer *buf;
-							struct window *win;
-
-							buf = buffer_new(file);
-							if(!buf) {
-								b = false;
-								break;
-							}
-							win = edit_new(buf, edit_statesfromfiletype(file));
-							if(win) {
-								window_attach(focus_window, win, ATT_WINDOW_UNSPECIFIED);
-								focus_window = win;
-							} else {
-								buffer_free(buf);
-								b = false;
-							}
-						}
-						break;
-					}
-					case BIND_CALL_NEWWINDOW: {
-						struct buffer *buf;
-						struct window *win;
-
-						buf = buffer_new(NULL);
-						if(!buf) {
-							b = false;
-							break;
-						}
-						win = edit_new(buf, NULL);
-						if(win) {
-							window_attach(focus_window, win, ATT_WINDOW_UNSPECIFIED);
-							focus_window = win;
-						} else {
-							buffer_free(buf);
-							b = false;
-						}
-						break;
-					}
-					case BIND_CALL_COLORWINDOW:
-						// TODO: open a color window or focus an existing one
-						break;
-					}
-					b &= window_types[focus_window->type].bindcall(focus_window, &bc, m);
-					while(((bc.flags & FBIND_CALL_OR) && !(frame.state |= b))
-							|| ((bc.flags & FBIND_CALL_AND) && !(frame.state &= b))) {
-					end_frame:
-						do {
-							nbc--;
-							bcs++;
-							if(!nbc)
-								return 0; // found end of program without any endloop in our way
-							bc = *bcs;
-						} while(bc.type != BIND_CALL_ENDLOOP);
-						b = frame.run;
-						frame = stateStack[--nStateStack];
-					}
-					if(!(bc.flags & (FBIND_CALL_AND | FBIND_CALL_OR)))
-						frame.state = b;
-				}
-				return 0; // program finished normally
-			}
+			if(!*ks && !*k)
+				return binds;
 			do ks++; while(*ks);
-			ret = !*k ? 1 : ret;
+			if(!*k)
+				ret = (struct binding*) mode; // indicate that a key sequence start with the given sequence
 		}
 	}
 	return ret;
 }
 
+int
+bind_exec(const int *keys, I32 amount)
+{
+	struct binding *bind;
+	const struct binding_call *bcs;
+	U32 nbc;
+	struct state_frame {
+		bool state;
+		bool run;
+	} stateStack[32], frame;
+	U32 nStateStack = 0;
+	int reg = 0;
+
+	bind = mode_findbind(focus_window->bindMode, keys);
+	if(bind == (struct binding*) focus_window->bindMode)
+		return 1;
+	if(!bind) {
+		struct binding_mode *const mode = mode_find(WINDOW_ALL, focus_window->bindMode->name);
+		bind = mode_findbind(mode, keys);
+		if(bind == (struct binding*) mode)
+			return 1;
+	}
+	if(!bind)
+		return 2;
+
+	frame.state = true;
+	frame.run = false;
+	for(bcs = bind->calls, nbc = bind->nCalls; nbc; nbc--, bcs++) {
+		struct binding_call bc;
+		bool b = true;
+
+		bc = *bcs;
+		const I32 m = (bc.flags & FBIND_CALL_USENUMBER) ? SAFE_MUL(amount, bc.param) : bc.param;
+		if((bc.flags & FBIND_CALL_AND) && !frame.state)
+			goto end_frame;
+		if((bc.flags & FBIND_CALL_XOR) && frame.state) {
+			// note that startloop and endloop are not allowed to have the xor flag, this is checked for in the parser
+			frame.state = false;
+			continue;
+		}
+		switch(bc.type) {
+		case BIND_CALL_STARTLOOP:
+			frame.state = true;
+			stateStack[nStateStack++] = frame;
+			frame.run = false;
+			// continue to ignore flags like and/or (they wouldn't do anything for startloop anyway)
+			continue;
+		case BIND_CALL_ENDLOOP:
+			bcs -= bc.param;
+			nbc += bc.param;
+			frame.state = true;
+			frame.run = true;
+			// continue to ignore flags like and/or
+			continue;
+		case BIND_CALL_REGISTER:
+			b = !!reg;
+			reg += m;
+			break;
+		case BIND_CALL_SETMODE:
+			focus_window->bindMode = mode_find(focus_window->type, bc.str);
+			break;
+		case BIND_CALL_CLOSEWINDOW:
+			window_close(focus_window);
+			b = !!focus_window;
+			break;
+		case BIND_CALL_MOVEWINDOW_RIGHT:
+		case BIND_CALL_MOVEWINDOW_BELOW: {
+			int i = 0;
+			// get the right directional function
+			struct window *(*const next)(const struct window*) =
+				bc.type == BIND_CALL_MOVEWINDOW_RIGHT ?
+					(m > 0 ? window_right : window_left) :
+				m > 0 ? window_below : window_above;
+			const int di = m < 0 ? -1 : 1;
+			for(struct window *w = focus_window; i != m && (w = (*next)(w)); i += di)
+				focus_window = w;
+			b = i == m;
+			break;
+		}
+		case BIND_CALL_VSPLIT: {
+			struct window *win;
+
+			win = window_dup(focus_window);
+			if(!win) {
+				b = false;
+				break;
+			}
+			window_attach(focus_window, win, ATT_WINDOW_HORIZONTAL);
+			break;
+		}
+		case BIND_CALL_HSPLIT: {
+			struct window *win;
+
+			win = window_dup(focus_window);
+			if(!win) {
+				b = false;
+				break;
+			}
+			window_attach(focus_window, win, ATT_WINDOW_VERTICAL);
+			break;
+		}
+		case BIND_CALL_OPENWINDOW: {
+			const char *const file = NULL; // TODO: add choosefile(); again
+			if(file) {
+				struct buffer *buf;
+				struct window *win;
+
+				buf = buffer_new(file);
+				if(!buf) {
+					b = false;
+					break;
+				}
+				win = edit_new(buf, edit_statesfromfiletype(file));
+				if(win) {
+					window_attach(focus_window, win, ATT_WINDOW_UNSPECIFIED);
+					focus_window = win;
+				} else {
+					buffer_free(buf);
+					b = false;
+				}
+			}
+			break;
+		}
+		case BIND_CALL_NEWWINDOW: {
+			struct buffer *buf;
+			struct window *win;
+
+			buf = buffer_new(NULL);
+			if(!buf) {
+				b = false;
+				break;
+			}
+			win = edit_new(buf, NULL);
+			if(win) {
+				window_attach(focus_window, win, ATT_WINDOW_UNSPECIFIED);
+				focus_window = win;
+			} else {
+				buffer_free(buf);
+				b = false;
+			}
+			break;
+		}
+		case BIND_CALL_COLORWINDOW:
+			// TODO: open a color window or focus an existing one
+			break;
+		}
+		b &= window_types[focus_window->type].bindcall(focus_window, &bc, m);
+		while(((bc.flags & FBIND_CALL_OR) && !(frame.state |= b))
+				|| ((bc.flags & FBIND_CALL_AND) && !(frame.state &= b))) {
+		end_frame:
+			do {
+				nbc--;
+				bcs++;
+				if(!nbc)
+					return 0; // found end of program without any endloop in our way
+				bc = *bcs;
+			} while(bc.type != BIND_CALL_ENDLOOP);
+			b = frame.run;
+			frame = stateStack[--nStateStack];
+		}
+		if(!(bc.flags & (FBIND_CALL_AND | FBIND_CALL_OR)))
+			frame.state = b;
+	}
+	return 0; // program finished normally
+}

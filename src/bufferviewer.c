@@ -8,7 +8,7 @@ static int row = 0;
 static int column = 0;
 
 int
-buffer_viewer_render(struct window *win)
+bufferviewer_render(struct window *win)
 {
 	U32 i = 0;
 	const U32 maxCol1 = win->cols * 2 / 3;
@@ -34,7 +34,7 @@ buffer_viewer_render(struct window *win)
 }
 
 bool
-buffer_viewer_bindcall(struct window *win, struct binding_call *bc, int param)
+bufferviewer_bindcall(struct window *win, struct binding_call *bc, int param)
 {
 	switch(bc->type) {
 	case BIND_CALL_MOVEVERT:

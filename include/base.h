@@ -1,3 +1,8 @@
+/**
+ * The base includes standard libraries and useful macros and types to use
+ * by all other files
+ */
+
 #ifndef INCLUDED_BASE_H
 #define INCLUDED_BASE_H
 
