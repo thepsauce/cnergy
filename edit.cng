@@ -30,7 +30,7 @@ v :visual
 T #N (( #-1 & +"T" ))
 M ?"int" ^ +"int" ^ +"u" ^ <3 ^ <1
 
-bind $insert: lazy
+bind $insert:
 
 BACK <x1
 DEL >x1

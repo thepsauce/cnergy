@@ -111,6 +111,8 @@ buffer_save(struct buffer *buf)
 	fwrite(buf->data + buf->iGap + buf->nGap, 1, buf->nData - buf->iGap, fp);
 	fclose(fp);
 	buf->saveEvent = buf->iEvent;
+	getfileinfo(&fi, buf->file);
+	buf->fileTime = fi.modTime;
 	return 0;
 }
 
@@ -162,26 +164,10 @@ unsafe_buffer_movecursor(struct buffer *buf, I32 distance)
 	return distance;
 }
 
-// converts a distance of characters to a byte distance
-static I32
+static inline I32
 buffer_cnvdist(const struct buffer *buf, I32 distance)
 {
-	U32 i, iFirst;
-
-	i = buf->iGap;
-	if(distance > 0) {
-		i += buf->nGap;
-		iFirst = i;
-		for(; i < buf->nData + buf->nGap && distance; distance--)
-			i += utf8_len(buf->data + i, buf->nData + buf->nGap - i);
-	} else {
-		iFirst = i;
-		for(; i > 0 && distance; distance++)
-			while((buf->data[--i] & 0xC0) == 0x80)
-				if(i > 0 && !(buf->data[i - 1] & 0x80))
-					break;
-	}
-	return i - iFirst;
+	return utf8_cnvdist(buf->data, buf->nData + buf->nGap, buf->iGap + (distance > 0 ? buf->nGap : 0), distance);
 }
 
 // Returns the moved amount (safe version of unsafe_buffer_movecursor that also updates vct)

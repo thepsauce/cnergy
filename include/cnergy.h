@@ -66,6 +66,8 @@ int utf8_len(const char *str, U32 nStr);
 // Checks if the given character is valid utf8
 // Note: nStr is not allowed to be 0, might cause segfault
 bool utf8_valid(const char *utf8, U32 nStr);
+/** Convert byte distance to char distance */
+I32 utf8_cnvdist(const char *str, U32 nStr, U32 index, I32 distance);
 
 /* Dialog */
 const char *choosefile(void);

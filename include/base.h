@@ -59,7 +59,5 @@ typedef uint32_t U32;
 typedef uint64_t U64;
 
 void *const_alloc(const void *data, U32 sz);
-U32 const_getid(const void *data);
-void *const_getdata(U32 id);
 
 #endif

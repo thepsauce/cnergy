@@ -59,36 +59,40 @@ enum {
 	ATT_WINDOW_HORIZONTAL,
 };
 
-// Create a new window and add it to the window list
+/** Create a new window and add it to the window list */
 struct window *window_new(U32 type);
-// Safe function that detaches, deletes the window and changes focus-/first window if needed
+/** Safe function that detaches, deletes the window and changes focus-/first window if needed */
 int window_close(struct window *win);
-// Delete this window from memory
-// Note: You must detach a window before deleting it, otherwise it's undefined behavior
+/** Delete this window from memory */
+/** Note: You must detach the window or copy the layout to another window before deleting it, otherwise it's undefined behavior */
 void window_delete(struct window *win);
-// Creates a duplicate of the given window
+/** The second window will take the place of the first one; this also swaps the focus */
+void window_copylayout(struct window *win, struct window *rep);
+/** Creates a duplicate of the given window */
 struct window *window_dup(const struct window *win);
-// This gets the window at given position
+/** Creates a duplicate of the given window */
+struct window *window_dup(const struct window *win);
+/** This gets the window at given position */
 struct window *window_atpos(int y, int x);
-// These four functions have additional handling and may return non null values even though the internal struct value is null
+/** These four functions have additional handling and may return non null values even though the internal struct value is null */
 struct window *window_above(const struct window *win);
 struct window *window_below(const struct window *win);
 struct window *window_left(const struct window *win);
 struct window *window_right(const struct window *win);
-// Attach a window to another one
-// pos can be one of the following values:
-// ATT_WINDOW_UNSPECIFIED: The function decides where the window should best go
-// ATT_WINDOW_VERTICAL: The window should go below
-// ATT_WINDOW_HORIZONTAL: The window should go right
+/** Attach a window to another one */
+/** pos can be one of the following values: */
+/** ATT_WINDOW_UNSPECIFIED: The function decides where the window should best go */
+/** ATT_WINDOW_VERTICAL: The window should go below */
+/** ATT_WINDOW_HORIZONTAL: The window should go right */
 void window_attach(struct window *to, struct window *win, int pos);
-// Remove all connections to any other windows
+/** Remove all connections to any other windows */
 void window_detach(struct window *win);
 void window_layout(struct window *win);
-// Return values of 1 mean that the window wasn't rendered
+/** Return values of 1 mean that the window wasn't rendered */
 int window_render(struct window *win);
 
 /* Additional functions for specific window types */
-// edit
+// edit.c
 int (**edit_statesfromfiletype(const char *file))(struct state *s);
 struct window *edit_new(struct buffer *buf, int (**states)(struct state *s));
 

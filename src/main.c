@@ -30,7 +30,7 @@ main(int argc, char **argv)
 
 	setlocale(LC_ALL, "");
 
-	// all below here is pretty much test code
+	// all below here is pretty much test code beside the main loop
 	struct parser parser;
 	memset(&parser, 0, sizeof(parser));
 	if(!parser_open(&parser, "draft.cng", WINDOW_ALL)) {
@@ -68,6 +68,8 @@ main(int argc, char **argv)
 		}
 		parser_cleanup(&parser);
 		print_modes(NULL);
+		if(parser.nErrors)
+			return -1;
 	}
 
 	initscr();
@@ -145,7 +147,7 @@ main(int argc, char **argv)
 
 		if(!focus_window)
 			break;
-		// -1 to reserve a line to show key presses
+		// -1 to reserve a line to show the global status bar
 		first_window->line = 0;
 		first_window->col = 0;
 		first_window->lines = LINES - 1;
@@ -167,6 +169,9 @@ main(int argc, char **argv)
 			c = KEY_BACKSPACE;
 			break;
 		case 0x1b: // escape
+			// if we have anything already, discard it,
+			// meaning that escape cannot be repeated or be part of a bind
+			// it can be the start of a bind tho
 			if(num || nKeys) {
 				num = 0;
 				nKeys = 0;
@@ -174,44 +179,44 @@ main(int argc, char **argv)
 			}
 			break;
 		}
-		if(focus_window->bindMode && (focus_window->bindMode->flags & FBIND_MODE_TYPE) && (isprint(c) || isspace(c))) {
+		if(focus_window->bindMode && (focus_window->bindMode->flags & FBIND_MODE_TYPE) &&
+				(isprint(c) || isspace(c))) {
 			char b[10];
 
 			b[0] = c;
-			// get length of the following utf8 character
+			// get length of the following utf8 character and fully read it
 			const U32 len = (c & 0xe0) == 0xc0 ? 2 : (c & 0xf0) == 0xe0 ? 3 : (c & 0xf8) == 0xf0 ? 4 : 1;
 			for(U32 i = 1; i < len; i++)
 				b[i] = getch();
 			window_types[focus_window->type].type(focus_window, b, len);
 		}
+		// either append the digit to the number or try to execute a bind
+		// render status bar
 		attrset(COLOR(3, 0));
 		move(LINES - 1, 0);
-		if(focus_window->bindMode)
-			printw("%s ", focus_window->bindMode->name);
-		if(!nKeys) {
-			if(isdigit(c) && (c != '0' || num)) {
-				num = SAFE_MUL(num, 10);
-				num = SAFE_ADD(num, c - '0');
-				if(num) {
-					printw("%d", num);
-					printw("%*s", COLS - getcurx(stdscr), "");
-				}
-				continue;
+		if(!(focus_window->bindMode->flags & FBIND_MODE_TYPE) && 
+				isdigit(c) && (c != '0' || num)) {
+			num = SAFE_MUL(num, 10);
+			num = SAFE_ADD(num, c - '0');
+		} else {
+			keys[nKeys] = c;
+			if(nKeys + 1 < (int) ARRLEN(keys))
+				nKeys++;
+			keys[nKeys] = 0;
+			// a return value of 1 indicates that the user can get to a bind by pressing more keys,
+			// we check for the opposite
+			if(bind_exec(keys, num ? num : 1) != 1) {
+				nKeys = 0;
+				num = 0;
 			}
 		}
-		keys[nKeys] = c;
+		if(focus_window->bindMode)
+			printw("%s ", focus_window->bindMode->name);
 		if(num)
 			printw("%d", num);
-		for(U32 i = 0; i <= nKeys; i++)
+		for(U32 i = 0; i < nKeys; i++)
 			printw("%s", keyname(keys[i]));
 		printw("%*s", COLS - getcurx(stdscr), "");
-		if(nKeys + 1 < (int) ARRLEN(keys))
-			nKeys++;
-		keys[nKeys] = 0;
-		if(bind_exec(keys, num ? num : 1) != 1) {
-			nKeys = 0;
-			num = 0;
-		}
 	}
 	endwin();
 	printf("normal exit\n");

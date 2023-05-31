@@ -145,6 +145,3 @@ safe_realloc(void *ptr, U32 newSz)
 				newSz, "[T]ry again", "[C]ancel", NULL));
 	return ptr;
 }
-
-
-

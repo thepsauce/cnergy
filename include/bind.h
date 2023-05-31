@@ -32,8 +32,13 @@ enum {
 	BIND_CALL_REDO,
 	BIND_CALL_WRITEFILE,
 	BIND_CALL_READFILE,
+
 	BIND_CALL_CHOOSE,
-	BIND_CALL_SWITCH,
+	BIND_CALL_TOGGLEHIDDEN,
+	BIND_CALL_TOGGLESORTTYPE,
+	BIND_CALL_SORTALPHABETICAL,
+	BIND_CALL_SORTCHANGETIME,
+	BIND_CALL_SORTMODIFICATIONTIME,
 };
 
 enum {
@@ -72,7 +77,6 @@ struct binding_mode {
 	U32 nBindings;
 	struct binding *bindings;
 	struct binding_mode *next;
-	struct binding_mode *ext;
 };
 
 extern struct binding_mode *all_modes[WINDOW_MAX];

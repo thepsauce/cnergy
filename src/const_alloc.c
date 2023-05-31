@@ -98,38 +98,3 @@ const_alloc(const void *data, U32 szData)
 	memcpy(pool->data, data, szData);
 	return NULL;
 }
-
-U32
-const_getid(const void *data)
-{
-	struct mempool *pool;
-	U16 iPool = 0;
-
-	if(data < (void*) first->data)
-		return UINT32_MAX;
-	for(pool = first; pool; pool = pool->next, iPool++) {
-		if(!pool->nPtrs)
-			break;
-		if(data < (void*) pool->data + sizeof(pool->data)) {
-			for(U16 i = 0; i < pool->nPtrs; i++)
-				if((U32*) data == (U32*) pool->data + pool->ptrs[i].off)
-					return (iPool << 16) | pool->ptrs[i].off;
-			break;
-		}
-	}
-	return UINT32_MAX;
-}
-
-void *
-const_getdata(U32 id)
-{
-	struct mempool *pool;
-	U16 iPool;
-	
-	iPool = id >> 16;
-	for(pool = first; iPool && pool; pool = pool->next, iPool--);
-	if(!pool)
-		return NULL;
-	const U16 ptr = id & 0xffff;
-	return (U32*) pool->data + ptr;
-}

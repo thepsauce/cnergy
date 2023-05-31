@@ -124,12 +124,12 @@ utf8_width(const char *utf8, U32 nStr, U32 tabRef)
 		return 0;
 
 	/* if we arrive here, ucs is not a combining or C0/C1 control character */
-	return 1 + 
+	return 1 +
 		(ucs >= 0x1100 &&
 			(ucs <= 0x115f ||					/* Hangul Jamo init. consonants */
 			ucs == 0x2329 || ucs == 0x232a ||
 			(ucs >= 0x2e80 && ucs <= 0xa4cf &&
-			 ucs != 0x303f) ||					/* CJK ... Yi */
+				ucs != 0x303f) ||				/* CJK ... Yi */
 			(ucs >= 0xac00 && ucs <= 0xd7a3) ||	/* Hangul Syllables */
 			(ucs >= 0xf900 && ucs <= 0xfaff) ||	/* CJK Compatibility Ideographs */
 			(ucs >= 0xfe10 && ucs <= 0xfe19) ||	/* Vertical forms */
@@ -183,5 +183,21 @@ inline U32
 utf8_widthstr(const char *utf8)
 {
 	return utf8_widthnstr(utf8, strlen(utf8));
+}
+
+I32
+utf8_cnvdist(const char *str, U32 nStr, U32 index, I32 distance)
+{
+	const U32 first = index;
+	if(distance > 0) {
+		for(; index < nStr && distance; distance--)
+			index += utf8_len(str + index, nStr - index);
+	} else {
+		for(; index > 0 && distance; distance++)
+			while((str[--index] & 0xC0) == 0x80)
+				if(index > 0 && !(str[index - 1] & 0x80))
+					break;
+	}
+	return index - first;
 }
 

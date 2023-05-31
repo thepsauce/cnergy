@@ -22,6 +22,8 @@ parser_getkey(struct parser *parser)
 		{ "BACK", KEY_BACKSPACE },
 		{ "DELETE", KEY_DC },
 		{ "DEL", KEY_DC },
+		{ "TAB", '\t' },
+		{ "ENTER", '\n' },
 		{ "ESCAPE", 0x1b },
 		{ "ESC", 0x1b },
 	};
@@ -112,8 +114,13 @@ parser_getcall(struct parser *parser)
 		{ "REDO", BIND_CALL_REDO },
 		{ "WRITE", BIND_CALL_WRITEFILE },
 		{ "READ", BIND_CALL_READFILE },
-		{ "CHOOSE", BIND_CALL_VSPLIT },
-		{ "SWITCH", BIND_CALL_QUIT },
+
+		{ "CHOOSE", BIND_CALL_CHOOSE },
+		{ "SORT_ALPHABETICAL", BIND_CALL_SORTALPHABETICAL },
+		{ "SORT_CHANGETIME", BIND_CALL_SORTCHANGETIME },
+		{ "SORT_MODIFICATIONTIME", BIND_CALL_SORTMODIFICATIONTIME },
+		{ "TOGGLE_SORT_TYPE", BIND_CALL_TOGGLESORTTYPE },
+		{ "TOGGLE_HIDDEN", BIND_CALL_TOGGLEHIDDEN },
 	};
 	struct binding_call *newCalls;
 
@@ -193,7 +200,6 @@ parser_getcall(struct parser *parser)
 					parser->calls[parser->nCalls].flags = FBIND_CALL_USENUMBER;
 				else
 					parser_pusherror(parser, ERR_INVALID_PARAM);
-				break;
 			}
 		}
 		parser->calls[parser->nCalls].param = parser->num;
@@ -240,7 +246,6 @@ parser_getcall(struct parser *parser)
 					parser->calls[parser->nCalls].flags = FBIND_CALL_USENUMBER;
 				else
 					parser_pusherror(parser, ERR_INVALID_PARAM);
-				break;
 			}
 		}
 		if(window) {
@@ -263,10 +268,10 @@ parser_getcall(struct parser *parser)
 		parser_getc(parser);
 		if(parser_getstring(parser) < 0)
 			return OUTOFMEMORY;
-		const void *const p = const_alloc(parser->str, parser->nStr);
-		if(!p)
+		char *const str = const_alloc(parser->str, parser->nStr);
+		if(!str)
 			return OUTOFMEMORY;
-		parser->calls[parser->nCalls].param = const_getid(p);
+		parser->calls[parser->nCalls].str = str;
 		break;
 	}
 	case '!':

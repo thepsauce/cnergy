@@ -143,7 +143,7 @@ print_binding_calls(struct binding_call *calls, U32 nCalls) {
 			break;
 		case BIND_CALL_ASSERT:
 			printf("ASSERT");
-			print_escaped_string(const_getdata(calls->param));
+			print_escaped_string(calls->str);
 			break;
 		case BIND_CALL_STARTLOOP:
 			printf("((");
@@ -165,7 +165,7 @@ print_binding_calls(struct binding_call *calls, U32 nCalls) {
 			break;
 		case BIND_CALL_INSERT:
 			printf("INSERT ");
-			print_escaped_string(const_getdata(calls->param));
+			print_escaped_string(calls->str);
 			break;
 		case BIND_CALL_DELETE:
 			printf("DELETE %d", calls->param);
@@ -287,11 +287,8 @@ mode_findbind(struct binding_mode *mode, const int *keys)
 	U32 nBinds;
 	struct binding *ret = NULL;
 
-	if(!mode)
-		return NULL;
 	for(binds = mode->bindings, nBinds = mode->nBindings; nBinds; binds++, nBinds--) {
-		for(const int *ks = binds->keys, *es = ks + binds->nKeys; ks != es; ks++) {
-			const int *k;
+		for(const int *k, *ks = binds->keys, *es = ks + binds->nKeys; ks != es; ks++) {
 			for(k = keys; *ks; ks++, k++)
 				if(*ks != *k)
 					break;
@@ -299,7 +296,7 @@ mode_findbind(struct binding_mode *mode, const int *keys)
 				return binds;
 			do ks++; while(*ks);
 			if(!*k)
-				ret = (struct binding*) mode; // indicate that a key sequence start with the given sequence
+				ret = (struct binding*) mode; // indicate that a key sequence starts with the given sequence
 		}
 	}
 	return ret;
@@ -323,8 +320,7 @@ bind_exec(const int *keys, I32 amount)
 		return 1;
 	if(!bind) {
 		struct binding_mode *const mode = mode_find(WINDOW_ALL, focus_window->bindMode->name);
-		bind = mode_findbind(mode, keys);
-		if(bind == (struct binding*) mode)
+		if(mode && (bind = mode_findbind(mode, keys)) == (struct binding*) mode)
 			return 1;
 	}
 	if(!bind)

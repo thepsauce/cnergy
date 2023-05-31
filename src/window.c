@@ -34,12 +34,13 @@ int bufferviewer_render(struct window *win);
 bool bufferviewer_bindcall(struct window *win, struct binding_call *bc, I32 param);
 // file view 
 int fileviewer_render(struct window *win);
+int fileviewer_type(struct window *win, const char *str, U32 nStr);
 bool fileviewer_bindcall(struct window *win, struct binding_call *bc, I32 param);
 
 struct window_type window_types[] = {
 	[WINDOW_EDIT] = { edit_render, edit_type, edit_bindcall },
 	[WINDOW_BUFFERVIEWER] = { bufferviewer_render, null_type, bufferviewer_bindcall },
-	[WINDOW_FILEVIEWER] = { fileviewer_render, null_type, fileviewer_bindcall },
+	[WINDOW_FILEVIEWER] = { fileviewer_render, fileviewer_type, fileviewer_bindcall },
 };
 
 // All windows in here are rendered
@@ -74,8 +75,6 @@ window_new(U32 type)
 int
 window_close(struct window *win)
 {
-	struct window *near;
-
 	if(win == first_window)
 		first_window = win->below ? win->below : win->right;
 	if(win == focus_window)
@@ -110,6 +109,27 @@ window_dup(const struct window *win)
 		return NULL;
 	memcpy(dup, win, sizeof(*win));
 	return dup;
+}
+
+void
+window_copylayout(struct window *win, struct window *rep)
+{
+	if(first_window == win)
+		first_window = rep;
+	if(focus_window == win)
+		focus_window = rep;
+	rep->above = win->above;
+	rep->below = win->below;
+	rep->left = win->left;
+	rep->right = win->right;
+	if(win->above)
+		win->above->below = rep;
+	if(win->below)
+		win->below->above = rep;
+	if(win->left)
+		win->left->right = rep;
+	if(win->right)
+		win->right->left = rep;
 }
 
 struct window *

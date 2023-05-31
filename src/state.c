@@ -140,7 +140,7 @@ state_addcounterparan(struct state *s, int counter)
 	return 0;
 }
 
-// Note: ONLY call this inside of c_cleanup
+// Note: ONLY call this inside of state_cleanup
 void
 state_addchar(struct state *s, U32 line, U32 col, char ch, int attr)
 {
@@ -148,7 +148,7 @@ state_addchar(struct state *s, U32 line, U32 col, char ch, int attr)
 			line >= s->minLine && line < s->maxLine) {
 		attrset(attr);
 		mvaddch(s->win->line + line - s->minLine,
-				s->win->col + col + s->minCol - s->maxCol + s->win->cols, ch);
+				s->win->col + col - s->maxCol + s->win->cols, ch);
 	}
 }
 

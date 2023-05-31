@@ -45,6 +45,7 @@ parser_cleanup(struct parser *parser)
 	free(parser->str);
 	for(U32 i = 0; i < WINDOW_MAX; i++) {
 		for(struct binding_mode *m = parser->firstModes[i]; m; m = m->next) {
+			// TODO: free keys and calls which is impossible right now because of a double free caused by mode extending
 			free(m->bindings);
 		}
 		free(parser->firstModes[i]);

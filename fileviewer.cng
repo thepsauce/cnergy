@@ -2,5 +2,18 @@
 ## the fileview window type
 bind normal:
 
-^J !choose
-^I !switch
+enter !choose
+tab :insert
+s a !sort_alphabetical
+s s !sort_changetime
+s d !sort_modificationtime
+s t !toggle_sort_type
+h !toggle_hidden
+
+bind $insert:
+
+enter !choose
+tab :insert
+BACK <x1
+DEL >x1
+escape :normal

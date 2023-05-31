@@ -489,6 +489,15 @@ c_state_common(struct state *s)
 			}
 		if(!state_findword(s, s->data + startWord, nWord))
 			s->attr = COLOR_PAIR(5);
+		else {
+			U32 i;
+			// if there was no keyword, look ahead for a function call
+			i = s->index;
+			while(isspace(s->data[i + 1]))
+				i++;
+			if(s->data[i + 1] == '(')
+				s->attr = A_BOLD;
+		}
 		break;
 	}
 	case '.':
@@ -626,19 +635,9 @@ c_state_default(struct state *s)
 		s->state = C_STATE_PREPROC;
 		s->attr = COLOR_PAIR(5);
 		break;
-	default: {
-		const char c = s->data[s->index];
+	default:
 		s->attr = 0;
 		c_state_common(s);
-		// if there was a word but no keyword, look ahead for a function call
-		if(!s->attr && (isalpha(c) || c == '_')) {
-			U32 i = s->index;
-			while(isspace(s->data[i + 1]))
-				i++;
-			if(s->data[i + 1] == '(')
-				s->attr = A_BOLD;
-		}
-	}
 	}
 	return 0;
 }

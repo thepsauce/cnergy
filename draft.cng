@@ -34,6 +34,8 @@ bind normal: lazy, normal_movement
 ^W v !vsplit
 ^W s !hsplit
 
+bind $insert: lazy
+
 include @edit "edit.cng"
 include @fileviewer "fileviewer.cng"
 

@@ -1,2 +1,2 @@
--g -Wall
+-g -Wall -Wextra -pg
 -lcurses
