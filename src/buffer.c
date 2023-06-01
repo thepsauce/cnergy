@@ -1,7 +1,7 @@
 #include "cnergy.h"
 
 struct buffer **all_buffers;
-U32 n_buffers;
+unsigned n_buffers;
 
 struct buffer *
 buffer_new(const char *file)
@@ -11,17 +11,17 @@ buffer_new(const char *file)
 
 	// find buffer with the same file
 	if(file) {
-		for(U32 i = 0; i < n_buffers; i++) {
+		for(unsigned i = 0; i < n_buffers; i++) {
 			buf = all_buffers[i];
 			if(buf->file && !strcmp(buf->file, file))
 				return buf;
 		}
 	}
 
-	newBuffers = safe_realloc(all_buffers, sizeof(*all_buffers) * (n_buffers + 1));
+	newBuffers = dialog_realloc(all_buffers, sizeof(*all_buffers) * (n_buffers + 1));
 	if(!newBuffers)
 		return NULL;
-	buf = safe_alloc(sizeof(*buf));
+	buf = dialog_alloc(sizeof(*buf));
 	if(!buf)
 		return NULL;
 	memset(buf, 0, sizeof(*buf));
@@ -37,8 +37,8 @@ buffer_new(const char *file)
 			else
 				buf->fileTime = fi.modTime;
 			fseek(fp, 0, SEEK_END);
-			const U32 n = ftell(fp);
-			buf->data = safe_alloc(BUFFER_GAP_SIZE + n);
+			const long n = ftell(fp);
+			buf->data = dialog_alloc(BUFFER_GAP_SIZE + n);
 			if(!buf->data) {
 				free(buf);
 				return NULL;
@@ -49,7 +49,7 @@ buffer_new(const char *file)
 			fclose(fp);
 		}
 	} else {
-		buf->data = safe_alloc(BUFFER_GAP_SIZE);
+		buf->data = dialog_alloc(BUFFER_GAP_SIZE);
 		if(!buf->data) {
 			free(buf);
 			return NULL;
@@ -65,7 +65,7 @@ void
 buffer_free(struct buffer *buf)
 {
 	free(buf->data);
-	for(U32 i = 0; i < buf->nEvents; i++) {
+	for(unsigned i = 0; i < buf->nEvents; i++) {
 		switch(buf->events[i].type) {
 		case EVENT_INSERT:
 			free(buf->events[i].ins);
@@ -116,13 +116,13 @@ buffer_save(struct buffer *buf)
 	return 0;
 }
 
-I32
-unsafe_buffer_movecursor(struct buffer *buf, I32 distance)
+ssize_t
+unsafe_buffer_movecursor(struct buffer *buf, ssize_t distance)
 {
 	/*This method retained the gap content
-	I32 d;
+	ssize_t d;
 	char *s;
-	U32 n;
+	size_t n;
 
 	if(distance < 0) {
 		d = -distance;
@@ -138,14 +138,14 @@ unsafe_buffer_movecursor(struct buffer *buf, I32 distance)
 			break;
 		n -= d;
 		if(distance < 0) {
-			for(U32 i = d; i; ) {
+			for(size_t i = d; i; ) {
 				i--;
 				const char tmp = s[n + i];
 				s[n + i] = s[i];
 				s[i] = tmp;
 			}
 		} else {
-			for(U32 i = 0; i < d; i++) {
+			for(size_t i = 0; i < d; i++) {
 				const char tmp = *s;
 				*s = s[n];
 				s[n] = tmp;
@@ -164,15 +164,15 @@ unsafe_buffer_movecursor(struct buffer *buf, I32 distance)
 	return distance;
 }
 
-static inline I32
-buffer_cnvdist(const struct buffer *buf, I32 distance)
+static inline ssize_t
+buffer_cnvdist(const struct buffer *buf, ssize_t distance)
 {
 	return utf8_cnvdist(buf->data, buf->nData + buf->nGap, buf->iGap + (distance > 0 ? buf->nGap : 0), distance);
 }
 
 // Returns the moved amount (safe version of unsafe_buffer_movecursor that also updates vct)
-I32
-buffer_movecursor(struct buffer *buf, I32 distance)
+ssize_t
+buffer_movecursor(struct buffer *buf, ssize_t distance)
 {
 	distance = buffer_cnvdist(buf, distance);
 	unsafe_buffer_movecursor(buf, distance);
@@ -182,10 +182,10 @@ buffer_movecursor(struct buffer *buf, I32 distance)
 
 // Move the cursor horizontally by a given distance
 // Returns the moved amount
-I32
-buffer_movehorz(struct buffer *buf, I32 distance)
+ssize_t
+buffer_movehorz(struct buffer *buf, ssize_t distance)
 {
-	U32 i, iFirst, left, right;
+	size_t i, iFirst, left, right;
 
 	i = buf->iGap;
 	if(distance == INT32_MAX) {
@@ -237,12 +237,12 @@ buffer_movehorz(struct buffer *buf, I32 distance)
 
 // Move the cursor up or down by the specified number of lines
 // Returns the moved amount
-I32
-buffer_movevert(struct buffer *buf, I32 distance)
+ssize_t
+buffer_movevert(struct buffer *buf, ssize_t distance)
 {
-	U32 i;
-	const I32 cDistance = distance;
-	I32 moved;
+	size_t i;
+	const ssize_t cDistance = distance;
+	ssize_t moved;
 
 	i = buf->iGap;
 	if(distance < 0) {
@@ -258,7 +258,7 @@ buffer_movevert(struct buffer *buf, I32 distance)
 			return 0;
 		while(i > 0 && buf->data[i - 1] != '\n')
 			i--;
-		for(U32 travelled = 0; travelled < buf->vct;) {
+		for(unsigned travelled = 0; travelled < buf->vct;) {
 			if(buf->data[i] == '\n')
 				break;
 			travelled += utf8_width(buf->data + i, buf->nData + buf->nGap - i, travelled);
@@ -281,7 +281,7 @@ buffer_movevert(struct buffer *buf, I32 distance)
 			// i > 0 not needed since we know that we crossed over a \n already
 			while(buf->data[i - 1] != '\n')
 				i--;
-		for(U32 travelled = 0; i < buf->nData + buf->nGap && travelled < buf->vct;) {
+		for(unsigned travelled = 0; i < buf->nData + buf->nGap && travelled < buf->vct;) {
 			if(buf->data[i] == '\n')
 				break;
 			travelled += utf8_width(buf->data + i, buf->nData + buf->nGap - i, travelled);
@@ -299,7 +299,7 @@ buffer_addevent(struct buffer *buf)
 	struct event *ev;
 
 	if(buf->nEvents > buf->iEvent) {
-		for(U32 i = buf->iEvent; i < buf->nEvents; i++) {
+		for(unsigned i = buf->iEvent; i < buf->nEvents; i++) {
 			switch(buf->events[i].type) {
 			case EVENT_INSERT:
 				free(buf->events[i].ins);
@@ -314,7 +314,7 @@ buffer_addevent(struct buffer *buf)
 			}
 		}
 	}
-	buf->events = safe_realloc(buf->events, sizeof(*buf->events) * (buf->iEvent + 1));
+	buf->events = dialog_realloc(buf->events, sizeof(*buf->events) * (buf->iEvent + 1));
 	if(!buf->events)
 		return NULL;
 	ev = buf->events + buf->iEvent;
@@ -323,14 +323,14 @@ buffer_addevent(struct buffer *buf)
 }
 
 // Returns the number of characters inserted
-U32
-buffer_insert(struct buffer *buf, const char *str, U32 nStr)
+size_t
+buffer_insert(struct buffer *buf, const char *str, size_t nStr)
 {
 	struct event *ev;
 
 	// if gap is too small to insert n characters, increase gap size
 	if(nStr > buf->nGap) {
-		char *const newData = safe_realloc(buf->data, buf->nData + nStr + BUFFER_GAP_SIZE);
+		char *const newData = dialog_realloc(buf->data, buf->nData + nStr + BUFFER_GAP_SIZE);
 		if(!newData)
 			return 0;
 		memmove(newData + buf->iGap + nStr + BUFFER_GAP_SIZE,
@@ -345,13 +345,13 @@ buffer_insert(struct buffer *buf, const char *str, U32 nStr)
 	buf->nGap -= nStr;
 	buf->nData += nStr;
 	// update vct
-	const U32 prevVct = buf->vct;
+	const unsigned prevVct = buf->vct;
 	buf->vct = buffer_col(buf);
 	// try to join events
 	if(buf->iEvent) {
 		ev = buf->events + buf->iEvent - 1;
 		if(ev->type == EVENT_INSERT && ev->iGap + ev->nIns == buf->iGap - nStr) {
-			ev->ins = safe_realloc(ev->ins, ev->nIns + nStr);
+			ev->ins = dialog_realloc(ev->ins, ev->nIns + nStr);
 			memcpy(ev->ins + ev->nIns, str, nStr);
 			ev->vct = buf->vct;
 			ev->nIns += nStr;
@@ -367,7 +367,7 @@ buffer_insert(struct buffer *buf, const char *str, U32 nStr)
 		.iGap = buf->iGap - nStr,
 		.vct = buf->vct,
 		.prevVct = prevVct,
-		.ins = safe_alloc(nStr),
+		.ins = dialog_alloc(nStr),
 		.nIns = nStr,
 	};
 	if(!ev->ins) {
@@ -379,25 +379,25 @@ buffer_insert(struct buffer *buf, const char *str, U32 nStr)
 }
 
 // Returns the number of characters inserted
-U32
+size_t
 buffer_insert_file(struct buffer *buf, FILE *fp)
 {
 	char *s;
 
 	fseek(fp, 0, SEEK_END);
 	const long n = ftell(fp);
-	if(n <= 0 || !(s = safe_alloc(n)))
+	if(n <= 0 || !(s = dialog_alloc(n)))
 		return 0;
 	fseek(fp, 0, SEEK_SET);
 	fread(s, 1, n, fp);
-	const U32 nins = buffer_insert(buf, s, n);
+	const size_t nins = buffer_insert(buf, s, n);
 	free(s);
 	return nins;
 }
 
 // Returns the amount that was deleted
-I32
-buffer_delete(struct buffer *buf, I32 amount)
+ssize_t
+buffer_delete(struct buffer *buf, ssize_t amount)
 {
 	struct event *ev;
 
@@ -411,7 +411,7 @@ buffer_delete(struct buffer *buf, I32 amount)
 		.flags = 0,
 		.type = EVENT_DELETE,
 		.prevVct = buf->vct,
-		.del = safe_alloc(ABS(amount)),
+		.del = dialog_alloc(ABS(amount)),
 		.nDel = ABS(amount),
 	};
 	if(!ev->del) {
@@ -437,18 +437,18 @@ buffer_delete(struct buffer *buf, I32 amount)
 }
 
 // Returns the amount of lines that was deleted
-I32
-buffer_deleteline(struct buffer *buf, I32 amount)
+ssize_t
+buffer_deleteline(struct buffer *buf, ssize_t amount)
 {
 	struct event *ev;
-	U32 l, r;
-	U32 nLinesDeleted = 0;
+	size_t l, r;
+	size_t nLinesDeleted = 0;
 
 	if(!amount)
 		return 0;
 	l = buf->iGap;
 	r = buf->iGap + buf->nGap;
-	for(I32 a = ABS(amount);; ) {
+	for(ssize_t a = ABS(amount);; ) {
 		for(; l > 0; l--)
 			if(buf->data[l - 1] == '\n')
 				break;
@@ -487,7 +487,7 @@ buffer_deleteline(struct buffer *buf, I32 amount)
 		.iGap = buf->iGap,
 		.vct = buf->vct,
 		.prevVct = buf->vct,
-		.del = safe_alloc(amount),
+		.del = dialog_alloc(amount),
 		.nDel = amount,
 	};
 	if(!ev->del) {
@@ -567,22 +567,22 @@ buffer_redo(struct buffer *buf)
 }
 
 // Returns the index of the line containing the cursor
-U32
+int
 buffer_line(const struct buffer *buf)
 {
-	U32 line = 0;
+	int line = 0;
 
-	for(U32 i = buf->iGap; i > 0; i--)
+	for(size_t i = buf->iGap; i > 0; i--)
 		if(buf->data[i - 1] == '\n')
 			line++;
 	return line;
 }
 
 // Returns the terminal index of the column containing the cursor
-U32
+int
 buffer_col(const struct buffer *buf)
 {
-	U32 i;
+	size_t i;
 
 	for(i = buf->iGap; i > 0; i--)
 		if(buf->data[i - 1] == '\n')
@@ -591,11 +591,12 @@ buffer_col(const struct buffer *buf)
 }
 
 // Returns the length of the line
-U32
-buffer_getline(const struct buffer *buf, U32 line, char *dest, U32 maxDest)
+size_t
+buffer_getline(const struct buffer *buf, int line, char *dest, size_t maxDest)
 {
-	U32 i, j, k;
-	const U32 n = buf->nData + buf->nGap;
+	size_t i, j;
+	int k;
+	const size_t n = buf->nData + buf->nGap;
 	// find the start and end positions of the line
 	i = j = k = 0;
 	while(k < line) {
@@ -618,7 +619,7 @@ buffer_getline(const struct buffer *buf, U32 line, char *dest, U32 maxDest)
 		j++;
 	}
 	// copy the line to the destination buffer
-	const U32 len = MIN(j - i, maxDest - 1);
+	const size_t len = MIN(j - i, maxDest - 1);
 	memcpy(dest, buf->data + i, len);
 	dest[len] = '\0';
 	return len;

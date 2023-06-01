@@ -1,7 +1,7 @@
 #include "cnergy.h"
 
 int
-state_push(struct state *s, U32 state)
+state_push(struct state *s, unsigned state)
 {
 	s->stateStack[s->iStack++] = state;
 	return 0;
@@ -19,79 +19,6 @@ state_skipspace(struct state *s)
 {
 	while(isblank(s->data[s->index]))
 		s->index++;
-}
-
-// Returns:
-// 0 - Index was found
-// 1 - Element that exactly matches was found
-static inline int
-state_getbestindex(struct state *s, const char *word, U32 nWord, U32 *pIndex)
-{
-	U32 left, right;
-
-	left = 0;
-	right = s->nWords;
-	while(left < right) {
-		const U32 middle = (left + right) / 2;
-		const int cmp = strncmp(s->words[middle].word, word, nWord);
-		if(!cmp && !s->words[middle].word[nWord]) {
-			*pIndex = middle;
-			return 1;
-		}
-		if(cmp > 0)
-			right = middle;
-		else
-			left = middle + 1;
-	}
-	*pIndex = right;
-	return 0;
-}
-
-int
-state_addword(struct state *s, int attr, const char *word, U32 nWord)
-{
-	U32 index;
-	char *w;
-	struct state_word *newWords;
-
-	if(state_getbestindex(s, word, nWord, &index))
-		return 1;
-	newWords = realloc(s->words, sizeof(*s->words) * (s->nWords + 1));
-	if(!newWords)
-		return -1;
-	s->words = newWords;
-	w = alloca(nWord + 1);
-	if(!w)
-		return -1;
-	memcpy(w, word, nWord);
-	w[nWord] = 0;
-	w = const_alloc(w, nWord + 1);
-	if(!w)
-		return -1;
-	memmove(s->words + index + 1, s->words + index, sizeof(*s->words) * (s->nWords - index));
-	s->nWords++;
-	s->words[index].attr = attr;
-	s->words[index].word = w;
-	return 0;
-}
-
-int
-state_removeword(struct state *s, const char *word, U32 nWord)
-{
-	U32 index;
-
-	if(!state_getbestindex(s, word, nWord, &index))
-		return 1;
-	s->nWords--;
-	memmove(s->words + index, s->words + index + 1, sizeof(*s->words) * (s->nWords - index));
-	return 0;
-}
-
-int
-state_findword(struct state *s, const char *word, U32 nWord)
-{
-	U32 index;
-	return !state_getbestindex(s, word, nWord, &index);
 }
 
 int
@@ -142,7 +69,7 @@ state_addcounterparan(struct state *s, int counter)
 
 // Note: ONLY call this inside of state_cleanup
 void
-state_addchar(struct state *s, U32 line, U32 col, char ch, int attr)
+state_addchar(struct state *s, int line, int col, char ch, int attr)
 {
 	if(col >= s->minCol && col < s->maxCol &&
 			line >= s->minLine && line < s->maxLine) {
@@ -168,7 +95,7 @@ state_cleanup(struct state *s)
 		const struct state_paran p = s->highlightparan;
 		state_addchar(s, p.line, p.col, p.ch, A_BOLD | COLOR_PAIR(7));
 	}
-	free(s->words);
+	free(s->words.entries);
 	free(s->parans);
 	free(s->misparans);
 	return 0;

@@ -2,7 +2,7 @@ int
 c_state_string(struct state *s)
 {
 	if(s->data[s->index] == '\\') {
-		U32 hexChars = 0;
+		unsigned hexChars = 0;
 
 		s->attr = A_REVERSE | COLOR_PAIR(2);
 		switch(s->data[s->index + 1]) {

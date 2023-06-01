@@ -35,13 +35,13 @@ main(int argc, char **argv)
 	memset(&parser, 0, sizeof(parser));
 	if(!parser_open(&parser, "draft.cng", WINDOW_ALL)) {
 		while(!parser_next(&parser));
-		for(U32 i = 0; i < WINDOW_MAX; i++) {
+		for(window_type_t i = 0; i < WINDOW_MAX; i++) {
 			printf("===== %u =====\n", i);
 			for(struct binding_mode *m = parser.firstModes[i]; m; m = m->next)
 				print_modes(m);
 		}
 		if(!parser.nErrors) {
-			for(U32 i = 0; i < parser.nAppendRequests; i++) {
+			for(unsigned i = 0; i < parser.nAppendRequests; i++) {
 				struct binding_mode *m;
 
 				for(m = parser.firstModes[parser.appendRequests[i].windowType]; m; m = m->next)
@@ -62,7 +62,7 @@ main(int argc, char **argv)
 			modes_add(parser.firstModes);
 		}
 		int line, col;
-		for(U32 j = 0; j < parser.nErrStack; j++) {
+		for(unsigned j = 0; j < parser.nErrStack; j++) {
 			getfilepos(parser.errStack[j].file, parser.errStack[j].pos, &line, &col);
 			printf("error in %s(%d:%d): %s\n", parser.errStack[j].file, line, col, parser_strerror(parser.errStack[j].err));
 		}
@@ -82,7 +82,7 @@ main(int argc, char **argv)
 	set_tabsize(4);
 
 	if(has_colors()) {
-		static const U8 gruvbox_colors[16][3] = {
+		static const uint8_t gruvbox_colors[16][3] = {
 			{ 35, 35, 35 },   // 1: Black
 			{ 204, 36, 29 },  // 2: Red
 			{ 152, 151, 26 }, // 3: Green
@@ -101,19 +101,19 @@ main(int argc, char **argv)
 			{ 254, 254, 254 } // 16: White
 		};
 		start_color();
-		for(U32 i = 0; i < ARRLEN(gruvbox_colors); i++)
+		for(unsigned i = 0; i < ARRLEN(gruvbox_colors); i++)
 			init_color(i,
-					(U32) gruvbox_colors[i][0] * 1000 / 256,
-					(U32) gruvbox_colors[i][1] * 1000 / 256,
-					(U32) gruvbox_colors[i][2] * 1000 / 256);
-		for(U32 i = 0; i < 16; i++)
-		for(U32 j = 0; j < 16; j++)
+					(int) gruvbox_colors[i][0] * 1000 / 256,
+					(int) gruvbox_colors[i][1] * 1000 / 256,
+					(int) gruvbox_colors[i][2] * 1000 / 256);
+		for(int i = 0; i < 16; i++)
+		for(int j = 0; j < 16; j++)
 			init_pair(1 + i + j * 16, i, j);
 	}
 
 	int keys[32];
-	U16 nKeys = 0;
-	I32 num = 0;
+	unsigned nKeys = 0;
+	ssize_t num = 0;
 
 	// setup some windows for testing
 	struct window *w;
@@ -131,7 +131,7 @@ main(int argc, char **argv)
 	w = window_new(WINDOW_FILEVIEWER);
 	first_window = w;
 	focus_window = w;
-	for(U32 i = 0; i < ARRLEN(path); i++) {
+	for(unsigned i = 0; i < ARRLEN(path); i++) {
 		const char *file = files[i % ARRLEN(files)];
 		b = buffer_new(file);
 		struct window *const new = edit_new(b, c_states);
@@ -153,7 +153,7 @@ main(int argc, char **argv)
 		first_window->lines = LINES - 1;
 		first_window->cols = COLS;
 		window_layout(first_window);
-		for(U32 i = n_windows; i > 0;)
+		for(unsigned i = n_windows; i > 0;)
 			window_render(all_windows[--i]);
 		if(focus_window->bindMode && (focus_window->bindMode->flags & FBIND_MODE_SELECTION))
 			curs_set(0);
@@ -185,8 +185,8 @@ main(int argc, char **argv)
 
 			b[0] = c;
 			// get length of the following utf8 character and fully read it
-			const U32 len = (c & 0xe0) == 0xc0 ? 2 : (c & 0xf0) == 0xe0 ? 3 : (c & 0xf8) == 0xf0 ? 4 : 1;
-			for(U32 i = 1; i < len; i++)
+			const unsigned len = (c & 0xe0) == 0xc0 ? 2 : (c & 0xf0) == 0xe0 ? 3 : (c & 0xf8) == 0xf0 ? 4 : 1;
+			for(unsigned i = 1; i < len; i++)
 				b[i] = getch();
 			window_types[focus_window->type].type(focus_window, b, len);
 		}
@@ -200,7 +200,7 @@ main(int argc, char **argv)
 			num = SAFE_ADD(num, c - '0');
 		} else {
 			keys[nKeys] = c;
-			if(nKeys + 1 < (int) ARRLEN(keys))
+			if(nKeys + 1 < ARRLEN(keys))
 				nKeys++;
 			keys[nKeys] = 0;
 			// a return value of 1 indicates that the user can get to a bind by pressing more keys,
@@ -213,8 +213,8 @@ main(int argc, char **argv)
 		if(focus_window->bindMode)
 			printw("%s ", focus_window->bindMode->name);
 		if(num)
-			printw("%d", num);
-		for(U32 i = 0; i < nKeys; i++)
+			printw("%zd", num);
+		for(unsigned i = 0; i < nKeys; i++)
 			printw("%s", keyname(keys[i]));
 		printw("%*s", COLS - getcurx(stdscr), "");
 	}

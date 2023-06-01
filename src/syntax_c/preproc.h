@@ -1,6 +1,6 @@
 static const struct {
 	const char *name;
-	U32 state;
+	unsigned state;
 } C_preprocTransitions[] = {
 	{ "define"		, C_STATE_PREPROC_DEFINE },
 	{ "elif"		, C_STATE_PREPROC_COMMON },
@@ -47,11 +47,11 @@ c_state_preproc(struct state *s)
 	STATE_SKIPSPACE(s);
 	switch(s->data[s->index]) {
 	case 'a' ... 'z': case 'A' ... 'Z': case '_': {
-		const U32 startWord = s->index;
+		const size_t startWord = s->index;
 		while(isalnum(s->data[++s->index]) || s->data[s->index] == '_');
-		const U32 nWord = s->index - startWord;
+		const size_t nWord = s->index - startWord;
 		s->index--;
-		for(U32 t = 0; t < ARRLEN(C_preprocTransitions); t++)
+		for(size_t t = 0; t < ARRLEN(C_preprocTransitions); t++)
 			if(!strncmp(C_preprocTransitions[t].name, s->data + startWord, nWord) &&
 					!C_preprocTransitions[t].name[nWord]) {
 				s->attr = COLOR_PAIR(5);
@@ -74,11 +74,11 @@ c_state_preproc_define(struct state *s)
 	STATE_SKIPSPACE(s);
 	switch(s->data[s->index]) {
 	case 'a' ... 'z': case 'A' ... 'Z': case '_': {
-		const U32 startWord = s->index;
+		const size_t startWord = s->index;
 		while(isalnum(s->data[++s->index]) || s->data[s->index] == '_');
-		const U32 nWord = s->index - startWord;
+		const size_t nWord = s->index - startWord;
 		s->index--;
-		state_addword(s, COLOR_PAIR(5), s->data + startWord, nWord);
+		sortedlist_add(&s->words, s->data + startWord, nWord, (void*) (intptr_t) COLOR_PAIR(5));
 		s->attr = COLOR_PAIR(5);
 		s->state = C_STATE_PREPROC_COMMON;
 		break;
@@ -131,11 +131,11 @@ c_state_preproc_undef(struct state *s)
 	STATE_SKIPSPACE(s);
 	switch(s->data[s->index]) {
 	case 'a' ... 'z': case 'A' ... 'Z': case '_': {
-		const U32 startWord = s->index;
+		const size_t startWord = s->index;
 		while(isalnum(s->data[++s->index]) || s->data[s->index] == '_');
-		const U32 nWord = s->index - startWord;
+		const size_t nWord = s->index - startWord;
 		s->index--;
-		state_removeword(s, s->data + startWord, nWord);
+		sortedlist_remove(&s->words, s->data + startWord, nWord);
 		s->attr = COLOR_PAIR(5);
 		s->state = C_STATE_PREPROC_COMMON;
 		break;

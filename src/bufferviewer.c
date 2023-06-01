@@ -10,20 +10,20 @@ static int column = 0;
 int
 bufferviewer_render(struct window *win)
 {
-	U32 i = 0;
-	const U32 maxCol1 = win->cols * 2 / 3;
+	unsigned i = 0;
+	const int maxCol1 = win->cols * 2 / 3;
 	attrset(COLOR_PAIR(3));
 	for(int y = win->line; i < n_buffers && y < win->line + win->lines - 1; i++, y++) {
 		struct buffer *const buf = all_buffers[i];
-		attrset(COLOR(3, column == 0 && i == row ? 8 : 0));
+		attrset(COLOR(3, column == 0 && (int) i == row ? 8 : 0));
 		move(y, win->col);
 		if(buf->file)
-			addnstr(buf->file, MIN(maxCol1, strlen(buf->file)));
+			addnstr(buf->file, MIN(maxCol1, (int) strlen(buf->file)));
 		else
 			addnstr("[new]", MIN(maxCol1, 5));
 		move(y, win->col + maxCol1 + 1);
-		attrset(COLOR(3, column == 1 && i == row ? 8 : 0));
-		printw("%u", buf->nData);
+		attrset(COLOR(3, column == 1 && (int) i == row ? 8 : 0));
+		printw("%zu", buf->nData);
 	}
 	attrset(win == focus_window ? COLOR(14, 8) : COLOR(6, 8));
 	mvaddstr(win->line + win->lines - 1, win->col, " Buffer viewer ");
@@ -34,18 +34,18 @@ bufferviewer_render(struct window *win)
 }
 
 bool
-bufferviewer_bindcall(struct window *win, struct binding_call *bc, int param)
+bufferviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
 {
 	switch(bc->type) {
 	case BIND_CALL_MOVEVERT:
 		if(!row && param < 0)
 			return false;
-		if(row + 1 >= n_buffers && param > 0)
+		if(row + 1 >= (int) n_buffers && param > 0)
 			return false;
 		row = SAFE_ADD(row, param);
-		row = MIN(row, n_buffers - 1);
+		row = MIN(row, (int) n_buffers - 1);
 		row = MAX(row, 0);
-		return true;
+		break;
 	case BIND_CALL_MOVEHORZ:
 		if(!column && param < 0)
 			return false;
@@ -54,7 +54,7 @@ bufferviewer_bindcall(struct window *win, struct binding_call *bc, int param)
 		column = SAFE_ADD(column, param);
 		column = MIN(column, MAXCOLUMN - 1);
 		column = MAX(column, 0);
-		return true;
+		break;
 	case BIND_CALL_MOVECURSOR: {
 		int cursor;
 		const int maxCursor = n_buffers * MAXCOLUMN;
@@ -68,8 +68,10 @@ bufferviewer_bindcall(struct window *win, struct binding_call *bc, int param)
 		cursor = MAX(cursor, 0);
 		row = cursor / MAXCOLUMN;
 		column = cursor % MAXCOLUMN;
-		return true;
+		break;
 	}
+	default:
+		return false;
 	}
-	return false;
+	return true;
 }

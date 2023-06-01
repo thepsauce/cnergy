@@ -28,7 +28,7 @@ messagebox(const char *title, const char *msg, ...)
 	const char *storedMsg;
 	char buf[88];
 	char options[8];
-	int nOption = 0;
+	unsigned nOptions = 0;
 	int defaultOption = -1;
 	int line, col;
 	int lines, cols;
@@ -50,7 +50,8 @@ messagebox(const char *title, const char *msg, ...)
 	va_start(l, msg);
 	while(1) {
 		char *space;
-		long int n;
+		int next_x;
+		size_t n;
 
 		while(!*msg) {
 			if(!storedMsg)
@@ -69,61 +70,78 @@ messagebox(const char *title, const char *msg, ...)
 				break;
 			case 'u':
 				storedMsg = msg;
-				snprintf(buf, sizeof(buf), "%u", va_arg(l, U32));
+				snprintf(buf, sizeof(buf), "%u", va_arg(l, unsigned));
 				msg = buf;
 				break;
 			case 'd':
 				storedMsg = msg;
-				snprintf(buf, sizeof(buf), "%d", va_arg(l, I32));
+				snprintf(buf, sizeof(buf), "%d", va_arg(l, int));
+				msg = buf;
+				break;
+			case 'z':
+				storedMsg = msg;
+				switch(msg[1]) {
+				case 'd':
+					msg++;
+					snprintf(buf, sizeof(buf), "%zd", va_arg(l, ssize_t));
+					break;
+				case 'u':
+					msg++;
+				/* fall through */
+				default:
+					snprintf(buf, sizeof(buf), "%zu", va_arg(l, size_t));
+					break;
+				}
 				msg = buf;
 				break;
 			}
 		}
 		// break words at spaces
 		space = strchr(msg, ' ');
-		n = space ? space - msg : (long int) strlen(msg);
-		if(x + n >= maxX && x != col + cols / 5) {
+		n = space ? (size_t) (space - msg) : strlen(msg);
+		next_x = x + (int) n;
+		if(next_x >= maxX && x != col + cols / 5) {
 			x = col + cols / 5;
 			y++;
 			if(y == maxY)
 				break;
 			move(y, x);
 		}
-		n = MIN(n, maxX - x);
+		n = MIN((int) n, maxX - x);
 		addnstr(msg, n);
-		if(space && x + n < maxX) {
+		if(space && next_x < maxX) {
 			addch(' ');
 			x++;
 		}
 		if(space)
 			msg++;
 		msg += n;
-		x += n;
+		x = next_x;
 	}
 
 	move(line + lines - 1, col + 3);
 	while((opt = va_arg(l, const char*))) {
 		const char *b = strchr(opt, '[');
-		if(!b || nOption == ARRLEN(options))
+		if(!b || nOptions == ARRLEN(options))
 			return -1;
 		if(b[1] == '*') {
-			defaultOption = nOption;
+			defaultOption = nOptions;
 			b++;
 		}
-		options[nOption++] = b[1];
+		options[nOptions++] = b[1];
 		printw("%s ", opt);
 	}
 	va_end(l);
 
 	const int choice = tolower(getch());
-	for(int i = 0; i < nOption; i++)
+	for(unsigned i = 0; i < nOptions; i++)
 		if(choice == tolower(options[i]))
 			return i;
 	return defaultOption;
 }
 
 void *
-safe_alloc(U32 sz)
+dialog_alloc(size_t sz)
 {
 	void *ptr;
 
@@ -136,7 +154,7 @@ safe_alloc(U32 sz)
 }
 
 void *
-safe_realloc(void *ptr, U32 newSz)
+dialog_realloc(void *ptr, size_t newSz)
 {
 	do {
 		ptr = realloc(ptr, newSz);

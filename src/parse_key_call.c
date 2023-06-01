@@ -40,7 +40,7 @@ parser_getkey(struct parser *parser)
 	r = parser_getword(parser);
 	if(r)
 		return r;
-	for(U32 i = 0; i < ARRLEN(keyTranslations); i++)
+	for(unsigned i = 0; i < ARRLEN(keyTranslations); i++)
 		if(!strcasecmp(keyTranslations[i].word, parser->word)) {
 			key = keyTranslations[i].key;
 			goto got_key;
@@ -97,7 +97,7 @@ parser_getcall(struct parser *parser)
 	// TODO: when this list is complete, add binary search or hashing (same goes for translate_key)
 	static const struct {
 		const char *word;
-		U32 type;
+		bind_call_t type;
 	} namedCommands[] = {
 		{ "COLOR", BIND_CALL_COLORWINDOW },
 		{ "CLOSE", BIND_CALL_CLOSEWINDOW },
@@ -286,7 +286,7 @@ parser_getcall(struct parser *parser)
 			parser->calls[parser->nCalls].type = BIND_CALL_SETMODE;
 			parser->calls[parser->nCalls].str = const_alloc(parser->word, strlen(parser->word) + 1);
 		} else {
-			U32 i;
+			unsigned i;
 			for(i = 0; i < ARRLEN(namedCommands); i++)
 				if(!strcasecmp(namedCommands[i].word, parser->word)) {
 					parser->calls[parser->nCalls].type = namedCommands[i].type;

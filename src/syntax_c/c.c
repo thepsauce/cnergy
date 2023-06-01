@@ -477,20 +477,21 @@ c_state_common(struct state *s)
 {
 	switch(s->data[s->index]) {
 	case 'a' ... 'z': case 'A' ... 'Z': case '_': {
-		const U32 startWord = s->index;
+		void *param;
+		const size_t startWord = s->index;
 		while(isalnum(s->data[++s->index]) || s->data[s->index] == '_');
-		const U32 nWord = s->index - startWord;
+		const size_t nWord = s->index - startWord;
 		s->index--;
-		for(U32 k = 0; k < ARRLEN(C_keywords); k++)
+		for(size_t k = 0; k < ARRLEN(C_keywords); k++)
 		for(const char *const *ws = C_keywords[k].words, *w; (w = *ws); ws++)
 			if(!strncmp(w, s->data + startWord, nWord) && !w[nWord]) {
 				s->attr = COLOR_PAIR(C_keywords[k].pair);
 				return 0;
 			}
-		if(!state_findword(s, s->data + startWord, nWord))
-			s->attr = COLOR_PAIR(5);
-		else {
-			U32 i;
+		if(sortedlist_exists(&s->words, s->data + startWord, nWord, &param)) {
+			s->attr = (int) (intptr_t) param;
+		} else {
+			size_t i;
 			// if there was no keyword, look ahead for a function call
 			i = s->index;
 			while(isspace(s->data[i + 1]))
@@ -525,7 +526,7 @@ c_state_common(struct state *s)
 	case '\'':
 	char_start:
 		if(s->data[s->index + 1] == '\\') {
-			U32 hexChars = 0;
+			unsigned hexChars = 0;
 
 			s->attr = A_REVERSE | COLOR_PAIR(2);
 			s->index++;
@@ -605,7 +606,7 @@ c_state_common(struct state *s)
 	/* fall through */
 	default:
 	case_char:
-		for(U32 c = 0; c < ARRLEN(C_chars); c++)
+		for(unsigned c = 0; c < ARRLEN(C_chars); c++)
 			if(C_chars[c].c == s->data[s->index] &&
 					C_chars[c].c2 == s->data[s->index + 1]) {
 				s->attr = COLOR_PAIR(13);
@@ -613,7 +614,7 @@ c_state_common(struct state *s)
 				s->index++;
 				return 0;
 			}
-		for(U32 c = 0; c < ARRLEN(C_chars); c++)
+		for(unsigned c = 0; c < ARRLEN(C_chars); c++)
 			if(C_chars[c].c == s->data[s->index] && !C_chars[c].c2) {
 				s->attr = COLOR_PAIR(13);
 				break;

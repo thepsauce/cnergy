@@ -1,22 +1,30 @@
 #ifndef INCLUDED_WINDOW_H
 #define INCLUDED_WINDOW_H
 
-// TODO: State saving technique for buffer windows
-// This technique will be used to avoid re-rendering of the buffer every time.
-// It will store a list of states and their position and when re-rendering, it will
-// start from the closest previous state that is left to the caret.
-// When the user inserts a character, .... (TODO: think about this; lookahead makes this complicated)
+// window.c
+/**
+ * Windows are stored in a global array and the only way to hide them is to set their area to 0.
+ * Windows can be layered but only windows that are attached to the first_window (origin of the layout)
+ * are considered for the layouting. This fact can be used for popup windows or similar.
+ */
 
-enum {
+/** TODO: State saving technique for buffer windows
+ * This technique will be used to avoid re-rendering of the buffer every time.
+ * It will store a list of states and their position and when re-rendering, it will
+ * start from the closest previous state that is left to the caret.
+ * When the user inserts a character, .... (TODO: think about this; lookahead makes this complicated)
+ */
+
+typedef enum {
 	// no flags yet
 	FWINDOW_______,
-};
+} window_flags_t;
 
 struct state;
 
 struct window {
-	U32 flags;
-	U32 type;
+	window_flags_t flags;
+	window_type_t type;
 	// the binding mode this window is in
 	struct binding_mode *bindMode;
 	// position of the window
@@ -24,9 +32,9 @@ struct window {
 	// size of the window
 	int lines, cols;
 	// scrolling values of the last render
-	U32 vScroll, hScroll;
+	int vScroll, hScroll;
 	// selection cursor
-	U32 selection;
+	size_t selection;
 	// that window is above/below this window
 	struct window *above, *below;
 	// that window is left/right of this window
@@ -44,23 +52,17 @@ struct window {
 
 extern struct window_type {
 	int (*render)(struct window *win);
-	int (*type)(struct window *win, const char *str, U32 nStr);
-	bool (*bindcall)(struct window *win, struct binding_call *bc, int param);
+	int (*type)(struct window *win, const char *str, size_t nStr);
+	bool (*bindcall)(struct window *win, struct binding_call *bc, ssize_t param);
 } window_types[];
 extern struct window **all_windows;
-extern U32 n_windows;
+extern unsigned n_windows;
 extern struct window *first_window;
 extern struct window *focus_window;
 extern int focus_y, focus_x;
 
-enum {
-	ATT_WINDOW_UNSPECIFIED,
-	ATT_WINDOW_VERTICAL,
-	ATT_WINDOW_HORIZONTAL,
-};
-
 /** Create a new window and add it to the window list */
-struct window *window_new(U32 type);
+struct window *window_new(window_type_t type);
 /** Safe function that detaches, deletes the window and changes focus-/first window if needed */
 int window_close(struct window *win);
 /** Delete this window from memory */
@@ -84,6 +86,11 @@ struct window *window_right(const struct window *win);
 /** ATT_WINDOW_UNSPECIFIED: The function decides where the window should best go */
 /** ATT_WINDOW_VERTICAL: The window should go below */
 /** ATT_WINDOW_HORIZONTAL: The window should go right */
+enum {
+	ATT_WINDOW_UNSPECIFIED,
+	ATT_WINDOW_VERTICAL,
+	ATT_WINDOW_HORIZONTAL,
+};
 void window_attach(struct window *to, struct window *win, int pos);
 /** Remove all connections to any other windows */
 void window_detach(struct window *win);

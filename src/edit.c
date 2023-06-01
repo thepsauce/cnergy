@@ -21,7 +21,7 @@ int (**edit_statesfromfiletype(const char *file))(struct state *s)
 	if(!ext)
 		return NULL;
 	ext++;
-	for(U32 i = 0; i < ARRLEN(sfft); i++)
+	for(unsigned i = 0; i < ARRLEN(sfft); i++)
 		if(!strcmp(ext, sfft[i].fileExt))
 			return sfft[i].states;
 	return NULL;	
@@ -41,7 +41,7 @@ edit_new(struct buffer *buf, int (**states)(struct state *s))
 }
 
 int
-edit_type(struct window *win, const char *str, U32 nStr)
+edit_type(struct window *win, const char *str, size_t nStr)
 {
 	buffer_insert(win->buffer, str, nStr);
 	return 0;
@@ -51,11 +51,11 @@ int
 edit_render(struct window *win)
 {
 	struct buffer *buf;
-	U32 curLine, curCol;
-	U32 saveiGap;
-	U32 nLineNumbers;
+	int curLine, curCol;
+	size_t saveiGap;
+	int nLineNumbers;
 	struct state state;
-	U32 minSel, maxSel;
+	size_t minSel, maxSel;
 
 	// get buffer and cursor position
 	buf = win->buffer;
@@ -66,7 +66,7 @@ edit_render(struct window *win)
 	unsafe_buffer_movecursor(buf, buf->nData - buf->iGap);
 	// make sure there is an EOF at the end of the data (this is for convenience)
 	if(!buf->nGap) {
-		char *const newData = safe_realloc(buf->data, buf->nData + BUFFER_GAP_SIZE);
+		char *const newData = dialog_realloc(buf->data, buf->nData + BUFFER_GAP_SIZE);
 		if(!newData)
 			return -1;
 		buf->data = newData;
@@ -90,7 +90,7 @@ edit_render(struct window *win)
 	nLineNumbers = 1; // initial padding to the right side
 	if(window_left(win))
 		nLineNumbers++; // add some padding
-	for(U32 i = state.maxLine; i; i /= 10)
+	for(int i = state.maxLine; i; i /= 10)
 		nLineNumbers++;
 
 	// note that we scroll a little extra horizontally
@@ -133,7 +133,7 @@ edit_render(struct window *win)
 	state.col = 0;
 
 	// draw all data
-	for(U32 i = 0; i < buf->nData; state.index = i) {
+	for(size_t i = 0; i < buf->nData; state.index = i) {
 		if(win->states)
 			state_continue(&state);
 		if(state.conceal) {
@@ -146,7 +146,7 @@ edit_render(struct window *win)
 				if(state.line >= state.minLine && state.line < state.maxLine) {
 					attrset(state.attr);
 					while(*conceal) {
-						const U32 len = utf8_len(conceal, strlen(conceal));
+						const size_t len = utf8_len(conceal, strlen(conceal));
 						if(state.col >= state.minCol && state.col < state.maxCol)
 							addnstr(conceal, len);
 						conceal += len;
@@ -159,7 +159,7 @@ edit_render(struct window *win)
 		// check if the state interpreted the utf8 encoded character correctly (if not we handle it here)
 		if((buf->data[i] & 0x80) && state.index == i) {
 			attrset(state.attr);
-			const U32 len = utf8_len(buf->data + i, buf->nData - i);
+			const size_t len = utf8_len(buf->data + i, buf->nData - i);
 			if(state.col >= state.minCol && state.col < state.maxCol) {
 				if(i >= minSel && i <= maxSel)
 					attron(A_REVERSE);
@@ -261,7 +261,7 @@ edit_render(struct window *win)
 }
 
 bool
-edit_bindcall(struct window *win, struct binding_call *bc, I32 param)
+edit_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
 {
 	struct buffer *const buf = win->buffer;
 	switch(bc->type) {
@@ -280,7 +280,7 @@ edit_bindcall(struct window *win, struct binding_call *bc, I32 param)
 	case BIND_CALL_DELETE: return buffer_delete(buf, param) == param;
 	case BIND_CALL_DELETELINE: return buffer_deleteline(buf, param) == param;
 	case BIND_CALL_DELETESELECTION: {
-		U32 n;
+		size_t n;
 
 		if(!(win->bindMode->flags & FBIND_MODE_SELECTION) || !buf->nData)
 			return false;
@@ -296,7 +296,7 @@ edit_bindcall(struct window *win, struct binding_call *bc, I32 param)
 	}
 	case BIND_CALL_COPY: {
 		char *text;
-		U32 nText;
+		size_t nText;
 
 		if(!(win->bindMode->flags & FBIND_MODE_SELECTION) || !buf->nData)
 			break;
@@ -325,6 +325,8 @@ edit_bindcall(struct window *win, struct binding_call *bc, I32 param)
 		return buffer_redo(buf);
 	case BIND_CALL_WRITEFILE:
 		return buffer_save(win->buffer);
+	default:
+		return false;
 	}
 	return true;
 }

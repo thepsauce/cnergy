@@ -1,7 +1,15 @@
 #ifndef INCLUDED_BIND_H
 #define INCLUDED_BIND_H
 
-enum {
+// bind.c
+/**
+ * Binds are always defined in .cng files and allow the user to customize the bindings to their heart's content.
+ * This also means that there need to be an abstract layer in between the user and the editor which here is the bindining_call
+ * which each window type defines for its own although there are also global binding calls
+ * For further information, see parser.h
+ */
+
+typedef enum {
 	BIND_CALL_NULL,
 	// general bindings calls, these have a default behavior which cannot be overwritten but only extended
 	BIND_CALL_STARTLOOP,
@@ -39,19 +47,19 @@ enum {
 	BIND_CALL_SORTALPHABETICAL,
 	BIND_CALL_SORTCHANGETIME,
 	BIND_CALL_SORTMODIFICATIONTIME,
-};
+} bind_call_t;
 
-enum {
+typedef enum {
 	FBIND_CALL_USENUMBER = 1 << 0,
 	FBIND_CALL_AND = 1 << 1,
 	FBIND_CALL_OR = 1 << 2,
 	FBIND_CALL_XOR = 1 << 4,
-};
+} bind_flags_t;
 
 struct binding_call {
-	U16 type;
-	U16 flags;
-	I32 param;
+	bind_call_t type;
+	bind_flags_t flags;
+	ssize_t param;
 	union {
 		void *ptr;
 		char *str;
@@ -59,8 +67,8 @@ struct binding_call {
 };
 
 struct binding {
-	U32 nKeys;
-	U32 nCalls;
+	small_size_t nKeys;
+	small_size_t nCalls;
 	int *keys;
 	struct binding_call *calls;
 };
@@ -73,8 +81,8 @@ enum {
 
 struct binding_mode {
 	char name[64];
-	U32 flags;
-	U32 nBindings;
+	unsigned flags;
+	small_size_t nBindings;
 	struct binding *bindings;
 	struct binding_mode *next;
 };
@@ -82,6 +90,6 @@ struct binding_mode {
 extern struct binding_mode *all_modes[WINDOW_MAX];
 
 int modes_add(struct binding_mode *modes[WINDOW_MAX]);
-int bind_exec(const int *keys, I32 param);
+int bind_exec(const int *keys, ssize_t param);
 
 #endif

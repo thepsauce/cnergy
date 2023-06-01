@@ -18,8 +18,8 @@ enum {
 int
 cnergy_state_default(struct state *s)
 {
-	U32 start;
-	U32 i;
+	size_t start;
+	size_t i;
 
 	s->attr = COLOR_PAIR(0);
 	if(isspace(s->data[s->index]))
@@ -73,7 +73,7 @@ cnergy_state_skip(struct state *s)
 int
 cnergy_state_bind(struct state *s)
 {
-	U32 i;
+	size_t i;
 
 	STATE_SKIPSPACE(s);
    	i = s->index;

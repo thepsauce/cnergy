@@ -3,7 +3,7 @@
 #include "cnergy.h"
 
 int
-clipboard_copy(const char *text, U32 nText)
+clipboard_copy(const char *text, size_t nText)
 {
 	(void) text;
 	(void) nText;

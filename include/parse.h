@@ -1,3 +1,10 @@
+#ifndef INCLUDED_PARSE_H
+#define INCLUDED_PARSE_H
+
+// parse.c
+// parse_bindmode.c
+// parse_include.c
+// parse_key_call.c
 /**
  * Parser to parse .cng or .cnergy files to an internal format that can be run.
  * This is an example of such file:
@@ -22,7 +29,7 @@
  * ## Move to the left window
  * ^W h <w1
  *
- * Binds specific to window types have always priority.
+ * Binds specific to window types always have priority.
  *
  * Using include:
  *
@@ -32,9 +39,6 @@
  * This will include the files file.cng and other.cng and add all bindings that are
  * defined without the use of @ to the edit window type.
  */
-
-#ifndef INCLUDED_PARSE_H
-#define INCLUDED_PARSE_H
 
 /**
  * Fatal internal errors have a negative value
@@ -55,7 +59,7 @@ enum {
 /**
  * Errors cause the parser to throw all away after it finished, warnings just give information
  */
-enum {
+typedef enum {
 	WARN_,
 	WARN_MAX,
 
@@ -81,57 +85,57 @@ enum {
 	ERR_EXPECTED_WORD_AT,
 	ERR_EXPECTED_MODE_NAME,
 	ERR_INVALID_WINDOW_TYPE,
-};
+} parser_error_t;
 
 struct parser {
 	struct {
-		U32 windowType;
+		window_type_t windowType;
 		FILE *fp;
 		char *path;
 	} files[16];
-	U32 nFiles;
+	unsigned nFiles;
 	int c, prev_c;
-	int num;
+	ssize_t num;
 	char word[64];
 	char *str;
-	U32 nStr;
+	size_t nStr;
 	struct binding_mode mode;
-	U32 windowType;
+	window_type_t windowType;
 	struct binding_mode *firstModes[WINDOW_MAX];
 	struct binding_mode *curMode;
 	// the requests are necessary to allow usage before declaration
 	// append requests are added when a mode should be extended by another
 	struct append_request {
 		struct binding_mode *mode;
-		U32 windowType;
+		window_type_t windowType;
 		char donor[64];
 	} *appendRequests;
-	U32 nAppendRequests;
+	size_t nAppendRequests;
 	int *keys;
-	U32 nKeys;
+	unsigned nKeys;
 	int loopStack[32];
 	int nLoopStack;
 	struct binding_call *calls;
-	U32 nCalls;
+	unsigned nCalls;
 	struct {
-		U32 err;
+		parser_error_t err;
 		long pos;
 		char *file;
 	} errStack[32];
-	U32 nErrStack;
-	U32 nErrors;
-	U32 nWarnings;
+	unsigned nErrStack;
+	unsigned nErrors;
+	unsigned nWarnings;
 };
 
 // parse.c
 /** Return a string representing the error code */
-const char *parser_strerror(U32 err);
+const char *parser_strerror(parser_error_t err);
 /** Open another file */
-int parser_open(struct parser *parser, const char *path, U32 windowType);
+int parser_open(struct parser *parser, const char *path, window_type_t windowType);
 /** Read the next character from the file */
 int parser_getc(struct parser *parser);
 void parser_ungetc(struct parser *parser);
-void parser_pusherror(struct parser *parser, U32 err);
+void parser_pusherror(struct parser *parser, parser_error_t err);
 int parser_addappendrequest(struct parser *parser, struct append_request *request);
 int parser_cleanup(struct parser *parser);
 /**

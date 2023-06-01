@@ -3,7 +3,7 @@
 struct binding_mode *all_modes[WINDOW_MAX];
 
 static struct binding_mode *
-mode_find(U32 windowType, const char *name)
+mode_find(window_type_t windowType, const char *name)
 {
 	for(struct binding_mode *m = all_modes[windowType]; m; m = m->next)
 		if(!strcmp(m->name, name))
@@ -32,7 +32,7 @@ mergekeys(struct binding *b1, struct binding *b2)
 		}
 		if(!contained) {
 			for(; *k; k++);
-			const U32 n = (k - k2) + 1;
+			const unsigned n = (k - k2) + 1;
 			int newKeys[b1->nKeys + n];
 			memcpy(newKeys, b1->keys, sizeof(*b1->keys) * b1->nKeys);
 			memcpy(newKeys + b1->nKeys, k2, sizeof(*k2) * n);
@@ -50,12 +50,12 @@ static inline int
 mergebinds(struct binding_mode *m1, struct binding_mode *m2)
 {
 	struct binding *b1, *b2;
-	U32 n1, n2;
+	unsigned n1, n2;
 
 	for(b2 = m2->bindings, n2 = m2->nBindings; n2; n2--, b2++) {
 		for(b1 = m1->bindings, n1 = m1->nBindings; n1; n1--, b1++) {
 			struct binding_call *c1, *c2;
-			U32 n;
+			unsigned n;
 
 			if(b1->nCalls != b2->nCalls)
 				continue;
@@ -130,7 +130,7 @@ print_escaped_string(const char *str) {
 }
 
 void
-print_binding_calls(struct binding_call *calls, U32 nCalls) {
+print_binding_calls(struct binding_call *calls, unsigned nCalls) {
 	printf("{ ");
 	for(; nCalls; nCalls--, calls++) {
 		if(calls->flags & FBIND_CALL_AND)
@@ -152,32 +152,32 @@ print_binding_calls(struct binding_call *calls, U32 nCalls) {
 			printf("))");
 			break;
 		case BIND_CALL_REGISTER:
-			printf("REGISTER %d", calls->param);
+			printf("REGISTER %zd", calls->param);
 			break;
 		case BIND_CALL_MOVECURSOR:
-			printf("MOVECURSOR %d", calls->param);
+			printf("MOVECURSOR %zd", calls->param);
 			break;
 		case BIND_CALL_MOVEHORZ:
-			printf("MOVEHORZ %d", calls->param);
+			printf("MOVEHORZ %zd", calls->param);
 			break;
 		case BIND_CALL_MOVEVERT:
-			printf("MOVEVERT %d", calls->param);
+			printf("MOVEVERT %zd", calls->param);
 			break;
 		case BIND_CALL_INSERT:
 			printf("INSERT ");
 			print_escaped_string(calls->str);
 			break;
 		case BIND_CALL_DELETE:
-			printf("DELETE %d", calls->param);
+			printf("DELETE %zd", calls->param);
 			break;
 		case BIND_CALL_DELETELINE:
-			printf("DELETELINE %d", calls->param);
+			printf("DELETELINE %zd", calls->param);
 			break;
 		case BIND_CALL_DELETESELECTION:
 			printf("DELETESELECTION");
 			break;
 		case BIND_CALL_SETMODE:
-			printf("SETMODE %d", calls->param);
+			printf("SETMODE %zd", calls->param);
 			break;
 		case BIND_CALL_COPY:
 			printf("COPY");
@@ -201,7 +201,7 @@ print_modes(struct binding_mode *m)
 	if(!m)
 		return;
 	printf("MODE: %s (%#x)(%u bindings)\n", m->name, m->flags, m->nBindings);
-	for(U32 j = 0; j < m->nBindings; j++) {
+	for(unsigned j = 0; j < m->nBindings; j++) {
 		const struct binding bind = m->bindings[j];
 		printf("  BIND([%p]%u, [%p]%u): ", bind.keys, bind.nKeys, bind.calls, bind.nCalls);
 		fflush(stdout);
@@ -227,7 +227,7 @@ print_modes(struct binding_mode *m)
 int
 modes_add(struct binding_mode *modes[WINDOW_MAX])
 {
-	for(U32 i = 0; i < WINDOW_MAX; i++) {
+	for(window_type_t i = 0; i < WINDOW_MAX; i++) {
 		struct binding_mode *m = modes[i];
 		for(; m; m = m->next) {
 			struct binding_mode *e, *prev_e;
@@ -249,7 +249,7 @@ modes_add(struct binding_mode *modes[WINDOW_MAX])
 			strcpy(newMode->name, m->name);
 			newMode->flags = m->flags;
 			newMode->bindings = malloc(sizeof(*newMode->bindings) * m->nBindings);
-			for(U32 b = 0; b < m->nBindings; b++) {
+			for(unsigned b = 0; b < m->nBindings; b++) {
 				const struct binding bind = m->bindings[b];
 				newMode->bindings[b] = (struct binding) {
 					.nKeys = bind.nKeys,
@@ -284,7 +284,7 @@ static inline struct binding *
 mode_findbind(struct binding_mode *mode, const int *keys)
 {
 	struct binding *binds;
-	U32 nBinds;
+	unsigned nBinds;
 	struct binding *ret = NULL;
 
 	for(binds = mode->bindings, nBinds = mode->nBindings; nBinds; binds++, nBinds--) {
@@ -303,16 +303,16 @@ mode_findbind(struct binding_mode *mode, const int *keys)
 }
 
 int
-bind_exec(const int *keys, I32 amount)
+bind_exec(const int *keys, ssize_t amount)
 {
 	struct binding *bind;
 	const struct binding_call *bcs;
-	U32 nbc;
+	unsigned nbc;
 	struct state_frame {
 		bool state;
 		bool run;
 	} stateStack[32], frame;
-	U32 nStateStack = 0;
+	unsigned nStateStack = 0;
 	int reg = 0;
 
 	bind = mode_findbind(focus_window->bindMode, keys);
@@ -333,7 +333,7 @@ bind_exec(const int *keys, I32 amount)
 		bool b = true;
 
 		bc = *bcs;
-		const I32 m = (bc.flags & FBIND_CALL_USENUMBER) ? SAFE_MUL(amount, bc.param) : bc.param;
+		const ssize_t m = (bc.flags & FBIND_CALL_USENUMBER) ? SAFE_MUL(amount, bc.param) : bc.param;
 		if((bc.flags & FBIND_CALL_AND) && !frame.state)
 			goto end_frame;
 		if((bc.flags & FBIND_CALL_XOR) && frame.state) {
@@ -446,6 +446,8 @@ bind_exec(const int *keys, I32 amount)
 		case BIND_CALL_COLORWINDOW:
 			// TODO: open a color window or focus an existing one
 			break;
+		default:
+			// not a general bind call
 		}
 		b &= window_types[focus_window->type].bindcall(focus_window, &bc, m);
 		while(((bc.flags & FBIND_CALL_OR) && !(frame.state |= b))

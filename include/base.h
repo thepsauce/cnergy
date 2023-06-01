@@ -49,15 +49,12 @@
 
 #define ARRLEN(a) (sizeof(a)/sizeof*(a))
 
-typedef int8_t I8;
-typedef int16_t I16;
-typedef int32_t I32;
-typedef int64_t I64;
-typedef uint8_t U8;
-typedef uint16_t U16;
-typedef uint32_t U32;
-typedef uint64_t U64;
+#define TINY_SIZE_MAX UINT16_MAX
+#define SMALL_SIZE_MAX UINT32_MAX
 
-void *const_alloc(const void *data, U32 sz);
+typedef uint16_t tiny_size_t;
+typedef uint32_t small_size_t;
+
+void *const_alloc(const void *data, small_size_t sz);
 
 #endif

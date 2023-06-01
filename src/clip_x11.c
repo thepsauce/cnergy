@@ -92,7 +92,7 @@ uninit(void)
 }
 
 int
-clipboard_copy(const char *text, U32 nText)
+clipboard_copy(const char *text, size_t nText)
 {
 	pthread_mutex_lock(&clipboard_mutex);
 	XSetSelectionOwner(display, clipboard, window, CurrentTime);

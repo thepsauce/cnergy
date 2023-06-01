@@ -65,7 +65,7 @@ parser_addbindmode(struct parser *parser)
 {
 	struct binding_mode *nextMode;
 	struct binding_mode *mode;
-	U32 type;
+	window_type_t type;
 
 	nextMode = malloc(sizeof(*nextMode));
 	if(!nextMode)
@@ -80,7 +80,7 @@ parser_addbindmode(struct parser *parser)
 		mode->next = nextMode;
 	}
 	memcpy(nextMode, &parser->mode, sizeof(*nextMode));
-	for(U32 i = parser->nAppendRequests; i; ) {
+	for(unsigned i = parser->nAppendRequests; i; ) {
 		i--;
 		if(parser->appendRequests[i].mode)
 			break;

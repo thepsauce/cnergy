@@ -24,7 +24,7 @@ static const char *error_messages[] = {
 };
 
 const char *
-parser_strerror(U32 err)
+parser_strerror(parser_error_t err)
 {
 	return error_messages[err];
 }
@@ -43,7 +43,7 @@ int
 parser_cleanup(struct parser *parser)
 {
 	free(parser->str);
-	for(U32 i = 0; i < WINDOW_MAX; i++) {
+	for(window_type_t i = 0; i < WINDOW_MAX; i++) {
 		for(struct binding_mode *m = parser->firstModes[i]; m; m = m->next) {
 			// TODO: free keys and calls which is impossible right now because of a double free caused by mode extending
 			free(m->bindings);
@@ -55,7 +55,7 @@ parser_cleanup(struct parser *parser)
 }
 
 int
-parser_open(struct parser *parser, const char *path, U32 windowType)
+parser_open(struct parser *parser, const char *path, window_type_t windowType)
 {
 	FILE *fp;
 
@@ -92,7 +92,7 @@ parser_ungetc(struct parser *parser)
 }
 
 void
-parser_pusherror(struct parser *parser, U32 err)
+parser_pusherror(struct parser *parser, parser_error_t err)
 {
 	if(parser->nErrStack == ARRLEN(parser->errStack)) {
 		memmove(parser->errStack, parser->errStack + 1, sizeof(parser->errStack) - sizeof(*parser->errStack));
@@ -125,7 +125,7 @@ int
 parser_getword(struct parser *parser)
 {
 	int c;
-	U32 nWord = 0;
+	unsigned nWord = 0;
 
 	c = parser->c;
 	if(!isalpha(c) && c != '_')
@@ -146,8 +146,8 @@ int
 parser_getnumber(struct parser *parser)
 {
 	int c;
-	int num = 0;
-	int sign = 1;
+	ssize_t num = 0;
+	ssize_t sign = 1;
 
 	c = parser->c;
 	if(c == '+') {
@@ -175,7 +175,7 @@ parser_getstring(struct parser *parser)
 {
 	int c;
 	char *str;
-	U32 nStr = 0;
+	size_t nStr = 0;
 
 	c = parser->c;
 	if(!isprint(c))
@@ -238,9 +238,9 @@ parser_getwindowtype(struct parser *parser)
 		parser_pusherror(parser, ERR_EXPECTED_WORD_AT);
 		return FAIL;
 	}
-	for(U32 i = 0; i < ARRLEN(windowTypes); i++)
+	for(unsigned i = 0; i < ARRLEN(windowTypes); i++)
 		if(!strcmp(windowTypes[i], parser->word)) {
-			parser->windowType = i;
+			parser->windowType = (window_type_t) i;
 			return SUCCESS;
 		}
 	parser_pusherror(parser, ERR_INVALID_WINDOW_TYPE);
@@ -277,7 +277,7 @@ parser_next(struct parser *parser)
 	pos = ftell(parser->files[parser->nFiles - 1].fp);
 	c = parser->c;
 	prev_c = parser->prev_c;
-	for(U32 i = 0; i < ARRLEN(constructs); i++) {
+	for(unsigned i = 0; i < ARRLEN(constructs); i++) {
 		int r;
 		bool com = false;
 		int (**con)(struct parser *parser);

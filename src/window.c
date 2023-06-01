@@ -8,7 +8,7 @@ null_render(struct window *win)
 }
 
 int
-null_type(struct window *win, const char *str, U32 nStr)
+null_type(struct window *win, const char *str, size_t nStr)
 {
 	(void) win;
 	(void) str;
@@ -17,7 +17,7 @@ null_type(struct window *win, const char *str, U32 nStr)
 }
 
 bool
-null_bindcall(struct window *win, struct binding_call *bc, I32 param)
+null_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
 {
 	(void) win;
 	(void) bc;
@@ -27,15 +27,15 @@ null_bindcall(struct window *win, struct binding_call *bc, I32 param)
 
 // edit
 int edit_render(struct window *win);
-int edit_type(struct window *win, const char *str, U32 nStr);
-bool edit_bindcall(struct window *win, struct binding_call *bc, I32 param);
+int edit_type(struct window *win, const char *str, size_t nStr);
+bool edit_bindcall(struct window *win, struct binding_call *bc, ssize_t param);
 // buffer viewer
 int bufferviewer_render(struct window *win);
-bool bufferviewer_bindcall(struct window *win, struct binding_call *bc, I32 param);
+bool bufferviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param);
 // file view 
 int fileviewer_render(struct window *win);
-int fileviewer_type(struct window *win, const char *str, U32 nStr);
-bool fileviewer_bindcall(struct window *win, struct binding_call *bc, I32 param);
+int fileviewer_type(struct window *win, const char *str, size_t nStr);
+bool fileviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param);
 
 struct window_type window_types[] = {
 	[WINDOW_EDIT] = { edit_render, edit_type, edit_bindcall },
@@ -45,7 +45,7 @@ struct window_type window_types[] = {
 
 // All windows in here are rendered
 struct window **all_windows;
-U32 n_windows;
+unsigned n_windows;
 // THE origin (used for layout)
 struct window *first_window;
 // Active window
@@ -53,15 +53,15 @@ struct window *focus_window;
 int focus_y, focus_x;
 
 struct window *
-window_new(U32 type)
+window_new(window_type_t type)
 {
 	struct window **newWindows;
 	struct window *win;
 
-	newWindows = safe_realloc(all_windows, sizeof(*all_windows) * (n_windows + 1));
+	newWindows = dialog_realloc(all_windows, sizeof(*all_windows) * (n_windows + 1));
 	if(!newWindows)
 		return NULL;
-	win = safe_alloc(sizeof(*win));
+	win = dialog_alloc(sizeof(*win));
 	if(!win)
 		return NULL;
 	memset(win, 0, sizeof(*win));
@@ -90,7 +90,7 @@ window_close(struct window *win)
 void
 window_delete(struct window *win)
 {
-	for(U32 i = 0; i < n_windows; i++)
+	for(unsigned i = 0; i < n_windows; i++)
 		if(all_windows[i] == win) {
 			n_windows--;
 			memmove(all_windows + i, all_windows + i + 1, sizeof(*all_windows) * (n_windows - i));
@@ -135,7 +135,7 @@ window_copylayout(struct window *win, struct window *rep)
 struct window *
 window_atpos(int y, int x)
 {
-	for(U32 i = 0; i < n_windows; i++) {
+	for(unsigned i = 0; i < n_windows; i++) {
 		struct window *const w = all_windows[i];
 		if(y >= w->line && y < w->line + w->lines &&
 				x >= w->col && x < w->col + w->cols)
@@ -179,8 +179,8 @@ window_right(const struct window *win)
 void
 window_attach(struct window *to, struct window *win, int pos)
 {
-	U32 nVert;
-	U32 nHorz;
+	unsigned nVert;
+	unsigned nHorz;
 	struct window *w;
 
 	switch(pos) {
@@ -250,7 +250,7 @@ window_layout(struct window *win)
 {
 	struct window *w;
 	int i;
-	U32 nRight = 1, nBelow = 1;
+	unsigned nRight = 1, nBelow = 1;
 	int linesPer, colsPer, linesRemainder, colsRemainder;
 	int nextCol, nextLine;
 	const int line = win->line;
