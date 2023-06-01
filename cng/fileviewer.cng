@@ -8,12 +8,13 @@ s a !sort_alphabetical
 s s !sort_changetime
 s d !sort_modificationtime
 s t !toggle_sort_type
+s r !toggle_sort_reverse
 h !toggle_hidden
 
 bind $insert:
 
 enter !choose
-tab :insert
+tab :normal
 BACK <x1
 DEL >x1
 escape :normal

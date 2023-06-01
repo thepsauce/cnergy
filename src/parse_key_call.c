@@ -120,6 +120,7 @@ parser_getcall(struct parser *parser)
 		{ "SORT_CHANGETIME", BIND_CALL_SORTCHANGETIME },
 		{ "SORT_MODIFICATIONTIME", BIND_CALL_SORTMODIFICATIONTIME },
 		{ "TOGGLE_SORT_TYPE", BIND_CALL_TOGGLESORTTYPE },
+		{ "TOGGLE_SORT_REVERSE", BIND_CALL_TOGGLESORTREVERSE },
 		{ "TOGGLE_HIDDEN", BIND_CALL_TOGGLEHIDDEN },
 	};
 	struct binding_call *newCalls;
@@ -338,7 +339,7 @@ parser_addbind(struct parser *parser)
 		.nKeys = parser->nKeys,
 		.nCalls = parser->nCalls,
 		.keys = parser->keys,
-		.calls = parser->calls,	
+		.calls = parser->calls,
 	};
 	return FINISH;
 }

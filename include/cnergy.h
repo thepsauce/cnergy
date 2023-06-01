@@ -2,16 +2,8 @@
 #define INCLUDED_EDITOR_H
 
 #include "base.h"
-typedef enum {
-	WINDOW_ALL,
-	WINDOW_EDIT,
-	WINDOW_BUFFERVIEWER,
-	WINDOW_FILEVIEWER,
-	// TODO: add more
-	WINDOW_MAX,
-} window_type_t;
-#include "bind.h"
 #include "window.h"
+#include "bind.h"
 #include "parse.h"
 
 #include <curses.h>
@@ -44,9 +36,7 @@ struct sortedlist {
 	size_t nEntries;
 };
 
-/**
- * Adds and entry to the sorted list, it will not add the element if it already exists (no duplicates)
- */
+/** Adds and entry to the sorted list, it will not add the element if it already exists (no duplicates) */
 int sortedlist_add(struct sortedlist *s, const char *word, size_t nWord, void *param);
 int sortedlist_remove(struct sortedlist *s, const char *word, size_t nWord);
 bool sortedlist_exists(struct sortedlist *s, const char *word, size_t nWord, void **pParam);

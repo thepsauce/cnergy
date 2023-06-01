@@ -1,6 +1,7 @@
 #include "cnergy.h"
 
 static const char *error_messages[] = {
+	[ERR_FILEIO] = "could not open the given file",
 	[ERR_INVALID_SYNTAX] = "invalid syntax",
 	[ERR_INVALID_KEY] = "invalid key",
 	[ERR_INVALID_COMMAND] = "invalid command",
@@ -62,8 +63,10 @@ parser_open(struct parser *parser, const char *path, window_type_t windowType)
 	if(parser->nFiles == ARRLEN(parser->files))
 		return -1;
 	fp = fopen(path, "r");
-	if(!fp)
+	if(!fp) {
+		parser_pusherror(parser, ERR_FILEIO);
 		return -1;
+	}
 	parser->files[parser->nFiles].fp = fp;
 	parser->files[parser->nFiles].windowType = windowType;
 	parser->files[parser->nFiles].path = const_alloc(path, strlen(path) + 1); // don't care if const_alloc failes
@@ -99,8 +102,8 @@ parser_pusherror(struct parser *parser, parser_error_t err)
 		parser->nErrStack--;
 	}
 	parser->errStack[parser->nErrStack].err = err;
-	parser->errStack[parser->nErrStack].file = parser->files[parser->nFiles - 1].path;
-	parser->errStack[parser->nErrStack].pos = ftell(parser->files[parser->nFiles - 1].fp) - 1;
+	parser->errStack[parser->nErrStack].file = parser->nFiles ? parser->files[parser->nFiles - 1].path : const_alloc("<err>", 6);
+	parser->errStack[parser->nErrStack].pos = parser->nFiles ? ftell(parser->files[parser->nFiles - 1].fp) - 1 : 0;
 	parser->nErrStack++;
 	if(err > WARN_MAX)
 		parser->nErrors++;

@@ -30,6 +30,10 @@ bufferviewer_render(struct window *win)
 	attrset(win == focus_window ? COLOR(11, 8) : COLOR(3, 8));
 	printw("%u", n_buffers);
 	ersline(win->col + win->cols);
+	if(win == focus_window) {
+		focus_y = 0;
+		focus_x = 0;
+	}
 	return 0;
 }
 

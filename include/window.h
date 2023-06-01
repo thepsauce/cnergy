@@ -16,35 +16,74 @@
  */
 
 typedef enum {
-	// no flags yet
-	FWINDOW_______,
+	WINDOW_ALL,
+	WINDOW_EDIT,
+	WINDOW_BUFFERVIEWER,
+	WINDOW_FILEVIEWER,
+	// TODO: add more
+	WINDOW_MAX,
+} window_type_t;
+
+#define FILEVIEW_SORT_ALPHA 0
+#define FILEVIEW_SORT_MODTIME 1
+#define FILEVIEW_SORT_CHGTIME 2
+
+typedef struct {
+	// Can also add global flags here
+	union {
+		// WINDOW_EDIT
+		// edit.c
+		struct {
+
+		};
+		// WINDOW_FILEVIEWER
+		// fileview.c
+		struct {
+			unsigned hidden: 1;
+			unsigned sort: 2;
+			unsigned sortType: 1;
+			unsigned sortReverse: 1;
+		};
+	};
 } window_flags_t;
 
 struct state;
+struct binding_mode;
+struct binding_call;
 
 struct window {
 	window_flags_t flags;
-	window_type_t type;
+	window_type_t type; // defined in cnergy.h
 	// the binding mode this window is in
 	struct binding_mode *bindMode;
 	// position of the window
 	int line, col;
 	// size of the window
 	int lines, cols;
-	// scrolling values of the last render
-	int vScroll, hScroll;
-	// selection cursor
-	size_t selection;
 	// that window is above/below this window
 	struct window *above, *below;
 	// that window is left/right of this window
 	struct window *left, *right;
 	union {
+		// WINDOW_EDIT
 		struct {
 			// text buffer
 			struct buffer *buffer;
 			// syntax states
 			int (**states)(struct state *s);
+			// scrolling values of the last render
+			int vScroll, hScroll;
+			// selection cursor
+			size_t selection;
+		};
+		// WINDOW_FILEVIEWER
+		struct {
+			int selected;
+			int scroll;
+			int maxSelected;
+			int cursor;
+			int curScroll;
+			char selPath[PATH_MAX];
 		};
 		// TODO: add more...
 	};

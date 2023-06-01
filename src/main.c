@@ -33,7 +33,7 @@ main(int argc, char **argv)
 	// all below here is pretty much test code beside the main loop
 	struct parser parser;
 	memset(&parser, 0, sizeof(parser));
-	if(!parser_open(&parser, "draft.cng", WINDOW_ALL)) {
+	if(!parser_open(&parser, "cng/draft.cng", WINDOW_ALL)) {
 		while(!parser_next(&parser));
 		for(window_type_t i = 0; i < WINDOW_MAX; i++) {
 			printf("===== %u =====\n", i);
@@ -61,16 +61,16 @@ main(int argc, char **argv)
 			}
 			modes_add(parser.firstModes);
 		}
-		int line, col;
-		for(unsigned j = 0; j < parser.nErrStack; j++) {
-			getfilepos(parser.errStack[j].file, parser.errStack[j].pos, &line, &col);
-			printf("error in %s(%d:%d): %s\n", parser.errStack[j].file, line, col, parser_strerror(parser.errStack[j].err));
-		}
 		parser_cleanup(&parser);
 		print_modes(NULL);
-		if(parser.nErrors)
-			return -1;
 	}
+	int line, col;
+	for(unsigned j = 0; j < parser.nErrStack; j++) {
+		getfilepos(parser.errStack[j].file, parser.errStack[j].pos, &line, &col);
+		printf("error in %s(%d:%d): %s\n", parser.errStack[j].file, line, col, parser_strerror(parser.errStack[j].err));
+	}
+	if(parser.nErrors)
+		return -1;
 
 	initscr();
 
@@ -121,16 +121,18 @@ main(int argc, char **argv)
 	// 0 right
 	// 1 below
 	int path[] = {
-		0, 0, 1, 0
+		0, 1, 0
 	};
 	const char *files[] = {
 		"src/window.c",
 		"include/cnergy.h",
 		"src/bind.c",
 	};
-	w = window_new(WINDOW_FILEVIEWER);
+	w = window_new(WINDOW_BUFFERVIEWER);
 	first_window = w;
 	focus_window = w;
+	struct window *const new = window_new(WINDOW_FILEVIEWER);
+	window_attach(w, new, ATT_WINDOW_VERTICAL);
 	for(unsigned i = 0; i < ARRLEN(path); i++) {
 		const char *file = files[i % ARRLEN(files)];
 		b = buffer_new(file);
@@ -155,7 +157,7 @@ main(int argc, char **argv)
 		window_layout(first_window);
 		for(unsigned i = n_windows; i > 0;)
 			window_render(all_windows[--i]);
-		if(focus_window->bindMode && (focus_window->bindMode->flags & FBIND_MODE_SELECTION))
+		if(focus_window->bindMode->flags & FBIND_MODE_SELECTION)
 			curs_set(0);
 		else {
 			curs_set(1);
@@ -179,7 +181,7 @@ main(int argc, char **argv)
 			}
 			break;
 		}
-		if(focus_window->bindMode && (focus_window->bindMode->flags & FBIND_MODE_TYPE) &&
+		if((focus_window->bindMode->flags & FBIND_MODE_TYPE) &&
 				(isprint(c) || isspace(c))) {
 			char b[10];
 
@@ -210,8 +212,7 @@ main(int argc, char **argv)
 				num = 0;
 			}
 		}
-		if(focus_window->bindMode)
-			printw("%s ", focus_window->bindMode->name);
+		printw("%s ", focus_window->bindMode->name);
 		if(num)
 			printw("%zd", num);
 		for(unsigned i = 0; i < nKeys; i++)

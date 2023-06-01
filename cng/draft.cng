@@ -36,6 +36,7 @@ bind normal: lazy, normal_movement
 
 bind $insert: lazy
 
-include @edit "edit.cng"
-include @fileviewer "fileviewer.cng"
+include @edit "cng/edit.cng"
+include @bufferviewer "cng/bufferviewer.cng"
+include @fileviewer "cng/fileviewer.cng"
 

@@ -2,28 +2,18 @@
 #include <dirent.h>
 #include <unistd.h>
 
-typedef enum {
-	FFILEVIEW_SHOWHIDDEN = 1 << 1,
-	FFILEVIEW_SORTALPHA = 1 << 2,
-	FFILEVIEW_SORTMODIFY = 1 << 3,
-	FFILEVIEW_SORTCHANGE = 1 << 4,
-	FFILEVIEW_SORTTYPE = 1 << 5,
-} fileview_flags_t;
+// There is not multithreading, so this struct is save to use for all windows one after another
 static struct fileview {
-	fileview_flags_t flags;
-	int selected;
-	int maxSelected; // each render call figures this one out
-	int scroll;
-	int cursor; // cursor inside of selPath
-	char basePath[PATH_MAX]; // path to start from
-	char selPath[PATH_MAX]; // selected path (path visible at the bottom)
+	struct window *win;
 	char curPath[PATH_MAX]; // path we are currently in
+		char basePath[PATH_MAX]; // path to start from
 	struct fileview_stack_frame {
 		char **names;
 		unsigned nNames;
 		unsigned iName; // index of current file
 	} stack[32];
 	unsigned nStack;
+	struct sortedlist collapsed;
 } fileview;
 
 static int
@@ -33,6 +23,7 @@ files_compare(const void *a, const void *b)
 	size_t nPath;
 	struct file_info fi1, fi2;
 	int cmp = 0;
+	window_flags_t flags;
 
 	nPath = strlen(fileview.curPath);
 
@@ -46,16 +37,17 @@ files_compare(const void *a, const void *b)
 
 	getfileinfo(&fi1, path1);
 	getfileinfo(&fi2, path2);
-	if(fileview.flags & FFILEVIEW_SORTALPHA)
-		cmp = strcasecmp(*(const char**) a, *(const char**) b);
-	else if(fileview.flags & FFILEVIEW_SORTMODIFY)
-		cmp = fi1.modTime - fi2.modTime;
-	else if(fileview.flags & FFILEVIEW_SORTCHANGE)
-		cmp = fi1.chgTime - fi2.chgTime;
-	if(fileview.flags & FFILEVIEW_SORTTYPE) {
-		if(fi1.type != fi2.type)
-			cmp = fi1.type - fi2.type;
-	}
+	flags = fileview.win->flags;
+	if(!flags.sortType && fi1.type != fi2.type)
+		cmp = fi1.type - fi2.type;
+	else
+		switch(flags.sort) {
+		case FILEVIEW_SORT_ALPHA: cmp = strcasecmp(*(const char**) a, *(const char**) b); break;
+		case FILEVIEW_SORT_MODTIME: cmp = fi1.modTime - fi2.modTime; break;
+		case FILEVIEW_SORT_CHGTIME: cmp = fi1.chgTime - fi2.chgTime; break;
+		}
+	if(flags.sortReverse)
+		cmp = -cmp;
 	return cmp;
 }
 
@@ -76,7 +68,7 @@ fileview_nextentry(void)
 			frame--;
 		}
 		name = frame->names[frame->iName++];
-	} while(!(fileview.flags & FFILEVIEW_SHOWHIDDEN) && name[0] == '.');
+	} while(!fileview.win->flags.hidden && name[0] == '.');
 	return name;
 }
 
@@ -118,6 +110,8 @@ fileviewer_render(struct window *win)
 {
 	const char *name, *nextName;
 	int y = 0;
+	fileview.win = win;
+	// TODO: set the base path somewhere else so each fileview can have its own
 	getcwd(fileview.basePath, PATH_MAX);
 	strcpy(fileview.curPath, fileview.basePath);
 	fileview.nStack = 0;
@@ -135,16 +129,16 @@ fileviewer_render(struct window *win)
 		fileview.curPath[nOld] = '/';
 		strcpy(fileview.curPath + nOld + 1, name);
 		getfileinfo(&fi, fileview.curPath);
-		if(fileview.selected == y && !(win->bindMode->flags & FBIND_MODE_TYPE)) {
-			strcpy(fileview.selPath, fileview.curPath);
+		if(win->selected == y && !(win->bindMode->flags & FBIND_MODE_TYPE)) {
+			strcpy(win->selPath, fileview.curPath);
 			if(win == focus_window) {
 				focus_x = win->col;
-				focus_y = win->line + y + 1 - fileview.scroll;
+				focus_y = win->line + y + 1 - win->scroll;
 			}
 		}
-		if(y >= fileview.scroll && y - fileview.scroll < win->line + win->lines - 2) {
-			attrset(COLOR(fi.type == FI_TYPE_DIR ? 6 : fi.type == FI_TYPE_REG ? 7 : 3, fileview.selected == y ? 8 : 0));
-			move(win->line + y - fileview.scroll + 1, win->col);
+		if(y >= win->scroll && y - win->scroll < win->line + win->lines - 2) {
+			attrset(COLOR(fi.type == FI_TYPE_DIR ? 6 : fi.type == FI_TYPE_REG ? 7 : 3, win->selected == y ? 8 : 0));
+			move(win->line + y - win->scroll + 1, win->col);
 			printw("%*s", (fileview.nStack - 1) * 2, "");
 			if(fi.type == FI_TYPE_EXEC)
 				addch('*');
@@ -153,35 +147,35 @@ fileviewer_render(struct window *win)
 				addch('/');
 			ersline(win->col + win->cols);
 		}
-		if(fi.type == FI_TYPE_DIR)
+		if(fi.type == FI_TYPE_DIR && sortedlist_exists(&fileview.collapsed, fileview.curPath, strlen(fileview.curPath), NULL))
 			fileview_recurseinto();
 		else
 			fileview.curPath[nOld] = 0;
 		y++;
 		continue;
 	draw_broken_item:
-		if(y >= fileview.scroll && y - fileview.scroll < win->line + win->lines - 2) {
+		if(y >= win->scroll && y - win->scroll < win->line + win->lines - 2) {
 			attrset(COLOR_PAIR(0));
 			mvaddstr(win->line + y, win->col, name);
 		}
 		y++;
 	}
-	fileview.maxSelected = y - 1;
-	if(fileview.selected > fileview.maxSelected)
-		fileview.selected = fileview.maxSelected;
+	win->maxSelected = y - 1;
+	if(win->selected > win->maxSelected)
+		win->selected = win->maxSelected;
 	// erase rest
 	attrset(0);
-	for(int p = y - fileview.scroll + win->line + 1; p < win->line + win->lines - 1; p++)
+	for(int p = y - win->scroll + win->line + 1; p < win->line + win->lines - 1; p++)
 		mvprintw(p, win->col, "%*s", win->cols, "");
 
 	attrset(COLOR_PAIR(3));
 	move(win->line + win->lines - 1, win->col);
-	addstr(fileview.selPath);
+	addstr(win->selPath);
 	ersline(win->col + win->cols);
 	if(win->bindMode->flags & FBIND_MODE_TYPE) {
 		if(win == focus_window) {
 			focus_y = win->line + win->lines - 1;
-			focus_x = win->col + fileview.cursor;
+			focus_x = win->col + win->cursor;
 		}
 	}
 	return 0;
@@ -192,11 +186,11 @@ fileviewer_type(struct window *win, const char *str, size_t nStr)
 {
 	if(iscntrl(*str))
 		return 1;
-	if(strlen(fileview.selPath) + nStr >= sizeof(fileview.selPath))
+	if(strlen(win->selPath) + nStr >= sizeof(win->selPath))
 		return 1;
-	memcpy(fileview.selPath + fileview.cursor + nStr, fileview.selPath + fileview.cursor, strlen(fileview.selPath + fileview.cursor) + 1);
-	memcpy(fileview.selPath + fileview.cursor, str, nStr);
-	fileview.cursor += nStr;
+	memcpy(win->selPath + win->cursor + nStr, win->selPath + win->cursor, strlen(win->selPath + win->cursor) + 1);
+	memcpy(win->selPath + win->cursor, str, nStr);
+	win->cursor += nStr;
 	return 0;
 }
 
@@ -206,17 +200,19 @@ fileviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
 	switch(bc->type) {
 	case BIND_CALL_CHOOSE: {
 		struct file_info fi;
-		if(!getfileinfo(&fi, fileview.selPath)) {
-			if(fi.type == FI_TYPE_DIR)
-				; // TODO: (un/)collapse folder
-			else if(fi.type == FI_TYPE_REG) {
+		if(!getfileinfo(&fi, win->selPath)) {
+			if(fi.type == FI_TYPE_DIR) {
+				const size_t n = strlen(win->selPath);
+				if(sortedlist_add(&fileview.collapsed, win->selPath, n, NULL))
+					sortedlist_remove(&fileview.collapsed, win->selPath, n);
+			} else if(fi.type == FI_TYPE_REG) {
 				struct buffer *buf;
 				struct window *newWin;
 
-				buf = buffer_new(fileview.selPath);
+				buf = buffer_new(win->selPath);
 				if(!buf)
 					break;
-				newWin = edit_new(buf, edit_statesfromfiletype(fileview.selPath));
+				newWin = edit_new(buf, edit_statesfromfiletype(win->selPath));
 				if(newWin) {
 					window_copylayout(win, newWin);
 					window_delete(win);
@@ -227,23 +223,23 @@ fileviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
 		return false;
 	}
 	default:
-		// let the other switches care about these types
+		// let the other switches take care about these types
 	}
 	if(win->bindMode->flags & FBIND_MODE_TYPE) {
 		switch(bc->type) {
 		case BIND_CALL_MOVEHORZ: {
-			const ssize_t p = utf8_cnvdist(fileview.selPath, strlen(fileview.selPath), fileview.cursor, param);
-			fileview.cursor += p;
+			const ssize_t p = utf8_cnvdist(win->selPath, strlen(win->selPath), win->cursor, param);
+			win->cursor += p;
 			return p == param;
 		}
 		case BIND_CALL_DELETE: {
-			const size_t n = strlen(fileview.selPath);
-			const ssize_t p = utf8_cnvdist(fileview.selPath, n, fileview.cursor, param);
+			const size_t n = strlen(win->selPath);
+			const ssize_t p = utf8_cnvdist(win->selPath, n, win->cursor, param);
 			if(p < 0) {
-				memmove(fileview.selPath + fileview.cursor + p, fileview.selPath + fileview.cursor, n + 1 - fileview.cursor);
-				fileview.cursor += p;
+				memmove(win->selPath + win->cursor + p, win->selPath + win->cursor, n + 1 - win->cursor);
+				win->cursor += p;
 			} else {
-				memmove(fileview.selPath + fileview.cursor, fileview.selPath + fileview.cursor + p, n + 1 - fileview.cursor - p);
+				memmove(win->selPath + win->cursor, win->selPath + win->cursor + p, n + 1 - win->cursor - p);
 			}
 			return p == param;
 		}
@@ -253,43 +249,31 @@ fileviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
 	} else {
 		switch(bc->type) {
 		case BIND_CALL_MOVEVERT:
-			if((!fileview.selected && param < 0) ||
-					(fileview.selected == fileview.maxSelected && param >= 0))
+			if((!win->selected && param < 0) ||
+					(win->selected == win->maxSelected && param >= 0))
 				return false;
-			fileview.selected = SAFE_ADD(fileview.selected, param);
-			if(fileview.selected < 0) {
-				fileview.selected = 0;
-				fileview.scroll = 0;
-				return false;
-			}
-			if(fileview.selected > fileview.maxSelected) {
-				fileview.selected = fileview.maxSelected;
-				fileview.scroll = MAX(fileview.maxSelected - win->lines + 3, 0);
+			win->selected = SAFE_ADD(win->selected, param);
+			if(win->selected < 0) {
+				win->selected = 0;
+				win->scroll = 0;
 				return false;
 			}
-			if(fileview.selected < fileview.scroll)
-				fileview.scroll = fileview.selected;
-			else if(fileview.selected - fileview.scroll >= win->lines - 3)
-				fileview.scroll = fileview.selected - win->lines + 3;
+			if(win->selected > win->maxSelected) {
+				win->selected = win->maxSelected;
+				win->scroll = MAX(win->maxSelected - win->lines + 3, 0);
+				return false;
+			}
+			if(win->selected < win->scroll)
+				win->scroll = win->selected;
+			else if(win->selected - win->scroll >= win->lines - 3)
+				win->scroll = win->selected - win->lines + 3;
 			break;
-		case BIND_CALL_TOGGLEHIDDEN:
-			fileview.flags ^= FFILEVIEW_SHOWHIDDEN;
-			break;
-		case BIND_CALL_TOGGLESORTTYPE:
-			fileview.flags ^= FFILEVIEW_SORTTYPE; break;
-			break;
-		case BIND_CALL_SORTALPHABETICAL:
-			fileview.flags |= FFILEVIEW_SORTALPHA;
-			fileview.flags &= ~(FFILEVIEW_SORTMODIFY | FFILEVIEW_SORTCHANGE);
-			break;
-		case BIND_CALL_SORTMODIFICATIONTIME:
-			fileview.flags |= FFILEVIEW_SORTMODIFY;
-			fileview.flags &= ~(FFILEVIEW_SORTALPHA | FFILEVIEW_SORTCHANGE);
-			break;
-		case BIND_CALL_SORTCHANGETIME:
-			fileview.flags |= FFILEVIEW_SORTCHANGE;
-			fileview.flags &= ~(FFILEVIEW_SORTALPHA | FFILEVIEW_SORTMODIFY);
-			break;
+		case BIND_CALL_TOGGLEHIDDEN: win->flags.hidden = !win->flags.hidden; break;
+		case BIND_CALL_TOGGLESORTTYPE: win->flags.sortType = !win->flags.sortType; break;
+		case BIND_CALL_TOGGLESORTREVERSE: win->flags.sortReverse = !win->flags.sortReverse; break;
+		case BIND_CALL_SORTALPHABETICAL: win->flags.sort = FILEVIEW_SORT_ALPHA; break;
+		case BIND_CALL_SORTMODIFICATIONTIME: win->flags.sort = FILEVIEW_SORT_MODTIME; break;
+		case BIND_CALL_SORTCHANGETIME: win->flags.sort = FILEVIEW_SORT_CHGTIME; break;
 		default:
 			return false;
 		}
