@@ -11,23 +11,29 @@ int
 bufferviewer_render(struct window *win)
 {
 	unsigned i = 0;
+	const int itemselectedColor = all_settings[SET_COLOR_ITEMSELECTED];
+	const int itemColor = all_settings[SET_COLOR_ITEM];
+	const int statusbar1Color = win == focus_window ? all_settings[SET_COLOR_STATUSBAR1_FOCUS] : all_settings[SET_COLOR_STATUSBAR1];
+	const int statusbar2Color = win == focus_window ? all_settings[SET_COLOR_STATUSBAR2_FOCUS] : all_settings[SET_COLOR_STATUSBAR2];
 	const int maxCol1 = win->cols * 2 / 3;
-	attrset(COLOR_PAIR(3));
 	for(int y = win->line; i < n_buffers && y < win->line + win->lines - 1; i++, y++) {
+		struct filecache *fc;
 		struct buffer *const buf = all_buffers[i];
-		attrset(COLOR(3, column == 0 && (int) i == row ? 8 : 0));
+		fc = !buf->file ? NULL : fc_lock(buf->file);
+		attrset(column == 0 && (int) i == row ? itemselectedColor : itemColor);
 		move(y, win->col);
-		if(buf->file)
-			addnstr(buf->file, MIN(maxCol1, (int) strlen(buf->file)));
-		else
+		if(fc)
+			addnstr(fc->name, MIN(maxCol1, (int) strlen(fc->name)));
+		if(!fc || (fc->flags & FC_VIRTUAL))
 			addnstr("[new]", MIN(maxCol1, 5));
 		move(y, win->col + maxCol1 + 1);
-		attrset(COLOR(3, column == 1 && (int) i == row ? 8 : 0));
+		attrset(column == 1 && (int) i == row ? itemselectedColor : itemColor);
 		printw("%zu", buf->nData);
+		fc_unlock(fc);
 	}
-	attrset(win == focus_window ? COLOR(14, 8) : COLOR(6, 8));
+	attrset(statusbar1Color);
 	mvaddstr(win->line + win->lines - 1, win->col, " Buffer viewer ");
-	attrset(win == focus_window ? COLOR(11, 8) : COLOR(3, 8));
+	attrset(statusbar2Color);
 	printw("%u", n_buffers);
 	ersline(win->col + win->cols);
 	if(win == focus_window) {

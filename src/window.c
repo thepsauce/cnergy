@@ -32,7 +32,7 @@ bool edit_bindcall(struct window *win, struct binding_call *bc, ssize_t param);
 // buffer viewer
 int bufferviewer_render(struct window *win);
 bool bufferviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param);
-// file view 
+// file view
 int fileviewer_render(struct window *win);
 int fileviewer_type(struct window *win, const char *str, size_t nStr);
 bool fileviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param);

@@ -81,9 +81,10 @@ struct window {
 			int selected;
 			int scroll;
 			int maxSelected;
+			// input box
 			int cursor;
 			int curScroll;
-			char selPath[PATH_MAX];
+			char path[PATH_MAX];
 		};
 		// TODO: add more...
 	};
@@ -139,7 +140,7 @@ int window_render(struct window *win);
 
 /* Additional functions for specific window types */
 // edit.c
-int (**edit_statesfromfiletype(const char *file))(struct state *s);
+int (**edit_statesfromfiletype(fileid_t file))(struct state *s);
 struct window *edit_new(struct buffer *buf, int (**states)(struct state *s));
 
 #endif

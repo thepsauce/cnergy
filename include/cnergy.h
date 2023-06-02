@@ -1,23 +1,50 @@
 #ifndef INCLUDED_EDITOR_H
 #define INCLUDED_EDITOR_H
 
+#define _GNU_SOURCE // for qsort_r
 #include "base.h"
-#include "window.h"
-#include "bind.h"
-#include "parse.h"
-
 #include <curses.h>
-#include <dirent.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
-// TODO: COLOR is a temporary macro, it should get removed soon
-#define COLOR(bg, fg) COLOR_PAIR(1 + ((bg) | ((fg) * 16)))
 #define ersline(max) ({ \
 	__auto_type _m = (max); \
 	printw("%*s", MAX((int) _m - getcurx(stdscr), 0), ""); \
 })
+
+/* Settings */
+// main.c
+/**
+ * Settings allow for high customizability. Settings include
+ * colors, tabsize and so on.
+ */
+typedef enum {
+	SET_TABSIZE,
+	// line numbers of a focused window
+	SET_COLOR_LINENR_FOCUS,
+	SET_COLOR_LINENR,
+	// waves at end of buffer
+	SET_COLOR_ENDOFBUFFER,
+	// status bar
+	SET_COLOR_STATUSBAR1_FOCUS,
+	SET_COLOR_STATUSBAR2_FOCUS,
+	SET_COLOR_STATUSBAR1,
+	SET_COLOR_STATUSBAR2,
+	SET_COLOR_ITEM,
+	SET_COLOR_ITEMSELECTED,
+	SET_COLOR_DIRSELECTED,
+	SET_COLOR_FILESELECTED,
+	SET_COLOR_EXECSELECTED,
+	SET_COLOR_DIR,
+	SET_COLOR_FILE,
+	SET_COLOR_EXEC,
+	SET_COLOR_BROKENFILE,
+	SET_CHAR_DIR,
+	SET_CHAR_EXEC,
+	// control characters
+	SET_COLOR_CNTRL,
+	SET_MAX,
+} setting_t;
+
+extern int all_settings[];
 
 /* Sorted list */
 // sortedlist.c
@@ -41,28 +68,56 @@ int sortedlist_add(struct sortedlist *s, const char *word, size_t nWord, void *p
 int sortedlist_remove(struct sortedlist *s, const char *word, size_t nWord);
 bool sortedlist_exists(struct sortedlist *s, const char *word, size_t nWord, void **pParam);
 
-/* File info */
-// filesystem_unix.c
+/* File caching */
+// filecache.c
+/**
+ * This tries to create a cache of the files and directories
+ * of the user.
+ */
 
-typedef enum {
-	FI_TYPE_NULL,
-	FI_TYPE_DIR,
-	FI_TYPE_REG,
-	FI_TYPE_EXEC,
-	FI_TYPE_OTHER,
-} file_type_t;
+/** If a cached file has this flag and it's a directory, all sub files/dirs are also cached */
+#define FC_COLLAPSED 0x10
+/** The node is not in the user's filesystem */
+#define FC_VIRTUAL 0x80
 
-struct file_info {
-	file_type_t type;
-	// inode change
-	time_t chgTime;
-	// last modification time
-	time_t modTime;
-	// last access time
-	time_t accTime;
+typedef unsigned fileid_t;
+
+struct filecache {
+	char name[NAME_MAX];
+	unsigned flags;
+	unsigned mode;
+	time_t atime, ctime, mtime;
+	fileid_t *children;
+	unsigned nChildren;
+	fileid_t parent;
 };
 
-int getfileinfo(struct file_info *fi, const char *path);
+/** Get the absolute file path of given file */
+char *fc_getabsolutepath(fileid_t file, char *dest, size_t maxDest);
+/** Open the file at given fileid */
+FILE *fc_open(fileid_t file, const char *mode);
+/** Get the file cache data */
+struct filecache *fc_lock(fileid_t file);
+/** Get a file type compute from the mode member of fc */
+enum {
+	FC_TYPE_DIR,
+	FC_TYPE_REG,
+	FC_TYPE_EXEC, // this is not really a type but it's still good to differentiate files with and without execution rights
+	FC_TYPE_OTHER,
+};
+int fc_type(struct filecache *fc);
+bool fc_isdir(struct filecache *fc);
+bool fc_isreg(struct filecache *fc);
+bool fc_isexec(struct filecache *fc);
+bool fc_iswrite(struct filecache *fc);
+bool fc_isread(struct filecache *fc);
+void fc_unlock(struct filecache *fc);
+/** Caches a path that starts from given file */
+int fc_cache(fileid_t file, const char *path);
+/** Compares cached file with real filesystem */
+int fc_recache(fileid_t file);
+/** Finds a cached file that starts from given path */
+fileid_t fc_find(fileid_t file, const char *path);
 
 /* UTF8 */
 // utf8.c
@@ -110,6 +165,10 @@ int clipboard_copy(const char *text, size_t nText);
 // Returns 0 if the function succeeded
 int clipboard_paste(char **text);
 
+#include "window.h"
+#include "bind.h"
+#include "parse.h"
+
 /* Gap buffer */
 // buffer.c
 /**
@@ -142,8 +201,7 @@ struct buffer {
 	size_t iGap;
 	size_t nGap;
 	unsigned vct;
-	char *file;
-	time_t fileTime;
+	fileid_t file;
 	unsigned saveEvent;
 	struct event *events;
 	unsigned nEvents;
@@ -153,9 +211,9 @@ struct buffer {
 extern struct buffer **all_buffers;
 extern unsigned n_buffers;
 
-// Create a new buffer based on the given file, it may be null, then an empty buffer is created
+// Create a new buffer based on the given file, it may be 0, then an empty buffer is created
 // This also adds it to the internal buffer list
-struct buffer *buffer_new(const char *file);
+struct buffer *buffer_new(fileid_t file);
 // Free all resources associated to this buffer
 // Make sure to delete all windows associated to this buffer before calling this function
 void buffer_free(struct buffer *buf);
@@ -173,7 +231,7 @@ ssize_t buffer_movevert(struct buffer *buf, ssize_t distance);
 // Returns the number of characters inserted
 size_t buffer_insert(struct buffer *buf, const char *str, size_t nStr);
 // Returns the number of characters inserted
-size_t buffer_insert_file(struct buffer *buf, FILE *fp);
+size_t buffer_insert_file(struct buffer *buf, fileid_t file);
 // Returns the amount that was deleted
 ssize_t buffer_delete(struct buffer *buf, ssize_t amount);
 // Returns the amount of lines that were deleted

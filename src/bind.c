@@ -403,7 +403,7 @@ bind_exec(const int *keys, ssize_t amount)
 			break;
 		}
 		case BIND_CALL_OPENWINDOW: {
-			const char *const file = NULL; // TODO: add choosefile(); again
+			const fileid_t file = 0; // TODO: add choosefile(); again
 			if(file) {
 				struct buffer *buf;
 				struct window *win;
@@ -428,7 +428,7 @@ bind_exec(const int *keys, ssize_t amount)
 			struct buffer *buf;
 			struct window *win;
 
-			buf = buffer_new(NULL);
+			buf = buffer_new(0);
 			if(!buf) {
 				b = false;
 				break;

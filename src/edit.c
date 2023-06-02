@@ -1,6 +1,6 @@
 #include "cnergy.h"
 
-int (**edit_statesfromfiletype(const char *file))(struct state *s)
+int (**edit_statesfromfiletype(fileid_t file))(struct state *s)
 {
 	struct {
 		const char *fileExt;
@@ -15,16 +15,23 @@ int (**edit_statesfromfiletype(const char *file))(struct state *s)
 		{ "cng", cnergy_states },
 		{ "cnergy", cnergy_states },
 	};
+	int (**states)(struct state *s) = NULL;
 	const char *ext;
+	struct filecache *fc;
+
+	fc = fc_lock(file);
 	// just check file ending for now, maybe also use libmagic further down the road
-	ext = strrchr(file, '.');
-	if(!ext)
-		return NULL;
-	ext++;
-	for(unsigned i = 0; i < ARRLEN(sfft); i++)
-		if(!strcmp(ext, sfft[i].fileExt))
-			return sfft[i].states;
-	return NULL;	
+	ext = strrchr(fc->name, '.');
+	if(ext) {
+		ext++;
+		for(unsigned i = 0; i < ARRLEN(sfft); i++)
+			if(!strcmp(ext, sfft[i].fileExt)) {
+				states = sfft[i].states;
+				break;
+			}
+	}
+	fc_unlock(fc);
+	return states;
 }
 
 struct window *
@@ -118,11 +125,18 @@ edit_render(struct window *win)
 		maxSel = 0;
 	}
 
+	const int tabsize = all_settings[SET_TABSIZE];
+	const int lnrColor = win == focus_window ? all_settings[SET_COLOR_LINENR_FOCUS] : all_settings[SET_COLOR_LINENR];
+	const int cntrlColor = all_settings[SET_COLOR_CNTRL];
+	const int endofbufferColor = all_settings[SET_COLOR_ENDOFBUFFER];
+	const int statusbar1Color = win == focus_window ? all_settings[SET_COLOR_STATUSBAR1_FOCUS] : all_settings[SET_COLOR_STATUSBAR1];
+	const int statusbar2Color = win == focus_window ? all_settings[SET_COLOR_STATUSBAR2_FOCUS] : all_settings[SET_COLOR_STATUSBAR2];
+
 	// setup loop
 	move(win->line, win->col);
 	// draw first line if needed
 	if(!win->vScroll) {
-		attrset(win == focus_window ? COLOR(11, 8) : COLOR(3, 8));
+		attrset(lnrColor);
 		printw("%*d ", nLineNumbers - 1, 1);
 	}
 	state.win = win;
@@ -164,7 +178,7 @@ edit_render(struct window *win)
 				if(i >= minSel && i <= maxSel)
 					attron(A_REVERSE);
 				if(!utf8_valid(buf->data + i, buf->nData - i)) {
-					attron(COLOR(4, 0));
+					attrset(cntrlColor);
 					if(state.col >= state.minCol && state.col < state.maxCol)
 						addch('^');
 					if(state.col + 1 >= state.minCol && state.col + 1 < state.maxCol)
@@ -187,12 +201,12 @@ edit_render(struct window *win)
 					if(state.line >= state.minLine && state.line < state.maxLine &&
 							state.col >= state.minCol && state.col < state.maxCol)
 						addch(' ');
-				} while((++state.col) % TABSIZE);
+				} while((++state.col) % tabsize);
 			} else if(ch == '\n') {
 				if(state.line >= state.minLine && state.line < state.maxLine) {
-					// draw extra space for selection
 					if(i >= minSel && i <= maxSel) {
 						if(state.col >= state.minCol && state.col < state.maxCol) {
+							// draw extra space for selection at end of line
 							attrset(A_REVERSE);
 							addch(' ');
 						}
@@ -207,13 +221,13 @@ edit_render(struct window *win)
 				state.line++;
 				if(state.line >= state.minLine && state.line < state.maxLine) {
 					// draw line prefix
-					attrset(win == focus_window ? COLOR(11, 8) : COLOR(3, 8));
+					attrset(lnrColor);
 					mvprintw(win->line + state.line - state.minLine, win->col, "%*d ", nLineNumbers - 1, state.line + 1);
 				}
 				state.col = 0;
 			} else if(iscntrl(ch)) {
 				if(state.line >= state.minLine && state.line < state.maxLine) {
-					attron(COLOR(4, 0));
+					attron(cntrlColor);
 					if(state.col >= state.minCol && state.col < state.maxCol)
 						addch('^');
 					if(state.col + 1 >= state.minCol && state.col + 1 < state.maxCol)
@@ -228,7 +242,7 @@ edit_render(struct window *win)
 		}
 	}
 	// erase rest of line and draw little waves until we hit the status bar
-	attrset(COLOR(6, 0));
+	attrset(endofbufferColor);
 	while(state.line < state.maxLine) {
 		state.col = MAX(state.col, state.minCol);
 		if(state.col < state.maxCol)
@@ -241,13 +255,17 @@ edit_render(struct window *win)
 	}
 	state_cleanup(&state);
 	// draw status bar (TODO: what if the status bar doesn't fit?)
-	attrset(win == focus_window ? COLOR(14, 8) : COLOR(6, 8));
+	attrset(statusbar1Color);
 	mvaddstr(win->line + win->lines - 1, win->col, " Buffer");
-	attrset(win == focus_window ? COLOR(11, 8) : COLOR(3, 8));
+	attrset(statusbar2Color);
 	if(buf->saveEvent != buf->iEvent)
 		addch('*');
-	if(buf->file)
-		printw(" %s", buf->file);
+	if(buf->file) {
+		struct filecache *fc;
+		fc = fc_lock(buf->file);
+		printw(" %s", fc->name);
+		fc_unlock(fc);
+	}
 	printw(" %u, %u", curLine, curCol);
 	printw("%*s", MAX(win->col + win->cols - getcurx(stdscr), 0), "");
 	// set the global end caret position

@@ -1,6 +1,8 @@
 #include "cnergy.h"
 #include <locale.h>
 
+int all_settings[SET_MAX];
+
 void print_modes(struct binding_mode *mode);
 
 void getfilepos(const char *file, long pos, int *line, int *col)
@@ -111,6 +113,28 @@ main(int argc, char **argv)
 			init_pair(1 + i + j * 16, i, j);
 	}
 
+#define COLOR(bg, fg) COLOR_PAIR(1 + ((bg) | ((fg) * 16)))
+	// make default settings
+	all_settings[SET_TABSIZE] = 4;
+	all_settings[SET_COLOR_LINENR_FOCUS] = COLOR(11, 8);
+	all_settings[SET_COLOR_LINENR] = COLOR(3, 8);
+	all_settings[SET_COLOR_ENDOFBUFFER] = COLOR(6, 0);
+	all_settings[SET_COLOR_STATUSBAR1_FOCUS] = COLOR(14, 8);
+	all_settings[SET_COLOR_STATUSBAR2_FOCUS] = COLOR(11, 8);
+	all_settings[SET_COLOR_STATUSBAR1] = COLOR(6, 8);
+	all_settings[SET_COLOR_STATUSBAR2] = COLOR(3, 8);
+	all_settings[SET_COLOR_ITEM] = COLOR(3, 0);
+	all_settings[SET_COLOR_ITEMSELECTED] = COLOR(3, 8);
+	all_settings[SET_COLOR_DIRSELECTED] = COLOR(6, 8);
+	all_settings[SET_COLOR_FILESELECTED] = COLOR(7, 8);
+	all_settings[SET_COLOR_EXECSELECTED] = COLOR(3, 8);
+	all_settings[SET_COLOR_DIR] = COLOR(6, 0);
+	all_settings[SET_COLOR_FILE] = COLOR(7, 0);
+	all_settings[SET_COLOR_EXEC] = COLOR(3, 0);
+	all_settings[SET_COLOR_BROKENFILE] = A_REVERSE | COLOR(2, 0);
+	all_settings[SET_CHAR_DIR] = '/';
+	all_settings[SET_CHAR_EXEC] = '*';
+
 	int keys[32];
 	unsigned nKeys = 0;
 	ssize_t num = 0;
@@ -128,6 +152,9 @@ main(int argc, char **argv)
 		"include/cnergy.h",
 		"src/bind.c",
 	};
+	for(unsigned i = 0; i < ARRLEN(files); i++)
+		fc_cache(0, files[i]);
+	printnode(NULL, 0);
 	w = window_new(WINDOW_BUFFERVIEWER);
 	first_window = w;
 	focus_window = w;
@@ -135,7 +162,7 @@ main(int argc, char **argv)
 	window_attach(w, new, ATT_WINDOW_VERTICAL);
 	for(unsigned i = 0; i < ARRLEN(path); i++) {
 		const char *file = files[i % ARRLEN(files)];
-		b = buffer_new(file);
+		b = buffer_new(fc_find(0, file));
 		struct window *const new = edit_new(b, c_states);
 		if(path[i])
 			window_attach(w, new, ATT_WINDOW_VERTICAL);
@@ -196,7 +223,7 @@ main(int argc, char **argv)
 		// render status bar
 		attrset(COLOR(3, 0));
 		move(LINES - 1, 0);
-		if(!(focus_window->bindMode->flags & FBIND_MODE_TYPE) && 
+		if(!(focus_window->bindMode->flags & FBIND_MODE_TYPE) &&
 				isdigit(c) && (c != '0' || num)) {
 			num = SAFE_MUL(num, 10);
 			num = SAFE_ADD(num, c - '0');

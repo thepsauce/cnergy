@@ -4,7 +4,7 @@ struct buffer **all_buffers;
 unsigned n_buffers;
 
 struct buffer *
-buffer_new(const char *file)
+buffer_new(fileid_t file)
 {
 	struct buffer **newBuffers;
 	struct buffer *buf;
@@ -13,7 +13,7 @@ buffer_new(const char *file)
 	if(file) {
 		for(unsigned i = 0; i < n_buffers; i++) {
 			buf = all_buffers[i];
-			if(buf->file && !strcmp(buf->file, file))
+			if(buf->file == file)
 				return buf;
 		}
 	}
@@ -28,14 +28,8 @@ buffer_new(const char *file)
 	if(file) {
 		FILE *fp;
 
-		fp = fopen(file, "r");
-		if(fp && (buf->file = const_alloc(file, strlen(file) + 1))) {
-			struct file_info fi;
-
-			if(getfileinfo(&fi, file) < 0)
-				buf->fileTime = 0;
-			else
-				buf->fileTime = fi.modTime;
+		fp = fc_open(file, "r");
+		if(fp) {
 			fseek(fp, 0, SEEK_END);
 			const long n = ftell(fp);
 			buf->data = dialog_alloc(BUFFER_GAP_SIZE + n);
@@ -47,7 +41,14 @@ buffer_new(const char *file)
 			fseek(fp, 0, SEEK_SET);
 			fread(buf->data + BUFFER_GAP_SIZE, 1, n, fp);
 			fclose(fp);
+		} else {
+			buf->data = dialog_alloc(BUFFER_GAP_SIZE);
+			if(!buf->data) {
+				free(buf);
+				return NULL;
+			}
 		}
+		buf->file = file;
 	} else {
 		buf->data = dialog_alloc(BUFFER_GAP_SIZE);
 		if(!buf->data) {
@@ -87,32 +88,25 @@ int
 buffer_save(struct buffer *buf)
 {
 	FILE *fp;
-	struct file_info fi;
 
 	if(!buf->file) {
-		const char *file = NULL; // TODO: add choosefile call again
+		fileid_t file = 0; // TODO: add choosefile call again
 		if(!file)
 			return 1;
-		buf->file = const_alloc(file, strlen(file) + 1);
-		if(!buf->file)
-			return -1;
+		buf->file = file;
 	}
-	if(getfileinfo(&fi, buf->file) < 0)
-		return -1;
-	if(fi.modTime != buf->fileTime) {
+	if(fc_recache(buf->file) == 1) {
 		const int m = messagebox("File not in line", "The file you're trying to write to was modified outside the editor, do you still want to write to it?", "[Y]es", "[N]o", NULL);
 		if(m != 0)
 			return 1;
 	}
-	fp = fopen(buf->file, "w");
+	fp = fc_open(buf->file, "w");
 	if(!fp)
 		return -1;
 	fwrite(buf->data, 1, buf->iGap, fp);
 	fwrite(buf->data + buf->iGap + buf->nGap, 1, buf->nData - buf->iGap, fp);
 	fclose(fp);
 	buf->saveEvent = buf->iEvent;
-	getfileinfo(&fi, buf->file);
-	buf->fileTime = fi.modTime;
 	return 0;
 }
 
@@ -380,10 +374,14 @@ buffer_insert(struct buffer *buf, const char *str, size_t nStr)
 
 // Returns the number of characters inserted
 size_t
-buffer_insert_file(struct buffer *buf, FILE *fp)
+buffer_insert_file(struct buffer *buf, fileid_t file)
 {
 	char *s;
+	FILE *fp;
 
+	fp = fc_open(file, "r");
+	if(!fp)
+		return 0;
 	fseek(fp, 0, SEEK_END);
 	const long n = ftell(fp);
 	if(n <= 0 || !(s = dialog_alloc(n)))
