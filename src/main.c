@@ -154,7 +154,11 @@ main(int argc, char **argv)
 	};
 	for(unsigned i = 0; i < ARRLEN(files); i++)
 		fc_cache(0, files[i]);
+	endwin();
 	printnode(NULL, 0);
+	char _path[1000];
+	fc_getrelativepath(1, _path, sizeof(_path));
+	printf("REL: %s\n", _path);
 	w = window_new(WINDOW_BUFFERVIEWER);
 	first_window = w;
 	focus_window = w;

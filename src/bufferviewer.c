@@ -29,7 +29,8 @@ bufferviewer_render(struct window *win)
 		move(y, win->col + maxCol1 + 1);
 		attrset(column == 1 && (int) i == row ? itemselectedColor : itemColor);
 		printw("%zu", buf->nData);
-		fc_unlock(fc);
+		if(buf->file)
+			fc_unlock(fc);
 	}
 	attrset(statusbar1Color);
 	mvaddstr(win->line + win->lines - 1, win->col, " Buffer viewer ");
