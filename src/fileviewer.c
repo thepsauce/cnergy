@@ -54,9 +54,13 @@ fileviewer_render(struct window *win)
 	move(win->line, win->col);
 	addstr("Lorem ipsum");
 	ersline(win->col + win->cols);
-	stack[0].fc = fc = fc_lock(0);
+	stack[0].fc = fc = fc_lock(win->base);
 	stack[0].index = 0;
 	qsort_r(fc->children, fc->nChildren, sizeof(*fc->children), files_compare, win);
+	// this is used if the fileviewer is in type mode and we want to find the path the user typed
+	const fileid_t selFile = fc_find(win->base, win->path);
+	if(win->bindMode->flags & FBIND_MODE_TYPE)
+		win->selected = -1;
 	while(1) {
 		while(stack[iStack].index == stack[iStack].fc->nChildren) {
 			fc_unlock(stack[iStack].fc);
@@ -67,19 +71,25 @@ fileviewer_render(struct window *win)
 		file = stack[iStack].fc->children[stack[iStack].index++];
 		fc = fc_lock(file);
 		const int type = fc_type(fc);
-		if(win->selected == y && !(win->bindMode->flags & FBIND_MODE_TYPE)) {
-			fc_getabsolutepath(file, win->path, sizeof(win->path));
+		if(win->selected == y) {
+			fc_getrelativepath(file, win->path, sizeof(win->path));
+			win->cursor = strlen(win->path);
 			if(win == focus_window) {
 				focus_x = win->col;
 				focus_y = win->line + y + 1 - win->scroll;
 			}
 		}
-		if(y >= win->scroll && y - win->scroll < win->line + win->lines - 2) {
+		if(win->selected < 0 && file == selFile) {
+			win->selected = y;
+			focus_x = win->col;
+			focus_y = win->line + y + 1 - win->scroll;
+		}
+		if(y >= win->scroll && y - win->scroll < win->lines - 2) {
 			if(win->selected == y)
-				attrset(type == FC_TYPE_DIR ? dirselectedColor : 
+				attrset(type == FC_TYPE_DIR ? dirselectedColor :
 						type == FC_TYPE_REG ? fileselectedColor : execselectedColor);
 			else
-				attrset(type == FC_TYPE_DIR ? dirColor : 
+				attrset(type == FC_TYPE_DIR ? dirColor :
 						type == FC_TYPE_REG ? fileColor : execColor);
 			move(win->line + y - win->scroll + 1, win->col);
 			printw("%*s", iStack * 2, "");
@@ -147,7 +157,7 @@ fileviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
 			return false;
 		fc = fc_lock(file);
 		if(fc_isdir(fc)) {
-			fc->flags |= FC_COLLAPSED;
+			fc->flags ^= FC_COLLAPSED;
 			fc_unlock(fc);
 			fc_recache(file);
 		} else if(fc_isreg(fc)) {

@@ -89,8 +89,10 @@ utf8_width(const char *utf8, size_t nStr, int tabRef)
 	const uint8_t firstByte = utf8[0];
 
 	// tab correction
-	if(firstByte == '\t')
-		return TABSIZE - tabRef % TABSIZE;
+	if(firstByte == '\t') {
+		const int tabsize = all_settings[SET_TABSIZE];
+		return tabsize - tabRef % tabsize;
+	}
 	// ^A ^B ^C and so on
 	if(iscntrl(firstByte))
 		return 2;

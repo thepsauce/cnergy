@@ -78,6 +78,7 @@ struct window {
 		};
 		// WINDOW_FILEVIEWER
 		struct {
+			fileid_t base;
 			int selected;
 			int scroll;
 			int maxSelected;

@@ -21,6 +21,11 @@ fc_addcache(struct filecache *parent, const char *name, unsigned nName)
 
 	assert(!locks && "a lock is still in place, unluck all filecaches before continuing");
 
+	for(unsigned i = 0; i < parent->nChildren; i++) {
+		fc = file_caches + parent->children[i];
+		if(!strncmp(fc->name, name, nName) && !fc->name[nName])
+			return fc;
+	}
 	newFileCaches = realloc(file_caches, sizeof(*file_caches) * (n_file_caches + 1));
 	if(!newFileCaches)
 		return NULL;
@@ -45,16 +50,18 @@ fc_getdata(struct filecache *fc, const char *path)
 	struct stat sb;
 
 	if(lstat(path, &sb) < 0) {
-		struct timeval tv;
-		time_t time;
+		fc->flags |= FC_VIRTUAL;
+		if(!fc->ctime) {
+			struct timeval tv;
+			time_t time;
 
-		fc->flags = FC_VIRTUAL;
-		gettimeofday(&tv, NULL);
-		time = tv.tv_sec * 1000 + tv.tv_usec / 1000;
-		fc->mode = 0;
-		fc->ctime = time;
-		fc->mtime = time;
-		fc->atime = time;
+			gettimeofday(&tv, NULL);
+			time = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+			fc->mode = 0;
+			fc->ctime = time;
+			fc->mtime = time;
+			fc->atime = time;
+		}
 	} else {
 		fc->flags &= ~FC_VIRTUAL;
 		fc->mode = sb.st_mode;
@@ -67,32 +74,30 @@ fc_getdata(struct filecache *fc, const char *path)
 __attribute__((constructor)) static void
 fc_init(void)
 {
+	struct filecache *fc;
+	DIR *dir;
+	struct dirent *ent;
+	struct filecache *f;
+
 	getcwd(base_directory, sizeof(base_directory));
 	file_caches = malloc(sizeof(*file_caches) * 20);
 	n_file_caches = 1;
-
-	DIR *dir;
-	struct dirent *ent;
-	struct filecache *fc;
-	struct filecache *f;
-	unsigned len;
-	unsigned n;
 
 	fc = file_caches;
 	memset(fc, 0, sizeof(*fc));
 	fc_getdata(fc, base_directory);
 	dir = opendir(base_directory);
 	if(dir) {
-		len = strlen(base_directory);
+		const unsigned len = strlen(base_directory);
 		while((ent = readdir(dir))) {
-			n = strlen(ent->d_name);
+			const unsigned n = strlen(ent->d_name);
 			// check for . or ..
 			if(ent->d_name[0] == '.' && (n == 1 || (n == 2 && ent->d_name[1] == '.')))
 				continue;
 			if(!(f = fc_addcache(fc, ent->d_name, n)))
 				return;
 			base_directory[len] = '/';
-			memcpy(base_directory + len + 1, ent->d_name, n);
+			strcpy(base_directory + len + 1, ent->d_name);
 			fc_getdata(f, base_directory);
 			base_directory[len] = 0;
 		}
@@ -205,8 +210,7 @@ walk:
 		}
 	}
 	for(unsigned i = 0; i < from->nChildren; i++) {
-		struct filecache *fc;
-		fc = file_caches + from->children[i];
+		struct filecache *const fc = file_caches + from->children[i];
 		if(!strncmp(fc->name, name, nName) && !fc->name[nName]) {
 			from = fc;
 			goto walk;
@@ -300,16 +304,10 @@ fc_cache(fileid_t file, const char *path)
 	struct filecache *fc, newfc;
 	const char *name;
 	unsigned nName;
-	size_t len, n;
 	char curPath[PATH_MAX];
 
 	if(!fc_locate(file_caches + file, path, &path, &fc))
 		return fc - file_caches; // already cached
-	n = strlen(path);
-	len = 0;
-	memcpy(curPath + len, path, n);
-	len += n;
-	curPath[len] = 0;
 	// cache the file by creating a path from a valid node to the file
 walk:
 	name = path;
@@ -326,7 +324,8 @@ walk:
 	newfc.name[nName] = 0;
 	if(!(fc = fc_addcache(fc, name, nName)))
 		return -1;
-	fc_getdata(fc, curPath);
+	if(!fc_getrelativepath(fc - file_caches, curPath, sizeof(curPath)))
+		fc_getdata(fc, curPath);
 	goto walk;
 }
 
@@ -334,30 +333,26 @@ int
 fc_recache(fileid_t file)
 {
 	char path[PATH_MAX];
-	struct filecache *fc;
 
-	fc = file_caches + file;
 	fc_getrelativepath(file, path, sizeof(path));
-	fc_getdata(fc, path);
-	if(fc->flags & FC_COLLAPSED) {
+	fc_getdata(file_caches + file, path);
+	if(file_caches[file].flags & FC_COLLAPSED) {
 		DIR *dir;
 		struct dirent *ent;
 		struct filecache *f;
-		unsigned len;
-		unsigned n;
 
 		dir = opendir(path);
 		if(dir) {
-			len = strlen(path);
+			const unsigned len = strlen(path);
 			while((ent = readdir(dir))) {
-				n = strlen(ent->d_name);
+				const unsigned n = strlen(ent->d_name);
 				// check for . or ..
 				if(ent->d_name[0] == '.' && (n == 1 || (n == 2 && ent->d_name[1] == '.')))
 					continue;
-				if(!(f = fc_addcache(fc, ent->d_name, n)))
+				if(!(f = fc_addcache(file_caches + file, ent->d_name, n)))
 					return -1;
 				path[len] = '/';
-				memcpy(path + len + 1, ent->d_name, n);
+				strcpy(path + len + 1, ent->d_name);
 				fc_getdata(f, path);
 				path[len] = 0;
 			}

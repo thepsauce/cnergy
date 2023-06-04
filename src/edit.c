@@ -159,12 +159,12 @@ edit_render(struct window *win)
 				i = state.index + 1;
 				if(state.line >= state.minLine && state.line < state.maxLine) {
 					attrset(state.attr);
-					while(*conceal) {
-						const size_t len = utf8_len(conceal, strlen(conceal));
+					for(size_t len = strlen(conceal), utf8Len; len; len -= utf8Len) {
+						utf8Len = utf8_len(conceal, len);
 						if(state.col >= state.minCol && state.col < state.maxCol)
-							addnstr(conceal, len);
-						conceal += len;
-						state.col++;
+							addnstr(conceal, utf8Len);
+						state.col += utf8_width(conceal, strlen(conceal), state.col);
+						conceal += utf8Len;
 					}
 				}
 				continue;

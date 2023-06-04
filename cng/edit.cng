@@ -24,7 +24,7 @@ u !undo
 v :visual
 : w !write
 : e !open
-##: r !read
+: r !read
 
 ## Testing
 T #N (( #-1 & +"T" ))
@@ -45,7 +45,7 @@ w h i l e ( 1 ) <x8 +for(;;)
 ^W b e g <x3 $home
 ^W e n d <x3 $end
 
-bind visual*: lazy, normal_movement
+bind visual*:
 
 ESC, v :normal
 x, X, d, D !delete :normal
