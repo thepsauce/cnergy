@@ -39,6 +39,7 @@ fileviewer_render(struct window *win)
 	unsigned iStack = 0;
 	fileid_t file;
 	int y = 0;
+	char basePath[PATH_MAX];
 	const int statusbar1Color = all_settings[win == focus_window ? SET_COLOR_STATUSBAR1_FOCUS : SET_COLOR_STATUSBAR1];
 	const int statusbar2Color = all_settings[SET_COLOR_STATUSBAR2];
 	const int dirselectedColor = all_settings[SET_COLOR_DIRSELECTED];
@@ -50,9 +51,11 @@ fileviewer_render(struct window *win)
 	const int execColor = all_settings[SET_COLOR_EXEC];
 	const int dirChar = all_settings[SET_CHAR_DIR];
 	const int execChar = all_settings[SET_CHAR_EXEC];
+	win->base = fc_getbasefile(); // TODO: let each fileview have it's own base
 	attrset(statusbar2Color);
 	move(win->line, win->col);
-	addstr("Lorem ipsum");
+	fc_getabsolutepath(win->base, basePath, sizeof(basePath));
+	addstr(basePath);
 	ersline(win->col + win->cols);
 	stack[0].fc = fc = fc_lock(win->base);
 	stack[0].index = 0;
@@ -72,7 +75,7 @@ fileviewer_render(struct window *win)
 		fc = fc_lock(file);
 		const int type = fc_type(fc);
 		if(win->selected == y) {
-			fc_getrelativepath(file, win->path, sizeof(win->path));
+			fc_getrelativepath(win->base, file, win->path, sizeof(win->path));
 			win->cursor = strlen(win->path);
 			if(win == focus_window) {
 				focus_x = win->col;
@@ -152,7 +155,7 @@ fileviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
 	case BIND_CALL_CHOOSE: {
 		fileid_t file;
 		struct filecache *fc;
-		file = fc_find(0, win->path);
+		file = fc_find(win->base, win->path);
 		if(!file)
 			return false;
 		fc = fc_lock(file);

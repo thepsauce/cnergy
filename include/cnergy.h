@@ -92,8 +92,10 @@ struct filecache {
 	fileid_t parent;
 };
 
+/** Similar to getting the current working directory */
+fileid_t fc_getbasefile(void);
 /** Get the relative file path of given file */
-int fc_getrelativepath(fileid_t file, char *dest, size_t maxDest);
+int fc_getrelativepath(fileid_t from, fileid_t file, char *dest, size_t maxDest);
 /** Get the absolute file path of given file */
 int fc_getabsolutepath(fileid_t file, char *dest, size_t maxDest);
 /** Open the file at given fileid */

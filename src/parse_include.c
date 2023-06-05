@@ -9,5 +9,5 @@ parser_checkincludeword(struct parser *parser)
 int
 parser_addinclude(struct parser *parser)
 {
-	return parser_open(parser, parser->str, parser->windowType) < 0 ? FAIL : FINISH;
+	return parser_open(parser, fc_cache(fc_getbasefile(), parser->str)) < 0 ? FAIL : FINISH;
 }

@@ -1,6 +1,6 @@
 ## All these keybinds are available only inside of
 ## the fileview window type
-bind normal:
+bind fileviewer::normal:
 
 enter !choose
 tab :insert
@@ -11,7 +11,7 @@ s t !toggle_sort_type
 s r !toggle_sort_reverse
 h !toggle_hidden
 
-bind $insert:
+bind $fileviewer::insert:
 
 enter !choose
 tab :normal

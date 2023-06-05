@@ -14,11 +14,6 @@ parser_getbindmodeprefix(struct parser *parser)
 		parser->mode.flags = parser->c == '.' ? FBIND_MODE_SUPPLEMENTARY : FBIND_MODE_TYPE;
 		parser_getc(parser);
 	}
-	if(parser_getword(parser) != SUCCESS) {
-		parser_pusherror(parser, ERR_EXPECTED_MODE_NAME);
-		return FAIL;
-	}
-	strcpy(parser->mode.name, parser->word);
 	return COMMIT;
 }
 
@@ -43,9 +38,9 @@ parser_getbindmodeextensions(struct parser *parser)
 	struct append_request req;
 
 	req.mode = NULL;
-	while(parser_getwindowtype(parser), parser_getword(parser) == SUCCESS) {
+	while(parser_getword(parser) == SUCCESS) {
 		strcpy(req.donor, parser->word);
-		req.windowType = parser->windowType ? : parser->files[parser->nFiles - 1].windowType;
+		req.windowType = parser->windowType;
 		parser_addappendrequest(parser, &req);
 		while(isblank(parser->c))
 			parser_getc(parser);
@@ -70,7 +65,7 @@ parser_addbindmode(struct parser *parser)
 	nextMode = malloc(sizeof(*nextMode));
 	if(!nextMode)
 		return OUTOFMEMORY;
-	type = parser->windowType ? : parser->files[parser->nFiles - 1].windowType;
+	type = parser->windowType;
 	mode = parser->firstModes[type];
 	if(!mode)
 		parser->firstModes[type] = nextMode;

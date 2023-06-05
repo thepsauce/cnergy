@@ -12,7 +12,6 @@ enum {
 	CNERGY_STATE_PARAM,
 	CNERGY_STATE_PARAMSTRING,
 	CNERGY_STATE_INCLUDE,
-	CNERGY_STATE_INCLUDESTRING,
 };
 
 int
@@ -76,16 +75,26 @@ cnergy_state_bind(struct state *s)
 	size_t i;
 
 	STATE_SKIPSPACE(s);
-   	i = s->index;
+	i = s->index;
 	if(s->data[i] == '$' || s->data[i] == '.')
 		i++;
 	if(!isalpha(s->data[i]) && s->data[i] != '_') {
 		s->state = CNERGY_STATE_SKIP;
 		return 1;
 	}
-	do 
+	do
 		i++;
 	while(isalpha(s->data[i]) || s->data[i] == '_');
+	if(s->data[i] == ':' && s->data[i + 1] == ':') {
+		i += 2;
+		if(!isalpha(s->data[i]) && s->data[i] != '_') {
+			s->state = CNERGY_STATE_SKIP;
+			return 1;
+		}
+		do
+			i++;
+		while(isalpha(s->data[i]) || s->data[i] == '_');
+	}
 	if(s->data[i] == '*')
 		i++;
 	if(s->data[i] != ':') {
@@ -243,7 +252,7 @@ cnergy_state_calllist(struct state *s)
 }
 
 int
-cnergy_state_includestring(struct state *s)
+cnergy_state_include(struct state *s)
 {
 	STATE_SKIPSPACE(s);
 	if(s->data[s->index] != '\"') {
@@ -251,9 +260,9 @@ cnergy_state_includestring(struct state *s)
 		return 1;
 	}
 	while(1) {
-		if(s->index + 1 == s->nData || 
-				(s->data[s->index + 1] == '\"' || 
-				 s->data[s->index + 1] == '\n'))
+		if(s->index + 1 == s->nData ||
+				(s->data[s->index + 1] == '\"' ||
+				s->data[s->index + 1] == '\n'))
 			break;
 		s->index++;
 	}
@@ -262,24 +271,6 @@ cnergy_state_includestring(struct state *s)
 	s->attr = COLOR_PAIR(6);
 	s->state = CNERGY_STATE_DEFAULT;
 	return 0;
-}
-
-int
-cnergy_state_include(struct state *s)
-{
-	STATE_SKIPSPACE(s);
-	s->state = CNERGY_STATE_INCLUDESTRING;
-	if(s->data[s->index] == '@') {
-		if(!isalpha(s->data[s->index + 1]) && s->data[s->index + 1] != '_') {
-			s->state = CNERGY_STATE_SKIP;
-			return 1;
-		}
-		do
-			s->index++;
-		while(isalnum(s->data[s->index + 1]) || s->data[s->index + 1] == '_');
-		return 0;
-	}
-	return 1;
 }
 
 int (*cnergy_states[])(struct state *s) = {
@@ -294,5 +285,4 @@ int (*cnergy_states[])(struct state *s) = {
 	[CNERGY_STATE_PARAM] = cnergy_state_param,
 	[CNERGY_STATE_PARAMSTRING] = cnergy_state_paramstring,
 	[CNERGY_STATE_INCLUDE] = cnergy_state_include,
-	[CNERGY_STATE_INCLUDESTRING] = cnergy_state_includestring,
 };

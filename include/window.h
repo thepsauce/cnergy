@@ -15,6 +15,10 @@
  * When the user inserts a character, .... (TODO: think about this; lookahead makes this complicated)
  */
 
+/** TODO: The fileviewer (fileviewer.c) needs to be able to go
+ * above the current selected base path using ..
+ */
+
 typedef enum {
 	WINDOW_ALL,
 	WINDOW_EDIT,

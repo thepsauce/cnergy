@@ -2,6 +2,7 @@
 
 static const char *error_messages[] = {
 	[ERR_FILEIO] = "could not open the given file",
+	[ERR_TOOMANYFILES] = "there are too many files open already",
 	[ERR_INVALID_SYNTAX] = "invalid syntax",
 	[ERR_INVALID_KEY] = "invalid key",
 	[ERR_INVALID_COMMAND] = "invalid command",
@@ -31,46 +32,31 @@ parser_strerror(parser_error_t err)
 }
 
 int (*constructs[][16])(struct parser *parser) = {
-	{ parser_getword, parser_checkbindword, parser_skipspace, parser_getwindowtype, parser_skipspace,
-		parser_getbindmodeprefix, parser_getbindmodesuffix, parser_skipspace,
-		parser_getbindmodeextensions, parser_addbindmode },
-	{ parser_getword, parser_checkincludeword, parser_skipspace,
-		parser_getwindowtype, parser_skipspace, parser_getstring, parser_addinclude },
+	{ parser_getword, parser_checkbindword,
+		parser_skipspace, parser_getbindmodeprefix, parser_getmodename, parser_getbindmodesuffix,
+		parser_skipspace, parser_getbindmodeextensions, parser_addbindmode },
+	{ parser_getword, parser_checkincludeword, parser_skipspace, parser_getstring, parser_addinclude },
 	{ parser_getkeylist, parser_getcalllist, parser_addbind },
-
 };
 
 int
-parser_cleanup(struct parser *parser)
-{
-	free(parser->str);
-	for(window_type_t i = 0; i < WINDOW_MAX; i++) {
-		for(struct binding_mode *m = parser->firstModes[i]; m; m = m->next) {
-			// TODO: free keys and calls which is impossible right now because of a double free caused by mode extending
-			free(m->bindings);
-		}
-		free(parser->firstModes[i]);
-	}
-	free(parser->appendRequests);
-	return 0;
-}
-
-int
-parser_open(struct parser *parser, const char *path, window_type_t windowType)
+parser_open(struct parser *parser, fileid_t file)
 {
 	FILE *fp;
 
-	if(parser->nFiles == ARRLEN(parser->files))
+	if(parser->nFiles == ARRLEN(parser->files)) {
+		parser_pusherror(parser, ERR_TOOMANYFILES);
 		return -1;
-	fp = fopen(path, "r");
+	}
+	fp = fc_open(file, "r");
 	if(!fp) {
 		parser_pusherror(parser, ERR_FILEIO);
 		return -1;
 	}
-	parser->files[parser->nFiles].fp = fp;
-	parser->files[parser->nFiles].windowType = windowType;
-	parser->files[parser->nFiles].path = const_alloc(path, strlen(path) + 1); // don't care if const_alloc failes
-	parser->nFiles++;
+	parser->files[parser->nFiles++] = (struct parser_file) {
+		.fp = fp,
+		.file = file,
+	};
 	return 0;
 }
 
@@ -102,7 +88,7 @@ parser_pusherror(struct parser *parser, parser_error_t err)
 		parser->nErrStack--;
 	}
 	parser->errStack[parser->nErrStack].err = err;
-	parser->errStack[parser->nErrStack].file = parser->nFiles ? parser->files[parser->nFiles - 1].path : const_alloc("<err>", 6);
+	parser->errStack[parser->nErrStack].file = parser->nFiles ? parser->files[parser->nFiles - 1].file : 0;
 	parser->errStack[parser->nErrStack].pos = parser->nFiles ? ftell(parser->files[parser->nFiles - 1].fp) - 1 : 0;
 	parser->nErrStack++;
 	if(err > WARN_MAX)
@@ -201,7 +187,7 @@ parser_getstring(struct parser *parser)
 			switch(c) {
 			case 'a': c = '\a'; break;
 			case 'b': c = '\b'; break;
-			case 'e': c = '\e'; break;
+			case 'e': c = 0x1b; break;
 			case 'f': c = '\f'; break;
 			case 'n': c = '\n'; break;
 			case 'r': c = '\r'; break;
@@ -226,7 +212,7 @@ parser_getstring(struct parser *parser)
 }
 
 int
-parser_getwindowtype(struct parser *parser)
+parser_getmodename(struct parser *parser)
 {
 	static const char *windowTypes[] = {
 		[WINDOW_ALL] = "all",
@@ -234,20 +220,34 @@ parser_getwindowtype(struct parser *parser)
 		[WINDOW_BUFFERVIEWER] = "bufferviewer",
 		[WINDOW_FILEVIEWER] = "fileviewer",
 	};
-	if(parser->c != '@')
-		return SUCCESS;
-	parser_getc(parser);
 	if(parser_getword(parser) != SUCCESS) {
-		parser_pusherror(parser, ERR_EXPECTED_WORD_AT);
+		parser_pusherror(parser, ERR_EXPECTED_MODE_NAME);
 		return FAIL;
 	}
-	for(unsigned i = 0; i < ARRLEN(windowTypes); i++)
-		if(!strcmp(windowTypes[i], parser->word)) {
-			parser->windowType = (window_type_t) i;
-			return SUCCESS;
+	parser->windowType = 0;
+	parser_getc(parser);
+	if(parser->prev_c == ':' && parser->c == ':') {
+		unsigned i;
+
+		for(i = 0; i < ARRLEN(windowTypes); i++)
+			if(!strcmp(windowTypes[i], parser->word)) {
+				parser->windowType = (window_type_t) i;
+				break;
+			}
+		parser_getc(parser);
+		if(i == ARRLEN(windowTypes)) {
+			parser_pusherror(parser, ERR_INVALID_WINDOW_TYPE);
+			return FAIL;
 		}
-	parser_pusherror(parser, ERR_INVALID_WINDOW_TYPE);
-	return FAIL;
+		if(parser_getword(parser) != SUCCESS) {
+			parser_pusherror(parser, ERR_EXPECTED_MODE_NAME);
+			return FAIL;
+		}
+	} else {
+		parser_ungetc(parser);
+	}
+	strcpy(parser->mode.name, parser->word);
+	return SUCCESS;
 }
 
 int
@@ -310,5 +310,20 @@ parser_next(struct parser *parser)
 	parser_pusherror(parser, ERR_INVALID_SYNTAX);
 	while(parser->c != '\n' && parser->c != EOF)
 		parser_getc(parser);
+	return 0;
+}
+
+int
+parser_cleanup(struct parser *parser)
+{
+	free(parser->str);
+	for(window_type_t i = 0; i < WINDOW_MAX; i++) {
+		for(struct binding_mode *m = parser->firstModes[i]; m; m = m->next) {
+			// TODO: free keys and calls which is impossible right now because of a double free caused by mode extending
+			free(m->bindings);
+		}
+		free(parser->firstModes[i]);
+	}
+	free(parser->appendRequests);
 	return 0;
 }

@@ -1,6 +1,6 @@
 ## All these keybinds are available only inside of
 ## the edit window type
-bind normal:
+bind edit::normal:
 
 O >home +\n $-1 :insert
 O >home +\n :insert
@@ -30,7 +30,7 @@ v :visual
 T #N (( #-1 & +"T" ))
 M ?"int" ^ +"int" ^ +"u" ^ <3 ^ <1
 
-bind $insert:
+bind $edit::insert:
 
 BACK <x1
 DEL >x1
@@ -45,7 +45,7 @@ w h i l e ( 1 ) <x8 +for(;;)
 ^W b e g <x3 $home
 ^W e n d <x3 $end
 
-bind visual*:
+bind edit::visual*:
 
 ESC, v :normal
 x, X, d, D !delete :normal

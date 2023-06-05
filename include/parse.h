@@ -64,6 +64,7 @@ typedef enum {
 	WARN_MAX,
 
 	ERR_FILEIO,
+	ERR_TOOMANYFILES,
 	ERR_INVALID_SYNTAX,
 	ERR_INVALID_KEY,
 	ERR_INVALID_COMMAND,
@@ -89,10 +90,9 @@ typedef enum {
 } parser_error_t;
 
 struct parser {
-	struct {
-		window_type_t windowType;
+	struct parser_file {
 		FILE *fp;
-		char *path;
+		fileid_t file;
 	} files[16];
 	unsigned nFiles;
 	int c, prev_c;
@@ -121,7 +121,7 @@ struct parser {
 	struct {
 		parser_error_t err;
 		long pos;
-		char *file;
+		fileid_t file;
 	} errStack[32];
 	unsigned nErrStack;
 	unsigned nErrors;
@@ -132,7 +132,7 @@ struct parser {
 /** Return a string representing the error code */
 const char *parser_strerror(parser_error_t err);
 /** Open another file */
-int parser_open(struct parser *parser, const char *path, window_type_t windowType);
+int parser_open(struct parser *parser, fileid_t file);
 /** Read the next character from the file */
 int parser_getc(struct parser *parser);
 void parser_ungetc(struct parser *parser);
@@ -172,13 +172,14 @@ int parser_getnumber(struct parser *parser);
  */
 int parser_getstring(struct parser *parser);
 /**
- * Read the next window type, if there is no binding mode this function still returns SUCCESS
+ * Read the next mode name
  *
- * Examples of window types:
- * @edit
- * @fileview
+ * Examples of mode names:
+ * normal
+ * edit::normal
+ * fileview::insert
  */
-int parser_getwindowtype(struct parser *parser);
+int parser_getmodename(struct parser *parser);
 /** Skip blanks (space and tab) */
 int parser_skipspace(struct parser *parser);
 /** Read the next syntax construct */

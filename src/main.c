@@ -5,9 +5,9 @@ int all_settings[SET_MAX];
 
 void print_modes(struct binding_mode *mode);
 
-void getfilepos(const char *file, long pos, int *line, int *col)
+void getfilepos(fileid_t file, long pos, int *line, int *col)
 {
-	FILE *const fp = fopen(file, "r");
+	FILE *const fp = fc_open(file, "r");
 	if(!fp)
 		return;
 	int ln = 1, cl = 1;
@@ -35,7 +35,7 @@ main(int argc, char **argv)
 	// all below here is pretty much test code beside the main loop
 	struct parser parser;
 	memset(&parser, 0, sizeof(parser));
-	if(!parser_open(&parser, "cng/draft.cng", WINDOW_ALL)) {
+	if(!parser_open(&parser, fc_cache(fc_getbasefile(), "cng/draft.cng"))) {
 		while(!parser_next(&parser));
 		for(window_type_t i = 0; i < WINDOW_MAX; i++) {
 			printf("===== %u =====\n", i);
@@ -68,8 +68,10 @@ main(int argc, char **argv)
 	}
 	int line, col;
 	for(unsigned j = 0; j < parser.nErrStack; j++) {
+		char path[PATH_MAX];
+		fc_getrelativepath(fc_getbasefile(), parser.errStack[j].file, path, sizeof(path));
 		getfilepos(parser.errStack[j].file, parser.errStack[j].pos, &line, &col);
-		printf("error in %s(%d:%d): %s\n", parser.errStack[j].file, line, col, parser_strerror(parser.errStack[j].err));
+		printf("error in %s(%d:%d): %s\n", path, line, col, parser_strerror(parser.errStack[j].err));
 	}
 	if(parser.nErrors)
 		return -1;
@@ -152,13 +154,8 @@ main(int argc, char **argv)
 		"include/cnergy.h",
 		"src/bind.c",
 	};
-	for(unsigned i = 0; i < ARRLEN(files); i++)
-		fc_cache(0, files[i]);
 	endwin();
 	printnode(NULL, 0);
-	char _path[1000];
-	fc_getrelativepath(1, _path, sizeof(_path));
-	printf("REL: %s\n", _path);
 	w = window_new(WINDOW_BUFFERVIEWER);
 	first_window = w;
 	focus_window = w;
@@ -166,7 +163,7 @@ main(int argc, char **argv)
 	window_attach(w, new, ATT_WINDOW_VERTICAL);
 	for(unsigned i = 0; i < ARRLEN(path); i++) {
 		const char *file = files[i % ARRLEN(files)];
-		b = buffer_new(fc_find(0, file));
+		b = buffer_new(fc_cache(fc_getbasefile(), file));
 		struct window *const new = edit_new(b, c_states);
 		if(path[i])
 			window_attach(w, new, ATT_WINDOW_VERTICAL);

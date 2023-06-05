@@ -5,24 +5,31 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-/** The first entry of file_caches is at the base_directory */
+/** The first entry of file_caches is the root */
 static struct filecache *file_caches;
 static fileid_t n_file_caches;
-static char base_directory[PATH_MAX];
+static fileid_t file_current;
 /** Safety mechanism for the convenience of the programmer */
 static unsigned locks = 0;
 
+inline fileid_t
+fc_getbasefile(void)
+{
+	return file_current;
+}
+
 static struct filecache *
-fc_addcache(struct filecache *parent, const char *name, unsigned nName)
+fc_addcache(fileid_t parent, const char *name, unsigned nName)
 {
 	struct filecache *newFileCaches;
-	struct filecache *fc;
+	struct filecache *fc, *p;
 	fileid_t *newChildren;
 
 	assert(!locks && "a lock is still in place, unluck all filecaches before continuing");
 
-	for(unsigned i = 0; i < parent->nChildren; i++) {
-		fc = file_caches + parent->children[i];
+	p = file_caches + parent;
+	for(unsigned i = 0; i < p->nChildren; i++) {
+		fc = file_caches + p->children[i];
 		if(!strncmp(fc->name, name, nName) && !fc->name[nName])
 			return fc;
 	}
@@ -31,15 +38,17 @@ fc_addcache(struct filecache *parent, const char *name, unsigned nName)
 		return NULL;
 	file_caches = newFileCaches;
 	fc = file_caches + n_file_caches;
+	// it's possible that the base pointer of file_caches changed, so resetting the parent pointer is needed here
+	p = file_caches + parent;
 	memset(fc, 0, sizeof(*fc));
 	memcpy(fc->name, name, nName);
 	fc->name[nName] = 0;
-	fc->parent = parent - file_caches;
-	newChildren = realloc(parent->children, sizeof(*parent->children) * (parent->nChildren + 1));
+	fc->parent = parent;
+	newChildren = realloc(p->children, sizeof(*p->children) * (p->nChildren + 1));
 	if(!newChildren)
 		return NULL;
-	parent->children = newChildren;
-	parent->children[parent->nChildren++] = n_file_caches;
+	p->children = newChildren;
+	p->children[p->nChildren++] = n_file_caches;
 	n_file_caches++;
 	return fc;
 }
@@ -75,33 +84,18 @@ __attribute__((constructor)) static void
 fc_init(void)
 {
 	struct filecache *fc;
-	DIR *dir;
-	struct dirent *ent;
-	struct filecache *f;
+	char path[PATH_MAX];
 
-	getcwd(base_directory, sizeof(base_directory));
+	getcwd(path, sizeof(path));
 	file_caches = malloc(sizeof(*file_caches) * 20);
 	n_file_caches = 1;
 
 	fc = file_caches;
 	memset(fc, 0, sizeof(*fc));
-	fc_getdata(fc, base_directory);
-	dir = opendir(base_directory);
-	if(dir) {
-		const unsigned len = strlen(base_directory);
-		while((ent = readdir(dir))) {
-			const unsigned n = strlen(ent->d_name);
-			// check for . or ..
-			if(ent->d_name[0] == '.' && (n == 1 || (n == 2 && ent->d_name[1] == '.')))
-				continue;
-			if(!(f = fc_addcache(fc, ent->d_name, n)))
-				return;
-			base_directory[len] = '/';
-			strcpy(base_directory + len + 1, ent->d_name);
-			fc_getdata(f, base_directory);
-			base_directory[len] = 0;
-		}
-	}
+	fc_getdata(fc, "/");
+	file_current = fc_cache(0, path);
+	file_caches[file_current].flags |= FC_COLLAPSED;
+	fc_recache(file_current);
 }
 
 struct filecache *
@@ -170,9 +164,7 @@ fc_locate(struct filecache *from, const char *path, const char **endPath, struct
 		path = home;
 	}
 	if(path[0] == '/') {
-		// go to the root
-		if(base_directory[0] != '/' || base_directory[1])
-			goto err; // don't have anything cached inside the root
+		from = file_caches;
 		path++;
 	}
 walk:
@@ -199,12 +191,6 @@ walk:
 			goto walk;
 		// .. means go to the parent directory
 		if(nName == 2 && name[1] == '.') {
-			if(from == file_caches) {
-				// check if we are at the root /
-				if(base_directory[0] == '/' && !base_directory[1])
-					goto walk;
-				goto err;
-			}
 			from = file_caches + from->parent;
 			goto walk;
 		}
@@ -216,31 +202,40 @@ walk:
 			goto walk;
 		}
 	}
-err:
 	*endPath = pushBack ? : name;
 	*pFc = from;
 	return -1;
 }
 
 int
-fc_getrelativepath(fileid_t file, char *dest, size_t maxDest)
+fc_getrelativepath(fileid_t from, fileid_t file, char *dest, size_t maxDest)
 {
 	struct filecache *fc;
 	unsigned n;
+
+	if(maxDest < 2)
+		return -1;
+	if(from == file) {
+		dest[0] = '.';
+		dest[1] = 0;
+		return 0;
+	}
 	const size_t sMaxDest = maxDest;
 	fc = file_caches + file;
 	dest += --maxDest;
 	*dest = 0;
-	while(fc != file_caches) {
+	while(fc != file_caches + from) {
+		if(fc == file_caches)
+			return -1; // file is not inside of from or any of its recursive subdirectories
 		if(!maxDest)
-			return -1;
+			return -1; // not enough room inside the buffer
 		dest--;
 		if(dest[1])
 			*dest = '/';
 		maxDest--;
 		n = strlen(fc->name);
 		if(maxDest < n)
-			return -1;
+			return -1; // not enough room
 		dest -= n;
 		maxDest -= n;
 		memcpy(dest, fc->name, n);
@@ -260,25 +255,24 @@ fc_getabsolutepath(fileid_t file, char *dest, size_t maxDest)
 	*dest = 0;
 	fc = file_caches + file;
 	while(1) {
-		const char *name;
-
 		if(!maxDest)
 			return -1;
 		dest--;
 		if(dest[1])
 			*dest = '/';
 		maxDest--;
-		name = fc == file_caches ? base_directory : fc->name;
-		n = strlen(name);
+		if(fc == file_caches)
+			break;
+		n = strlen(fc->name);
 		if(maxDest < n)
 			return -1;
 		dest -= n;
 		maxDest -= n;
-		memcpy(dest, name, n);
-		if(fc == file_caches)
-			break;
+		memcpy(dest, fc->name, n);
 		fc = file_caches + fc->parent;
 	}
+	// we have written the buffer from end to start, so we have to shift it to the left to
+	// make it from left to right
 	memmove(dest - maxDest, dest, sMaxDest - maxDest);
 	return 0;
 }
@@ -289,7 +283,7 @@ fc_open(fileid_t file, const char *mode)
 	char path[PATH_MAX];
 	FILE *fp;
 
-	if(fc_getrelativepath(file, path, sizeof(path)) < 0)
+	if(fc_getrelativepath(file_current, file, path, sizeof(path)) < 0)
 		return NULL;
 	fp = fopen(path, mode);
 	if(!fp)
@@ -297,7 +291,6 @@ fc_open(fileid_t file, const char *mode)
 	return fp;
 }
 
-// TODO: be able to go in a directory that is above the base directory
 fileid_t
 fc_cache(fileid_t file, const char *path)
 {
@@ -322,9 +315,9 @@ walk:
 	memset(&newfc, 0, sizeof(newfc));
 	memcpy(newfc.name, name, nName);
 	newfc.name[nName] = 0;
-	if(!(fc = fc_addcache(fc, name, nName)))
+	if(!(fc = fc_addcache(fc - file_caches, name, nName)))
 		return -1;
-	if(!fc_getrelativepath(fc - file_caches, curPath, sizeof(curPath)))
+	if(!fc_getrelativepath(file_current, fc - file_caches, curPath, sizeof(curPath)))
 		fc_getdata(fc, curPath);
 	goto walk;
 }
@@ -334,7 +327,7 @@ fc_recache(fileid_t file)
 {
 	char path[PATH_MAX];
 
-	fc_getrelativepath(file, path, sizeof(path));
+	fc_getrelativepath(file_current, file, path, sizeof(path));
 	fc_getdata(file_caches + file, path);
 	if(file_caches[file].flags & FC_COLLAPSED) {
 		DIR *dir;
@@ -344,17 +337,16 @@ fc_recache(fileid_t file)
 		dir = opendir(path);
 		if(dir) {
 			const unsigned len = strlen(path);
+			path[len] = '/';
 			while((ent = readdir(dir))) {
 				const unsigned n = strlen(ent->d_name);
 				// check for . or ..
 				if(ent->d_name[0] == '.' && (n == 1 || (n == 2 && ent->d_name[1] == '.')))
 					continue;
-				if(!(f = fc_addcache(file_caches + file, ent->d_name, n)))
+				if(!(f = fc_addcache(file, ent->d_name, n)))
 					return -1;
-				path[len] = '/';
 				strcpy(path + len + 1, ent->d_name);
 				fc_getdata(f, path);
-				path[len] = 0;
 			}
 		}
 	}
