@@ -17,25 +17,26 @@ null_type(struct window *win, const char *str, size_t nStr)
 }
 
 bool
-null_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
+null_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
 {
 	(void) win;
 	(void) bc;
 	(void) param;
+	(void) pCached;
 	return false;
 }
 
 // edit
 int edit_render(struct window *win);
 int edit_type(struct window *win, const char *str, size_t nStr);
-bool edit_bindcall(struct window *win, struct binding_call *bc, ssize_t param);
+bool edit_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
 // buffer viewer
 int bufferviewer_render(struct window *win);
-bool bufferviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param);
+bool bufferviewer_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
 // file view
 int fileviewer_render(struct window *win);
 int fileviewer_type(struct window *win, const char *str, size_t nStr);
-bool fileviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param);
+bool fileviewer_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
 
 struct window_type window_types[] = {
 	[WINDOW_EDIT] = { edit_render, edit_type, edit_bindcall },
@@ -43,13 +44,12 @@ struct window_type window_types[] = {
 	[WINDOW_FILEVIEWER] = { fileviewer_render, fileviewer_type, fileviewer_bindcall },
 };
 
-// All windows in here are rendered
+/* all windows in here are rendered */
 struct window **all_windows;
 unsigned n_windows;
-// THE origin (used for layout)
-struct window *first_window;
-// Active window
+/* active window */
 struct window *focus_window;
+/* position of the terminal cursor (set by the focus window) */
 int focus_y, focus_x;
 
 struct window *
@@ -75,13 +75,13 @@ window_new(window_type_t type)
 int
 window_close(struct window *win)
 {
-	if(win == first_window)
-		first_window = win->below ? win->below : win->right;
 	if(win == focus_window)
-		focus_window = win->right ? win->right :
-			win->below ? win->below :
+		focus_window = win->below ? win->below :
+			win->right ? win->right :
 			win->left ? win->left :
-			win->above ? win->above : first_window;
+			win->above ? win->above : n_windows > 1 ? 
+				(win == all_windows[0] ? all_windows[1] :
+					all_windows[0]) : NULL;
 	window_detach(win);
 	window_delete(win);
 	return 0;
@@ -111,11 +111,21 @@ window_dup(const struct window *win)
 	return dup;
 }
 
+int
+window_setforeground(struct window *win)
+{
+	for(unsigned i = 0; i < n_windows; i++)
+		if(all_windows[i] == win) {
+			memmove(all_windows + i, all_windows + i + 1, sizeof(*all_windows) * (n_windows - i - 1));
+			all_windows[n_windows - 1] = win;
+			return 0;
+		}
+	return -1;
+}
+
 void
 window_copylayout(struct window *win, struct window *rep)
 {
-	if(first_window == win)
-		first_window = rep;
 	if(focus_window == win)
 		focus_window = rep;
 	rep->above = win->above;
@@ -135,8 +145,8 @@ window_copylayout(struct window *win, struct window *rep)
 struct window *
 window_atpos(int y, int x)
 {
-	for(unsigned i = 0; i < n_windows; i++) {
-		struct window *const w = all_windows[i];
+	for(unsigned i = n_windows; i > 0;) {
+		struct window *const w = all_windows[--i];
 		if(y >= w->line && y < w->line + w->lines &&
 				x >= w->col && x < w->col + w->cols)
 			return w;
@@ -237,10 +247,20 @@ window_detach(struct window *win)
 		r->left = l;
 	if(b && !a && l) {
 		b->left = l;
+		if(!b->right) {
+			b->right = r;
+			if(r)
+				r->left = b;
+		}
 		l->right = b;
 	}
 	if(r && !l && a) {
 		r->above = a;
+		if(!r->below) {
+			r->below = b;
+			if(b)
+				b->above = r;
+		}
 		a->below = r;
 	}
 }
@@ -272,7 +292,7 @@ window_layout(struct window *win)
 	win->lines = linesPer;
 	nextCol = col + colsPer;
 	nextLine = line + linesPer;
-	// if there is a window left, it will not handle the right windows, we don't want to handle them twice
+	/* if there is a window left, it will not handle the right windows, we don't want to handle them twice */
 	if(!win->left)
 		for(w = win->right; w; w = w->right) {
 			w->line = line;
@@ -286,11 +306,12 @@ window_layout(struct window *win)
 			nextCol += w->cols;
 			window_layout(w);
 		}
+	/* if there is a window above, it will not handle the below windows, we don't want to handle them twice */
 	if(!win->above)
 		for(i = 1, w = win->below; w; w = w->below, i++) {
 			w->line = nextLine;
 			w->col = col;
-			// note that we use linesPer and not lines here
+			/* note that we use linesPer and not lines here */
 			w->lines = linesPer;
 			w->cols = colsPer;
 			if(linesRemainder) {
@@ -305,10 +326,14 @@ window_layout(struct window *win)
 int
 window_render(struct window *win)
 {
-	// don't need to render empty windows
+	/* don't need to render empty windows */
 	if(win->lines <= 0 || win->cols <= 0)
 		return 1;
 	window_types[win->type].render(win);
+	if(win->below)
+		window_render(win->below);
+	if(win->right)
+		window_render(win->right);
 	return 0;
 }
 

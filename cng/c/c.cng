@@ -4,4 +4,5 @@ syntax c::default: common
 
 [#][ @5 :preproc
 
-include cng/c/preproc.cng
+include "cng/c/preproc.cng"
+

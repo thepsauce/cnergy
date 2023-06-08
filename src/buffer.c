@@ -110,11 +110,11 @@ buffer_save(struct buffer *buf)
 	return 0;
 }
 
-ssize_t
-unsafe_buffer_movecursor(struct buffer *buf, ssize_t distance)
+ptrdiff_t
+unsafe_buffer_movecursor(struct buffer *buf, ptrdiff_t distance)
 {
 	/*This method retained the gap content
-	ssize_t d;
+	ptrdiff_t d;
 	char *s;
 	size_t n;
 
@@ -158,15 +158,14 @@ unsafe_buffer_movecursor(struct buffer *buf, ssize_t distance)
 	return distance;
 }
 
-static inline ssize_t
-buffer_cnvdist(const struct buffer *buf, ssize_t distance)
+static inline ptrdiff_t
+buffer_cnvdist(const struct buffer *buf, ptrdiff_t distance)
 {
 	return utf8_cnvdist(buf->data, buf->nData + buf->nGap, buf->iGap + (distance > 0 ? buf->nGap : 0), distance);
 }
 
-// Returns the moved amount (safe version of unsafe_buffer_movecursor that also updates vct)
-ssize_t
-buffer_movecursor(struct buffer *buf, ssize_t distance)
+ptrdiff_t
+buffer_movecursor(struct buffer *buf, ptrdiff_t distance)
 {
 	distance = buffer_cnvdist(buf, distance);
 	unsafe_buffer_movecursor(buf, distance);
@@ -174,10 +173,8 @@ buffer_movecursor(struct buffer *buf, ssize_t distance)
 	return distance;
 }
 
-// Move the cursor horizontally by a given distance
-// Returns the moved amount
-ssize_t
-buffer_movehorz(struct buffer *buf, ssize_t distance)
+ptrdiff_t
+buffer_movehorz(struct buffer *buf, ptrdiff_t distance)
 {
 	size_t i, iFirst, left, right;
 
@@ -229,14 +226,12 @@ buffer_movehorz(struct buffer *buf, ssize_t distance)
 	return unsafe_buffer_movecursor(buf, i - iFirst);
 }
 
-// Move the cursor up or down by the specified number of lines
-// Returns the moved amount
-ssize_t
-buffer_movevert(struct buffer *buf, ssize_t distance)
+ptrdiff_t
+buffer_movevert(struct buffer *buf, ptrdiff_t distance)
 {
 	size_t i;
-	const ssize_t cDistance = distance;
-	ssize_t moved;
+	const ptrdiff_t cDistance = distance;
+	ptrdiff_t moved;
 
 	i = buf->iGap;
 	if(distance < 0) {
@@ -290,7 +285,7 @@ buffer_movevert(struct buffer *buf, ssize_t distance)
 static struct event *
 buffer_addevent(struct buffer *buf)
 {
-	struct event *ev;
+	struct event *ev, *newEvents;
 
 	if(buf->nEvents > buf->iEvent) {
 		for(unsigned i = buf->iEvent; i < buf->nEvents; i++) {
@@ -308,15 +303,15 @@ buffer_addevent(struct buffer *buf)
 			}
 		}
 	}
-	buf->events = dialog_realloc(buf->events, sizeof(*buf->events) * (buf->iEvent + 1));
-	if(!buf->events)
+	newEvents = dialog_realloc(buf->events, sizeof(*buf->events) * (buf->iEvent + 1));
+	if(!newEvents)
 		return NULL;
+	buf->events = newEvents;
 	ev = buf->events + buf->iEvent;
 	buf->nEvents = ++buf->iEvent;
 	return ev;
 }
 
-// Returns the number of characters inserted
 size_t
 buffer_insert(struct buffer *buf, const char *str, size_t nStr)
 {
@@ -372,7 +367,6 @@ buffer_insert(struct buffer *buf, const char *str, size_t nStr)
 	return nStr;
 }
 
-// Returns the number of characters inserted
 size_t
 buffer_insert_file(struct buffer *buf, fileid_t file)
 {
@@ -393,9 +387,8 @@ buffer_insert_file(struct buffer *buf, fileid_t file)
 	return nins;
 }
 
-// Returns the amount that was deleted
-ssize_t
-buffer_delete(struct buffer *buf, ssize_t amount)
+ptrdiff_t
+buffer_delete(struct buffer *buf, ptrdiff_t amount)
 {
 	struct event *ev;
 
@@ -434,9 +427,8 @@ buffer_delete(struct buffer *buf, ssize_t amount)
 	return amount;
 }
 
-// Returns the amount of lines that was deleted
-ssize_t
-buffer_deleteline(struct buffer *buf, ssize_t amount)
+ptrdiff_t
+buffer_deleteline(struct buffer *buf, ptrdiff_t amount)
 {
 	struct event *ev;
 	size_t l, r;
@@ -446,7 +438,7 @@ buffer_deleteline(struct buffer *buf, ssize_t amount)
 		return 0;
 	l = buf->iGap;
 	r = buf->iGap + buf->nGap;
-	for(ssize_t a = ABS(amount);; ) {
+	for(ptrdiff_t a = ABS(amount);; ) {
 		for(; l > 0; l--)
 			if(buf->data[l - 1] == '\n')
 				break;
@@ -564,7 +556,6 @@ buffer_redo(struct buffer *buf)
 	return 1;
 }
 
-// Returns the index of the line containing the cursor
 int
 buffer_line(const struct buffer *buf)
 {
@@ -576,7 +567,6 @@ buffer_line(const struct buffer *buf)
 	return line;
 }
 
-// Returns the terminal index of the column containing the cursor
 int
 buffer_col(const struct buffer *buf)
 {
@@ -588,7 +578,6 @@ buffer_col(const struct buffer *buf)
 	return utf8_widthnstr(buf->data + i, buf->iGap - i);
 }
 
-// Returns the length of the line
 size_t
 buffer_getline(const struct buffer *buf, int line, char *dest, size_t maxDest)
 {

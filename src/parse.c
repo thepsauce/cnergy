@@ -23,6 +23,7 @@ static const char *error_messages[] = {
 	[ERR_EXPECTED_MODE_NAME] = "mode does not exist",
 	[ERR_EXPECTED_WORD_AT] = "expected word after @",
 	[ERR_INVALID_WINDOW_TYPE] = "invalid window type after @",
+	[ERR_CACHE_MISMATCH] = "[ expects a matching ] at the end of the single command",
 };
 
 const char *
@@ -135,8 +136,8 @@ int
 parser_getnumber(struct parser *parser)
 {
 	int c;
-	ssize_t num = 0;
-	ssize_t sign = 1;
+	ptrdiff_t num = 0;
+	ptrdiff_t sign = 1;
 
 	c = parser->c;
 	if(c == '+') {
@@ -167,16 +168,14 @@ parser_getstring(struct parser *parser)
 	size_t nStr = 0;
 
 	c = parser->c;
-	if(!isprint(c))
+	if(c != '\"')
 		return FAIL;
 	str = parser->str;
-	const bool quoted = c == '\"';
-	if(quoted)
-		c = parser_getc(parser);
+	c = parser_getc(parser);
 	while(1) {
-		if(c == EOF ||
-			(quoted && (c == '\"' || c == '\n')) ||
-			(!quoted && isspace(c)))
+		if(c == EOF || c == '\n')
+			return FAIL;
+		if(c == '\"')
 			break;
 		str = realloc(str, nStr + 1);
 		if(!str)
@@ -198,8 +197,7 @@ parser_getstring(struct parser *parser)
 		str[nStr++] = c;
 		c = parser_getc(parser);
 	}
-	if(quoted && c == '\"')
-		c = parser_getc(parser);
+	c = parser_getc(parser);
 	// add null terminator
 	str = realloc(str, nStr + 1);
 	if(!str)

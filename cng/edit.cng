@@ -2,13 +2,12 @@
 ## the edit window type
 bind edit::normal:
 
-O >home +\n $-1 :insert
-O >home +\n :insert
-o >end +\n :insert
+O >home +"\n" $-1 :insert
+O >home +"\n" :insert
+o >end +"\n" :insert
 I >home :insert
 A >end :insert
 i :insert
-r >xN :insert
 a $1 :insert
 d l, x, DEL >xN
 d h, X <xN
@@ -22,8 +21,15 @@ p !paste
 u !undo
 ^R !redo
 v :visual
-: w !write
+## ** means that any key can be presed here
+## %0 will get the first key pressed (f in this case)
+## %1 will get the second key pressed
+## Using [!find %1] the result of find is cached and
+## can be used later using [
+f ** >1 & [!find %1] & $[
+r ** >x1 & +%1
 : e !open
+: w !write
 : r !read
 
 ## Testing
@@ -38,10 +44,10 @@ DEL >x1
 ESC :normal
 
 ## some tests for interactive coding
-i f ( +) $-1
+i f ( +")\n\t" $-1
 i f { <x1 +"() {\n}" $-5
 m a i n <x4 +"int\nmain(int argc, char **argv)\n{\n\treturn 0;\n}" $-13
-w h i l e ( 1 ) <x8 +for(;;)
+w h i l e ( 1 ) <x8 +"for(;;)"
 ^W b e g <x3 $home
 ^W e n d <x3 $end
 

@@ -279,7 +279,7 @@ edit_render(struct window *win)
 }
 
 bool
-edit_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
+edit_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
 {
 	struct buffer *const buf = win->buffer;
 	switch(bc->type) {
@@ -289,8 +289,15 @@ edit_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
 		return true;
 	case BIND_CALL_ASSERT:
 		return !memcmp(bc->str, buf->data + buf->iGap + buf->nGap, MIN(strlen(bc->str), buf->nData - buf->iGap));
+	case BIND_CALL_ASSERTCHAR:
+		return buf->iGap != buf->nData && (char) param == buf->data[buf->iGap + buf->nGap];
 	case BIND_CALL_MOVECURSOR: return buffer_movecursor(buf, param) == param;
 	case BIND_CALL_MOVEHORZ: return buffer_movehorz(buf, param) == param;
+	case BIND_CALL_INSERTCHAR: {
+		char ch = param;
+		buffer_insert(buf, &ch, 1);
+		return true;
+	}
 	case BIND_CALL_MOVEVERT: return buffer_movevert(buf, param) == param;
 	case BIND_CALL_INSERT:
 		buffer_insert(buf, bc->str, strlen(bc->str));
@@ -343,6 +350,13 @@ edit_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
 		return buffer_redo(buf);
 	case BIND_CALL_WRITEFILE:
 		return buffer_save(win->buffer);
+	case BIND_CALL_FIND:
+		for(size_t i = buf->iGap + buf->nGap; i < buf->nData + buf->nGap; i++)
+			if(buf->data[i] == param) {
+				*pCached = i - buf->iGap - buf->nGap;
+				return true;
+			}
+		return false;
 	default:
 		return false;
 	}

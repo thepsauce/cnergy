@@ -139,7 +139,7 @@ unsigned utf8_len(const char *str, size_t nStr);
 // Note: nStr is not allowed to be 0, might cause segfault
 bool utf8_valid(const char *utf8, size_t nStr);
 /** Convert byte distance to char distance */
-ssize_t utf8_cnvdist(const char *str, size_t nStr, size_t index, ssize_t distance);
+ptrdiff_t utf8_cnvdist(const char *str, size_t nStr, size_t index, ptrdiff_t distance);
 
 /* Dialog */
 // dialog.c
@@ -224,22 +224,22 @@ void buffer_free(struct buffer *buf);
 // Saves the buffer to its file; if it has none, the user will be asked to choose a file
 int buffer_save(struct buffer *buf);
 // Returns the moved amount
-ssize_t unsafe_buffer_movecursor(struct buffer *buf, ssize_t distance);
-ssize_t buffer_movecursor(struct buffer *buf, ssize_t distance);
+ptrdiff_t unsafe_buffer_movecursor(struct buffer *buf, ptrdiff_t distance);
+ptrdiff_t buffer_movecursor(struct buffer *buf, ptrdiff_t distance);
 // Moves the cursor horizontally
 // Returns the moved amount
-ssize_t buffer_movehorz(struct buffer *buf, ssize_t distance);
+ptrdiff_t buffer_movehorz(struct buffer *buf, ptrdiff_t distance);
 // Move the cursor up or down by the specified number of lines
 // Returns the moved amount
-ssize_t buffer_movevert(struct buffer *buf, ssize_t distance);
+ptrdiff_t buffer_movevert(struct buffer *buf, ptrdiff_t distance);
 // Returns the number of characters inserted
 size_t buffer_insert(struct buffer *buf, const char *str, size_t nStr);
 // Returns the number of characters inserted
 size_t buffer_insert_file(struct buffer *buf, fileid_t file);
 // Returns the amount that was deleted
-ssize_t buffer_delete(struct buffer *buf, ssize_t amount);
+ptrdiff_t buffer_delete(struct buffer *buf, ptrdiff_t amount);
 // Returns the amount of lines that were deleted
-ssize_t buffer_deleteline(struct buffer *buf, ssize_t amount);
+ptrdiff_t buffer_deleteline(struct buffer *buf, ptrdiff_t amount);
 // Returns the amount of events undone
 int buffer_undo(struct buffer *buf);
 // Returns the amount of events redone

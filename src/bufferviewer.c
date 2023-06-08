@@ -1,7 +1,5 @@
 #include "cnergy.h"
 
-// TODO: make the buffer viewer which will show the user all open (those inside of all_buffers)
-
 #define MAXCOLUMN 2
 
 static int row = 0;
@@ -29,7 +27,7 @@ bufferviewer_render(struct window *win)
 		move(y, win->col + maxCol1 + 1);
 		attrset(column == 1 && (int) i == row ? itemselectedColor : itemColor);
 		printw("%zu", buf->nData);
-		if(buf->file)
+		if(fc)
 			fc_unlock(fc);
 	}
 	attrset(statusbar1Color);
@@ -45,7 +43,7 @@ bufferviewer_render(struct window *win)
 }
 
 bool
-bufferviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
+bufferviewer_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
 {
 	switch(bc->type) {
 	case BIND_CALL_MOVEVERT:

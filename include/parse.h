@@ -8,12 +8,12 @@
 /**
  * Parser to parse .cng or .cnergy files to an internal format that can be run.
  * This is an example of such file:
- *
- * bind @edit normal:
+ * *******************
+ * bind edit::normal:
  * a >1 :insert
- * bind @edit $insert:
+ * bind $edit::insert:
  * escape :normal
- *
+ * *******************
  * This program will add two modes to the edit window type where each has
  * two binds defined by a key sequence and then the action (switch mode in this case).
  * Flags for modes are:
@@ -21,23 +21,42 @@
  * * - Selection is possible in this mode
  * . - Supplementary mode (only used while parsing)
  *
- * The @edit can be omitted to make the bind global. For instance:
- *
+ * The edit:: can be omitted to add the bind to the default/all mode. For instance:
+ * ***************************
  * bind normal:
  * ## Move to the right window
  * ^W l >w1
  * ## Move to the left window
  * ^W h <w1
- *
+ * ***************************
  * Binds specific to window types always have priority.
  *
- * Using include:
+ ******************
+ * Using include *
+ ******************
+ * *************************
+ * include "file.cng"
+ * *************************
+ * This will include the file file.cng, note that the path is
+ * relative to the working directory (TODO: maybe change this)
  *
- * include @edit "file.cng"
- * include @edit "other.cng"
- *
- * This will include the files file.cng and other.cng and add all bindings that are
- * defined without the use of @ to the edit window type.
+ ******************************
+ * Loops, caching and any key *
+ ******************************
+ * *********************************
+ * f ** #N (( #- & [!find %1] $[ ))
+ * *********************************
+ * Here is a breakdown of this command line:
+ * f								If the user presses f
+ *   **								If the user pressed any other key
+ *      #N  						Load N into the register
+ *         ((                    )) Loop until the inside fails
+ *            #- 					Decrement the register
+ *               & 					Stop the loop if the register is 0 or if find fails
+ *                 [        ]		Cache the value
+ *                  !find %1		Find the text the user pressed
+ *                            $		Move the cursor
+ *                             [	to the cached value (find result)
  */
 
 /**
@@ -87,6 +106,7 @@ typedef enum {
 	ERR_EXPECTED_WORD_AT,
 	ERR_EXPECTED_MODE_NAME,
 	ERR_INVALID_WINDOW_TYPE,
+	ERR_CACHE_MISMATCH,
 } parser_error_t;
 
 struct parser {
@@ -96,7 +116,7 @@ struct parser {
 	} files[16];
 	unsigned nFiles;
 	int c, prev_c;
-	ssize_t num;
+	ptrdiff_t num;
 	char word[64];
 	char *str;
 	size_t nStr;
@@ -164,11 +184,8 @@ int parser_getnumber(struct parser *parser);
  *
  * Examples of strings:
  * "Hello there"
- * WithoutQuotes
- * \n
  * "Long\tstring\nWith\tEscape\tcharacters"
  * "\""
- * "no second quote
  */
 int parser_getstring(struct parser *parser);
 /**

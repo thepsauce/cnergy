@@ -69,7 +69,7 @@ bool
 sortedlist_exists(struct sortedlist *s, const char *word, size_t nWord, void **pParam)
 {
 	unsigned index;
-	
+
 	if(!sortedlist_getbestindex(s, word, nWord, &index))
 		return false;
 	if(pParam)

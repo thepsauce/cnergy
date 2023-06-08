@@ -29,10 +29,18 @@ parser_getkey(struct parser *parser)
 	};
 	key = parser->c;
 	parser_getc(parser);
+	// any char and then blank or comma
 	if(isblank(parser->c) || parser->c == ',')
 		goto got_key;
+	// ^...
 	if(key == '^') {
 		key = parser->c - ('A' - 1);
+		parser_getc(parser);
+		goto got_key;
+	}
+	// **
+	if(key == '*' && parser->c == '*') {
+		key = -1;
 		parser_getc(parser);
 		goto got_key;
 	}
@@ -70,8 +78,10 @@ parser_getkeylist(struct parser *parser)
 	while(!(r = parser_getkey(parser))) {
 		if(parser->c == ',') {
 			newKeys = realloc(parser->keys, sizeof(*parser->keys) * (parser->nKeys + 1));
-			if(!newKeys)
+			if(!newKeys) {
+				free(parser->keys);
 				return OUTOFMEMORY;
+			}
 			parser->keys = newKeys;
 			parser->keys[parser->nKeys++] = 0;
 			parser_getc(parser);
@@ -79,8 +89,10 @@ parser_getkeylist(struct parser *parser)
 		while(isblank(parser->c))
 			parser_getc(parser);
 	}
-	if(r < 0)
+	if(r < 0) {
+		free(parser->keys);
 		return r;
+	}
 	if(!parser->nKeys)
 		return FAIL;
 	newKeys = realloc(parser->keys, sizeof(*parser->keys) * (parser->nKeys + 1));
@@ -91,6 +103,46 @@ parser_getkeylist(struct parser *parser)
 	return COMMIT;
 }
 
+static int
+parser_getintparam(struct parser *parser)
+{
+	if(parser->c == '%') {
+		parser->calls[parser->nCalls].flags |= FBIND_CALL_USEKEY;
+		parser_getc(parser);
+	}
+	if(parser_getnumber(parser) == FAIL) {
+		if(parser->c == '[') {
+			parser->calls[parser->nCalls].flags |= FBIND_CALL_USECACHE;
+			parser_getc(parser);
+		} else {
+			if(parser_getword(parser) != SUCCESS) {
+				parser_pusherror(parser, ERR_EXPECTED_PARAM);
+				return FAIL;
+			}
+			if(!strcasecmp(parser->word, "home"))
+				parser->num = TYPE_MIN(parser->num);
+			else if(!strcasecmp(parser->word, "end"))
+				parser->num = TYPE_MAX(parser->num);
+			else if(!strcasecmp(parser->word, "N")) {
+				parser->num = 1;
+				parser->calls[parser->nCalls].flags |= FBIND_CALL_USENUMBER;
+			} else {
+				parser_pusherror(parser, ERR_INVALID_PARAM);
+				return FAIL;
+			}
+		}
+	} else if(parser->c == '[') {
+		parser->calls[parser->nCalls].flags |= FBIND_CALL_USECACHE;
+		parser_getc(parser);
+	} else if(parser_getword(parser) == SUCCESS) {
+		if(strcmp(parser->word, "N"))
+			return FAIL;
+		parser->calls[parser->nCalls].flags |= FBIND_CALL_USENUMBER;
+	}
+	parser->calls[parser->nCalls].param = parser->num;
+	return SUCCESS;
+}
+
 int
 parser_getcall(struct parser *parser)
 {
@@ -98,30 +150,33 @@ parser_getcall(struct parser *parser)
 	static const struct {
 		const char *word;
 		bind_call_t type;
+		unsigned paramType;
 	} namedCommands[] = {
-		{ "COLOR", BIND_CALL_COLORWINDOW },
-		{ "CLOSE", BIND_CALL_CLOSEWINDOW },
-		{ "NEW", BIND_CALL_NEWWINDOW },
-		{ "OPEN", BIND_CALL_OPENWINDOW },
-		{ "HSPLIT", BIND_CALL_HSPLIT },
-		{ "VSPLIT", BIND_CALL_VSPLIT },
-		{ "QUIT", BIND_CALL_QUIT },
+		{ "COLOR", BIND_CALL_COLORWINDOW, 0 },
+		{ "CLOSE", BIND_CALL_CLOSEWINDOW, 0 },
+		{ "NEW", BIND_CALL_NEWWINDOW, 0 },
+		{ "OPEN", BIND_CALL_OPENWINDOW, 0 },
+		{ "HSPLIT", BIND_CALL_HSPLIT, 0 },
+		{ "VSPLIT", BIND_CALL_VSPLIT, 0 },
+		{ "QUIT", BIND_CALL_QUIT, 0 },
 
-		{ "DELETE", BIND_CALL_DELETESELECTION },
-		{ "COPY", BIND_CALL_COPY },
-		{ "PASTE", BIND_CALL_PASTE },
-		{ "UNDO", BIND_CALL_UNDO },
-		{ "REDO", BIND_CALL_REDO },
-		{ "WRITE", BIND_CALL_WRITEFILE },
-		{ "READ", BIND_CALL_READFILE },
+		{ "DELETE", BIND_CALL_DELETESELECTION, 0 },
+		{ "COPY", BIND_CALL_COPY, 0 },
+		{ "PASTE", BIND_CALL_PASTE, 0 },
+		{ "UNDO", BIND_CALL_UNDO, 0 },
+		{ "REDO", BIND_CALL_REDO, 0 },
+		{ "WRITE", BIND_CALL_WRITEFILE, 0 },
+		{ "READ", BIND_CALL_READFILE, 0 },
 
-		{ "CHOOSE", BIND_CALL_CHOOSE },
-		{ "SORT_ALPHABETICAL", BIND_CALL_SORTALPHABETICAL },
-		{ "SORT_CHANGETIME", BIND_CALL_SORTCHANGETIME },
-		{ "SORT_MODIFICATIONTIME", BIND_CALL_SORTMODIFICATIONTIME },
-		{ "TOGGLE_SORT_TYPE", BIND_CALL_TOGGLESORTTYPE },
-		{ "TOGGLE_SORT_REVERSE", BIND_CALL_TOGGLESORTREVERSE },
-		{ "TOGGLE_HIDDEN", BIND_CALL_TOGGLEHIDDEN },
+		{ "FIND", BIND_CALL_FIND, 1 },
+
+		{ "CHOOSE", BIND_CALL_CHOOSE, 0 },
+		{ "SORT_ALPHABETICAL", BIND_CALL_SORTALPHABETICAL, 0 },
+		{ "SORT_CHANGETIME", BIND_CALL_SORTCHANGETIME, 0 },
+		{ "SORT_MODIFICATIONTIME", BIND_CALL_SORTMODIFICATIONTIME, 0 },
+		{ "TOGGLE_SORT_TYPE", BIND_CALL_TOGGLESORTTYPE, 0 },
+		{ "TOGGLE_SORT_REVERSE", BIND_CALL_TOGGLESORTREVERSE, 0 },
+		{ "TOGGLE_HIDDEN", BIND_CALL_TOGGLEHIDDEN, 0 },
 	};
 	struct binding_call *newCalls;
 
@@ -141,20 +196,24 @@ parser_getcall(struct parser *parser)
 	default:
 		parser->calls[parser->nCalls].flags = 0;
 	}
+	if(parser->c == '[') {
+		parser->calls[parser->nCalls].flags |= FBIND_CALL_CACHE;
+		parser_getc(parser);
+	}
 	switch(parser->c) {
 	case '(':
 		if(parser_getc(parser) != '(') {
 			parser_pusherror(parser, ERR_INVALID_COMMAND);
-			return FAIL;
+			break;
 		}
 		parser_getc(parser);
 		if(parser->nLoopStack == ARRLEN(parser->loopStack)) {
 			parser_pusherror(parser, ERR_LOOP_TOO_DEEP);
-			return FAIL;
+			break;
 		}
 		if(parser->calls[parser->nCalls].flags & FBIND_CALL_XOR) {
 			parser_pusherror(parser, ERR_XOR_LOOP);
-			return FAIL;
+			break;
 		}
 		parser->loopStack[parser->nLoopStack++] = parser->nCalls;
 		parser->calls[parser->nCalls].type = BIND_CALL_STARTLOOP;
@@ -162,48 +221,28 @@ parser_getcall(struct parser *parser)
 	case ')':
 		if(parser_getc(parser) != ')') {
 			parser_pusherror(parser, ERR_INVALID_COMMAND);
-			return FAIL;
+			break;
 		}
 		parser_getc(parser);
 		if(!parser->nLoopStack) {
 			parser_pusherror(parser, ERR_END_OF_LOOP_WITHOUT_START);
-			return FAIL;
+			break;
 		}
 		if(parser->calls[parser->nCalls].flags & FBIND_CALL_XOR) {
 			parser_pusherror(parser, ERR_XOR_LOOP);
-			return FAIL;
+			break;
 		}
 		parser->calls[parser->nCalls].param = parser->nCalls - parser->loopStack[--parser->nLoopStack];
 		if(!parser->calls[parser->nCalls].param) {
 			parser_pusherror(parser, ERR_EMPTY_LOOP);
-			return FAIL;
+			break;
 		}
 		parser->calls[parser->nCalls].type = BIND_CALL_ENDLOOP;
 		break;
 	case '#':
 		parser_getc(parser);
 		parser->calls[parser->nCalls].type = BIND_CALL_REGISTER;
-		if(parser_getnumber(parser) != SUCCESS) {
-			if(parser_getword(parser) != SUCCESS) {
-				parser_pusherror(parser, ERR_EXPECTED_PARAM);
-				break;
-			}
-			if(!strcasecmp(parser->word, "N")) {
-				parser->num = 1;
-				parser->calls[parser->nCalls].flags = FBIND_CALL_USENUMBER;
-			} else {
-				parser_pusherror(parser, ERR_INVALID_PARAM);
-				break;
-			}
-		} else {
-			if(parser_getword(parser) == SUCCESS) {
-				if(!strcmp(parser->word, "N"))
-					parser->calls[parser->nCalls].flags = FBIND_CALL_USENUMBER;
-				else
-					parser_pusherror(parser, ERR_INVALID_PARAM);
-			}
-		}
-		parser->calls[parser->nCalls].param = parser->num;
+		parser_getintparam(parser);
 		break;
 	case '$':
 	case '`':
@@ -212,7 +251,7 @@ parser_getcall(struct parser *parser)
 	case '>': {
 		bool del = false;
 		bool window = false;
-		const int sign = parser->c == '<' || parser->c == '`' ? -1 : 1;
+		const ptrdiff_t sign = parser->c == '<' || parser->c == '`' ? -1 : 1;
 		const bool horz = parser->c == '<' || parser->c == '>';
 		const bool vert = parser->c == '.' || parser->c == '`';
 
@@ -225,30 +264,7 @@ parser_getcall(struct parser *parser)
 			window = true;
 			parser_getc(parser);
 		}
-		if(parser_getnumber(parser) == FAIL) {
-			if(parser_getword(parser) != SUCCESS) {
-				parser_pusherror(parser, ERR_EXPECTED_PARAM);
-				break;
-			}
-			if(!strcasecmp(parser->word, "home"))
-				parser->num = INT_MIN;
-			else if(!strcasecmp(parser->word, "end"))
-				parser->num = INT_MAX;
-			else if(!strcasecmp(parser->word, "N")) {
-				parser->num = 1;
-				parser->calls[parser->nCalls].flags = FBIND_CALL_USENUMBER;
-			} else {
-				parser_pusherror(parser, ERR_INVALID_PARAM);
-				break;
-			}
-		} else {
-			if(parser_getword(parser) == SUCCESS) {
-				if(!strcmp(parser->word, "N"))
-					parser->calls[parser->nCalls].flags = FBIND_CALL_USENUMBER;
-				else
-					parser_pusherror(parser, ERR_INVALID_PARAM);
-			}
-		}
+		parser_getintparam(parser);
 		if(window) {
 			if(del) {
 				parser_pusherror(parser, ERR_WINDOW_DEL);
@@ -265,10 +281,20 @@ parser_getcall(struct parser *parser)
 	}
 	case '?':
 	case '+': {
+		int r;
+
 		parser->calls[parser->nCalls].type = parser->c == '+' ? BIND_CALL_INSERT : BIND_CALL_ASSERT;
 		parser_getc(parser);
-		if(parser_getstring(parser) < 0)
+		if(parser->c != '\"') {
+			parser->calls[parser->nCalls].type = parser->calls[parser->nCalls].type == BIND_CALL_INSERT ?
+				BIND_CALL_INSERTCHAR : BIND_CALL_ASSERTCHAR;
+			parser_getintparam(parser);
+			break;
+		}
+		if((r = parser_getstring(parser)) < 0)
 			return OUTOFMEMORY;
+		if(r != SUCCESS)
+			return FAIL;
 		char *const str = const_alloc(parser->str, parser->nStr);
 		if(!str)
 			return OUTOFMEMORY;
@@ -291,11 +317,16 @@ parser_getcall(struct parser *parser)
 			for(i = 0; i < ARRLEN(namedCommands); i++)
 				if(!strcasecmp(namedCommands[i].word, parser->word)) {
 					parser->calls[parser->nCalls].type = namedCommands[i].type;
+					if(namedCommands[i].paramType) {
+						while(isblank(parser->c))
+							parser_getc(parser);
+						parser_getintparam(parser);
+					}
 					break;
 				}
 			if(i == ARRLEN(namedCommands)) {
 				parser_pusherror(parser, ERR_INVALID_COMMAND);
-				return FAIL;
+				break;
 			}
 		}
 		break;
@@ -303,6 +334,12 @@ parser_getcall(struct parser *parser)
 	default:
 		parser_pusherror(parser, ERR_INVALID_COMMAND);
 		return FAIL;
+	}
+	if(parser->calls[parser->nCalls].flags & FBIND_CALL_CACHE) {
+		if(parser->c != ']')
+			parser_pusherror(parser, ERR_CACHE_MISMATCH);
+		else
+			parser_getc(parser);
 	}
 	parser->nCalls++;
 	return SUCCESS;
@@ -320,8 +357,14 @@ parser_getcalllist(struct parser *parser)
 			parser_getc(parser);
 		if(parser->c == EOF || parser->c == '\n')
 			break;
-		if((r = parser_getcall(parser)) < 0)
+		if((r = parser_getcall(parser)) < 0) {
+			free(parser->calls);
 			return r;
+		}
+		if(r == FAIL) {
+			free(parser->calls);
+			return FAIL;
+		}
 	}
 	return parser->nCalls ? SUCCESS : FAIL;
 }

@@ -46,4 +46,3 @@ c_state_string(struct state *s)
 	}
 	return 0;
 }
-

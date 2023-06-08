@@ -137,12 +137,14 @@ print_binding_calls(struct binding_call *calls, unsigned nCalls) {
 			printf("& ");
 		if(calls->flags & FBIND_CALL_OR)
 			printf("| ");
+		if(calls->flags & FBIND_CALL_CACHE)
+			printf("[");
 		switch(calls->type) {
 		case BIND_CALL_NULL:
 			printf("NULL ");
 			break;
 		case BIND_CALL_ASSERT:
-			printf("ASSERT");
+			printf("ASSERT ");
 			print_escaped_string(calls->str);
 			break;
 		case BIND_CALL_STARTLOOP:
@@ -177,7 +179,7 @@ print_binding_calls(struct binding_call *calls, unsigned nCalls) {
 			printf("DELETESELECTION");
 			break;
 		case BIND_CALL_SETMODE:
-			printf("SETMODE %zd", calls->param);
+			printf("SETMODE %s", calls->str);
 			break;
 		case BIND_CALL_COPY:
 			printf("COPY");
@@ -185,11 +187,23 @@ print_binding_calls(struct binding_call *calls, unsigned nCalls) {
 		case BIND_CALL_PASTE:
 			printf("PASTE");
 			break;
+		case BIND_CALL_UNDO:
+			printf("UNDO");
+			break;
+		case BIND_CALL_REDO:
+			printf("REDO");
+			break;
 		default:
 			printf("UNKWOWN[%u]", calls->type);
 		}
+		if(calls->flags & FBIND_CALL_USEKEY)
+			printf("%%%zd", calls->param);
+		if(calls->flags & FBIND_CALL_USECACHE)
+			printf("[%zd", calls->param);
 		if(calls->flags & FBIND_CALL_USENUMBER)
 			printf("N");
+		if(calls->flags & FBIND_CALL_CACHE)
+			printf("]");
 		putchar(' ');
 	}
 	printf("}");
@@ -290,7 +304,8 @@ mode_findbind(struct binding_mode *mode, const int *keys)
 	for(binds = mode->bindings, nBinds = mode->nBindings; nBinds; binds++, nBinds--) {
 		for(const int *k, *ks = binds->keys, *es = ks + binds->nKeys; ks != es; ks++) {
 			for(k = keys; *ks; ks++, k++)
-				if(*ks != *k)
+				// -1 means that any key is allowed and not any specific one, see the usage of the ** inside parse.h
+				if(*ks != *k && (!*k || *ks != -1))
 					break;
 			if(!*ks && !*k)
 				return binds;
@@ -303,7 +318,7 @@ mode_findbind(struct binding_mode *mode, const int *keys)
 }
 
 int
-bind_exec(const int *keys, ssize_t amount)
+bind_exec(const int *keys, ptrdiff_t amount)
 {
 	struct binding *bind;
 	const struct binding_call *bcs;
@@ -313,7 +328,9 @@ bind_exec(const int *keys, ssize_t amount)
 		bool run;
 	} stateStack[32], frame;
 	unsigned nStateStack = 0;
-	int reg = 0;
+	ptrdiff_t reg = 0;
+	ptrdiff_t cached = 0;
+	unsigned nKeys = 0;
 
 	bind = mode_findbind(focus_window->bindMode, keys);
 	if(bind == (struct binding*) focus_window->bindMode)
@@ -326,14 +343,24 @@ bind_exec(const int *keys, ssize_t amount)
 	if(!bind)
 		return 2;
 
+	for(const int *k = keys; *k; k++)
+		nKeys++;
 	frame.state = true;
 	frame.run = false;
 	for(bcs = bind->calls, nbc = bind->nCalls; nbc; nbc--, bcs++) {
 		struct binding_call bc;
 		bool b = true;
+		ptrdiff_t m;
 
 		bc = *bcs;
-		const ssize_t m = (bc.flags & FBIND_CALL_USENUMBER) ? SAFE_MUL(amount, bc.param) : bc.param;
+		if(bc.flags & FBIND_CALL_USEKEY)
+			m = bc.param >= 0 && bc.param < (ptrdiff_t) nKeys ? keys[bc.param] : 0;
+		else if(bc.flags & FBIND_CALL_USECACHE)
+			m = cached;
+		else
+			m = bc.param;
+		if(bc.flags & FBIND_CALL_USENUMBER)
+			m = SAFE_MUL(amount, bc.param);
 		if((bc.flags & FBIND_CALL_AND) && !frame.state)
 			goto end_frame;
 		if((bc.flags & FBIND_CALL_XOR) && frame.state) {
@@ -448,8 +475,9 @@ bind_exec(const int *keys, ssize_t amount)
 			break;
 		default:
 			// not a general bind call
+			break;
 		}
-		b &= window_types[focus_window->type].bindcall(focus_window, &bc, m);
+		b &= window_types[focus_window->type].bindcall(focus_window, &bc, m, &cached);
 		while(((bc.flags & FBIND_CALL_OR) && !(frame.state |= b))
 				|| ((bc.flags & FBIND_CALL_AND) && !(frame.state &= b))) {
 		end_frame:

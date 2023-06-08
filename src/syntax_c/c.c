@@ -669,4 +669,3 @@ int (*c_states[])(struct state *s) = {
 	[C_STATE_LINECOMMENT] = c_state_linecomment,
 	[C_STATE_MULTICOMMENT] = c_state_multicomment,
 };
-

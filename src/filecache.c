@@ -27,6 +27,7 @@ fc_addcache(fileid_t parent, const char *name, unsigned nName)
 
 	assert(!locks && "a lock is still in place, unluck all filecaches before continuing");
 
+	// check if the file is already cached
 	p = file_caches + parent;
 	for(unsigned i = 0; i < p->nChildren; i++) {
 		fc = file_caches + p->children[i];
@@ -60,6 +61,7 @@ fc_getdata(struct filecache *fc, const char *path)
 
 	if(lstat(path, &sb) < 0) {
 		fc->flags |= FC_VIRTUAL;
+		// if the time is 0, that means it was never set before
 		if(!fc->ctime) {
 			struct timeval tv;
 			time_t time;
@@ -101,6 +103,7 @@ fc_init(void)
 struct filecache *
 fc_lock(fileid_t id)
 {
+	assert(id < n_file_caches && "file is invalid");
 	locks++;
 	return file_caches + id;
 }
@@ -195,6 +198,7 @@ walk:
 			goto walk;
 		}
 	}
+	// find the next child
 	for(unsigned i = 0; i < from->nChildren; i++) {
 		struct filecache *const fc = file_caches + from->children[i];
 		if(!strncmp(fc->name, name, nName) && !fc->name[nName]) {
@@ -250,6 +254,9 @@ fc_getabsolutepath(fileid_t file, char *dest, size_t maxDest)
 {
 	struct filecache *fc;
 	unsigned n;
+
+	if(maxDest < 2)
+		return -1;
 	const size_t sMaxDest = maxDest;
 	dest += --maxDest;
 	*dest = 0;

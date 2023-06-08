@@ -149,7 +149,7 @@ fileviewer_type(struct window *win, const char *str, size_t nStr)
 }
 
 bool
-fileviewer_bindcall(struct window *win, struct binding_call *bc, ssize_t param)
+fileviewer_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
 {
 	switch(bc->type) {
 	case BIND_CALL_CHOOSE: {

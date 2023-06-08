@@ -98,7 +98,7 @@ struct window {
 extern struct window_type {
 	int (*render)(struct window *win);
 	int (*type)(struct window *win, const char *str, size_t nStr);
-	bool (*bindcall)(struct window *win, struct binding_call *bc, ssize_t param);
+	bool (*bindcall)(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
 } window_types[];
 extern struct window **all_windows;
 extern unsigned n_windows;
@@ -119,6 +119,8 @@ void window_copylayout(struct window *win, struct window *rep);
 struct window *window_dup(const struct window *win);
 /** Creates a duplicate of the given window */
 struct window *window_dup(const struct window *win);
+/** Moves this window to the foreground, it will be drawn last */
+int window_setforeground(struct window *win);
 /** This gets the window at given position */
 struct window *window_atpos(int y, int x);
 /** These four functions have additional handling and may return non null values even though the internal struct value is null */

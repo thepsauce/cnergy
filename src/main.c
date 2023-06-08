@@ -24,6 +24,8 @@ void getfilepos(fileid_t file, long pos, int *line, int *col)
 	*col = cl;
 }
 
+void drawframe(const char *title, int y, int x, int ny, int nx);
+
 int
 main(int argc, char **argv)
 {
@@ -139,52 +141,64 @@ main(int argc, char **argv)
 
 	int keys[32];
 	unsigned nKeys = 0;
-	ssize_t num = 0;
+	ptrdiff_t num = 0;
 
 	// setup some windows for testing
-	struct window *w;
-	struct buffer *b;
-	// 0 right
-	// 1 below
-	int path[] = {
-		0, 1, 0
-	};
 	const char *files[] = {
+		"src/main.c",
 		"src/window.c",
 		"include/cnergy.h",
 		"src/bind.c",
 	};
-	endwin();
-	printnode(NULL, 0);
-	w = window_new(WINDOW_BUFFERVIEWER);
-	first_window = w;
-	focus_window = w;
-	struct window *const new = window_new(WINDOW_FILEVIEWER);
-	window_attach(w, new, ATT_WINDOW_VERTICAL);
-	for(unsigned i = 0; i < ARRLEN(path); i++) {
+	struct window *windows[ARRLEN(files)];
+	for(unsigned i = 0; i < ARRLEN(files); i++) {
 		const char *file = files[i % ARRLEN(files)];
-		b = buffer_new(fc_cache(fc_getbasefile(), file));
-		struct window *const new = edit_new(b, c_states);
-		if(path[i])
-			window_attach(w, new, ATT_WINDOW_VERTICAL);
-		else
-			window_attach(w, new, ATT_WINDOW_HORIZONTAL);
-		w = new;
+		struct buffer *b = buffer_new(fc_cache(fc_getbasefile(), file));
+		windows[i] = edit_new(b, c_states);
 	}
+	windows[0]->right = windows[1];
+	windows[1]->left = windows[0];
+	windows[1]->right = windows[2];
+	windows[2]->left = windows[1];
+	windows[1]->below = windows[3];
+	windows[3]->above = windows[1];
+	focus_window = windows[0];
+
+	// uncomment this code to add a fileviewer
+	// don't worry if it looks a little scuffed, may need to add borders
+	/*struct window *w = window_new(WINDOW_FILEVIEWER);
+	windows[2]->below = w;
+	w->above = windows[2];*/
 
 	while(1) {
 		int c;
+		int nextLine, nextCol, nextLines, nextCols;
 
 		if(!focus_window)
 			break;
 		// -1 to reserve a line to show the global status bar
-		first_window->line = 0;
-		first_window->col = 0;
-		first_window->lines = LINES - 1;
-		first_window->cols = COLS;
-		window_layout(first_window);
-		for(unsigned i = n_windows; i > 0;)
-			window_render(all_windows[--i]);
+		nextLine = 0;
+		nextCol = 0;
+		nextLines = LINES - 1;
+		nextCols = COLS;
+		// find all windows that are layout origins and render them
+		for(unsigned i = 0; i < n_windows; i++) {
+			struct window *const w = all_windows[i];
+			if(!w->left && !w->above) {
+				if(nextLine)
+					drawframe("", nextLine - 1, nextCol - 1, nextLines + 2, nextCols + 2);
+				w->line = nextLine;
+				w->col = nextCol;
+				w->lines = nextLines;
+				w->cols = nextCols;
+				window_layout(w);
+				window_render(w);
+				nextLine += nextLines / 6;
+				nextCol += nextCols / 6;
+				nextLines = nextLines * 4 / 6;
+				nextCols = nextCols * 4 / 6;
+			}
+		}
 		if(focus_window->bindMode->flags & FBIND_MODE_SELECTION)
 			curs_set(0);
 		else {
@@ -201,7 +215,7 @@ main(int argc, char **argv)
 		case 0x1b: // escape
 			// if we have anything already, discard it,
 			// meaning that escape cannot be repeated or be part of a bind
-			// it can be the start of a bind tho
+			// it can only be the start of a bind
 			if(num || nKeys) {
 				num = 0;
 				nKeys = 0;

@@ -15,7 +15,6 @@ typedef enum {
 	BIND_CALL_STARTLOOP,
 	BIND_CALL_ENDLOOP,
 	BIND_CALL_REGISTER,
-	BIND_CALL_ASSERT,
 	BIND_CALL_SETMODE,
 	BIND_CALL_VSPLIT,
 	BIND_CALL_HSPLIT,
@@ -27,10 +26,13 @@ typedef enum {
 	BIND_CALL_MOVEWINDOW_BELOW,
 	BIND_CALL_QUIT,
 	// these have no default behavior and it solely depends on the window type what the behavior is
+	BIND_CALL_ASSERT,
+	BIND_CALL_ASSERTCHAR,
 	BIND_CALL_MOVECURSOR,
 	BIND_CALL_MOVEHORZ,
 	BIND_CALL_MOVEVERT,
 	BIND_CALL_INSERT,
+	BIND_CALL_INSERTCHAR,
 	BIND_CALL_DELETE,
 	BIND_CALL_DELETELINE,
 	BIND_CALL_DELETESELECTION,
@@ -40,6 +42,7 @@ typedef enum {
 	BIND_CALL_REDO,
 	BIND_CALL_WRITEFILE,
 	BIND_CALL_READFILE,
+	BIND_CALL_FIND,
 
 	BIND_CALL_CHOOSE,
 	BIND_CALL_TOGGLEHIDDEN,
@@ -51,16 +54,19 @@ typedef enum {
 } bind_call_t;
 
 typedef enum {
-	FBIND_CALL_USENUMBER = 1 << 0,
-	FBIND_CALL_AND = 1 << 1,
-	FBIND_CALL_OR = 1 << 2,
-	FBIND_CALL_XOR = 1 << 4,
+	FBIND_CALL_USENUMBER 	= 1 << 0,
+	FBIND_CALL_AND 			= 1 << 1,
+	FBIND_CALL_OR 			= 1 << 2,
+	FBIND_CALL_XOR 			= 1 << 3,
+	FBIND_CALL_USECACHE 	= 1 << 4,
+	FBIND_CALL_USEKEY 		= 1 << 5,
+	FBIND_CALL_CACHE 		= 1 << 6,
 } bind_flags_t;
 
 struct binding_call {
 	bind_call_t type;
 	bind_flags_t flags;
-	ssize_t param;
+	ptrdiff_t param;
 	union {
 		void *ptr;
 		char *str;
@@ -75,9 +81,9 @@ struct binding {
 };
 
 enum {
-	FBIND_MODE_SUPPLEMENTARY = 1 << 0,
-	FBIND_MODE_SELECTION = 1 << 1,
-	FBIND_MODE_TYPE = 1 << 2,
+	FBIND_MODE_SUPPLEMENTARY 	= 1 << 0,
+	FBIND_MODE_SELECTION 		= 1 << 1,
+	FBIND_MODE_TYPE 			= 1 << 2,
 };
 
 struct binding_mode {
@@ -91,6 +97,6 @@ struct binding_mode {
 extern struct binding_mode *all_modes[WINDOW_MAX];
 
 int modes_add(struct binding_mode *modes[WINDOW_MAX]);
-int bind_exec(const int *keys, ssize_t param);
+int bind_exec(const int *keys, ptrdiff_t param);
 
 #endif

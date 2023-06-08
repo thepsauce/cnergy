@@ -146,4 +146,3 @@ c_state_preproc_undef(struct state *s)
 	}
 	return 0;
 }
-

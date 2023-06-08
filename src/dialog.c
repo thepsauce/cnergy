@@ -1,6 +1,6 @@
 #include "cnergy.h"
 
-static void
+void
 drawframe(const char *title, int y, int x, int ny, int nx)
 {
 	mvhline(y, x, ACS_HLINE, nx);
@@ -25,7 +25,7 @@ messagebox(const char *title, const char *msg, ...)
 {
 	va_list l;
 	const char *opt;
-	const char *storedMsg;
+	const char *storedMsg = NULL;
 	char buf[88];
 	char options[8];
 	unsigned nOptions = 0;
@@ -53,8 +53,8 @@ messagebox(const char *title, const char *msg, ...)
 		int next_x;
 		size_t n;
 
-		while(!*msg) {
-			if(!storedMsg)
+		if(!*msg) {
+			if(!storedMsg || !*storedMsg)
 				break;
 			msg = storedMsg;
 			storedMsg = NULL;
@@ -65,25 +65,35 @@ messagebox(const char *title, const char *msg, ...)
 			switch(*msg) {
 			case 0: msg--; break;
 			case 's':
+				msg++;
 				storedMsg = msg;
 				msg = va_arg(l, const char*);
 				break;
+			case 'c':
+				msg++;
+				storedMsg = msg;
+				snprintf(buf, sizeof(buf), "%c", va_arg(l, char));
+				msg = buf;
+				break;
 			case 'u':
+				msg++;
 				storedMsg = msg;
 				snprintf(buf, sizeof(buf), "%u", va_arg(l, unsigned));
 				msg = buf;
 				break;
 			case 'd':
+				msg++;
 				storedMsg = msg;
 				snprintf(buf, sizeof(buf), "%d", va_arg(l, int));
 				msg = buf;
 				break;
 			case 'z':
+				msg++;
 				storedMsg = msg;
-				switch(msg[1]) {
+				switch(*msg) {
 				case 'd':
 					msg++;
-					snprintf(buf, sizeof(buf), "%zd", va_arg(l, ssize_t));
+					snprintf(buf, sizeof(buf), "%zd", va_arg(l, ptrdiff_t));
 					break;
 				case 'u':
 					msg++;
@@ -148,7 +158,7 @@ dialog_alloc(size_t sz)
 	do {
 		ptr = malloc(sz);
 	} while(!ptr && !messagebox("Memory error",
-				"Your system returned NULL when trying to allocate %u bytes of memory, what do you want to do?",
+				"Your system returned NULL when trying to allocate %zu bytes of memory, what do you want to do?",
 				sz, "[T]ry again", "[C]ancel", NULL));
 	return ptr;
 }
@@ -159,7 +169,7 @@ dialog_realloc(void *ptr, size_t newSz)
 	do {
 		ptr = realloc(ptr, newSz);
 	} while(!ptr && !messagebox("Memory error",
-				"Your system returned NULL when trying to allocate %u bytes of memory, what do you want to do?",
+				"Your system returned NULL when trying to allocate %zu bytes of memory, what do you want to do?",
 				newSz, "[T]ry again", "[C]ancel", NULL));
 	return ptr;
 }

@@ -72,7 +72,7 @@ x11_thread(void *arg)
 	}
 }
 
-void __attribute__((constructor))
+__attribute__((constructor)) void
 init(void)
 {
 	int screen;
@@ -85,7 +85,7 @@ init(void)
 	pthread_create(&x11_thread_id, NULL, x11_thread, NULL);
 }
 
-void __attribute__((destructor))
+__attribute__((destructor)) void
 uninit(void)
 {
 	XCloseDisplay(display);

@@ -1,0 +1,34 @@
+syntax c::preproc: !preproc_common
+
+define[ @5 :preproc_define
+elif[ @5 :preproc_common
+else[ @5 :preproc_common
+endif[ @5 :preproc_common
+error[ @5 :preproc_common
+ident[ @5 :preproc_common
+if[ @5 :preproc_common
+ifdef[ @5 :preproc_common
+ifndef[ @5 :preproc_common
+include[ @5 :preproc_include
+include_next[ @5 :preproc_include
+line[ @5 :preproc_common
+pragma[ @5 :preproc_common
+sccs[ @5 :preproc_common
+undef[ @5 :preproc_undef
+warn[ @5 :preproc_common
+warning[ @5 :preproc_common
+\k[ @-2 :preproc_common
+
+syntax c::preproc_define: !preproc_common
+
+\k + @5 :preproc_common
+
+syntax c::preproc_undef: !preproc_common
+
+\k - @5 :preproc_common
+
+syntax c::preproc_common: common
+
+[\\][\n] @5
+[\n] :default
+
