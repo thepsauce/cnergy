@@ -23,10 +23,9 @@ static const char *error_messages[] = {
 	[ERR_EXPECTED_MODE_NAME] = "mode does not exist",
 	[ERR_EXPECTED_WORD_AT] = "expected word after @",
 	[ERR_INVALID_WINDOW_TYPE] = "invalid window type after @",
-	[ERR_CACHE_MISMATCH] = "[ expects a matching ] at the end of the single command",
 };
 
-const char *
+inline const char *
 parser_strerror(parser_error_t err)
 {
 	return error_messages[err];
@@ -315,12 +314,14 @@ int
 parser_cleanup(struct parser *parser)
 {
 	free(parser->str);
+	free(parser->keys);
+	free(parser->calls);
 	for(window_type_t i = 0; i < WINDOW_MAX; i++) {
-		for(struct binding_mode *m = parser->firstModes[i]; m; m = m->next) {
-			// TODO: free keys and calls which is impossible right now because of a double free caused by mode extending
+		for(struct binding_mode *m = parser->firstModes[i], *next; m; m = next) {
+			next = m->next;
 			free(m->bindings);
+			free(m);
 		}
-		free(parser->firstModes[i]);
 	}
 	free(parser->appendRequests);
 	return 0;

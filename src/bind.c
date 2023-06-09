@@ -1,6 +1,61 @@
 #include "cnergy.h"
 
+static char str_space[65536];
+static char *str_ptr = str_space;
+static uint8_t mode_space[262144];
+static int *mode_keys = (int*) mode_space;
+static struct binding_call *mode_calls = (struct binding_call*) (mode_space + sizeof(mode_space));
 struct binding_mode *all_modes[WINDOW_MAX];
+
+char *
+mode_allocstr(const char *str, size_t nStr)
+{
+	char *s;
+
+	for(s = str_space; s < str_ptr - nStr; s += strlen(s) + 1)
+		if(!strncmp(s, str, nStr) && !s[nStr])
+			return s;
+	if(str_ptr + nStr + 1 > str_space + sizeof(str_space))
+		return NULL;
+	s = str_ptr;
+	memcpy(str_ptr, str, nStr);
+	str_ptr += nStr;
+	*(str_ptr++) = 0;
+	return s;
+}
+
+int *
+mode_allockeys(const int *keys, unsigned nKeys)
+{
+	int *k;
+
+	for(k = (int*) mode_space; k < mode_keys - nKeys; k++)
+		if(!memcmp(k, keys, sizeof(*keys) * nKeys))
+			return k;
+	if((void*) (mode_keys + nKeys) > (void*) mode_calls)
+	   return NULL;
+	k = mode_keys;
+	memcpy(mode_keys, keys, sizeof(*keys) * nKeys);
+	mode_keys += nKeys;
+	return k;
+}
+
+struct binding_call *
+mode_alloccalls(const struct binding_call *calls, unsigned nCalls)
+{
+	struct binding_call *c;
+
+	for(c = (struct binding_call*) (mode_space + sizeof(mode_space));
+			c > mode_calls + nCalls; c--)
+	   if(!memcmp(c, calls, sizeof(*calls) * nCalls))
+		   return c;
+	if((void*) (mode_calls - nCalls) < (void*) mode_keys)
+		return NULL;
+	mode_calls -= nCalls;
+	c = mode_calls;
+	memcpy(mode_calls, calls, sizeof(*calls) * nCalls);
+	return c;
+}
 
 static struct binding_mode *
 mode_find(window_type_t windowType, const char *name)
@@ -16,6 +71,7 @@ mergekeys(struct binding *b1, struct binding *b2)
 {
 	int *k1, *k2;
 	int *e1, *e2;
+	int *newKeys;
 
 	for(k2 = b2->keys, e2 = k2 + b2->nKeys; k2 != e2; k2++) {
 		bool contained = false;
@@ -33,12 +89,13 @@ mergekeys(struct binding *b1, struct binding *b2)
 		if(!contained) {
 			for(; *k; k++);
 			const unsigned n = (k - k2) + 1;
-			int newKeys[b1->nKeys + n];
-			memcpy(newKeys, b1->keys, sizeof(*b1->keys) * b1->nKeys);
-			memcpy(newKeys + b1->nKeys, k2, sizeof(*k2) * n);
-			b1->keys = const_alloc(newKeys, sizeof(newKeys));
-			if(!b1->keys)
+			int joined[b1->nKeys + n];
+			memcpy(joined, b1->keys, sizeof(*b1->keys) * b1->nKeys);
+			memcpy(joined + b1->nKeys, k2, sizeof(*k2) * n);
+			newKeys = mode_allockeys(joined, b1->nKeys + n);
+			if(!newKeys)
 				return -1;
+			b1->keys = newKeys;
 			b1->nKeys += n;
 		}
 		k2 = k;
@@ -51,6 +108,7 @@ mergebinds(struct binding_mode *m1, struct binding_mode *m2)
 {
 	struct binding *b1, *b2;
 	unsigned n1, n2;
+	struct binding *newBindings;
 
 	for(b2 = m2->bindings, n2 = m2->nBindings; n2; n2--, b2++) {
 		for(b1 = m1->bindings, n1 = m1->nBindings; n1; n1--, b1++) {
@@ -72,14 +130,15 @@ mergebinds(struct binding_mode *m1, struct binding_mode *m2)
 		}
 		if(n1)
 			continue;
-		m1->bindings = realloc(m1->bindings, sizeof(*m1->bindings) * (m1->nBindings + 1));
-		if(!m1->nBindings)
+		newBindings = realloc(m1->bindings, sizeof(*m1->bindings) * (m1->nBindings + 1));
+		if(newBindings)
 			return -1;
+		m1->bindings = newBindings;
 		m1->bindings[m1->nBindings++] = (struct binding) {
 			.nKeys = b2->nKeys,
 			.nCalls = b2->nCalls,
-			.keys = const_alloc(b2->keys, sizeof(*b2->keys) * b2->nKeys),
-			.calls = const_alloc(b2->calls, sizeof(*b2->calls) * b2->nCalls),
+			.keys = mode_allockeys(b2->keys, b2->nKeys),
+			.calls = mode_alloccalls(b2->calls, b2->nCalls),
 		};
 	}
 	return 0;
@@ -137,8 +196,6 @@ print_binding_calls(struct binding_call *calls, unsigned nCalls) {
 			printf("& ");
 		if(calls->flags & FBIND_CALL_OR)
 			printf("| ");
-		if(calls->flags & FBIND_CALL_CACHE)
-			printf("[");
 		switch(calls->type) {
 		case BIND_CALL_NULL:
 			printf("NULL ");
@@ -202,8 +259,6 @@ print_binding_calls(struct binding_call *calls, unsigned nCalls) {
 			printf("[%zd", calls->param);
 		if(calls->flags & FBIND_CALL_USENUMBER)
 			printf("N");
-		if(calls->flags & FBIND_CALL_CACHE)
-			printf("]");
 		putchar(' ');
 	}
 	printf("}");
@@ -263,13 +318,17 @@ modes_add(struct binding_mode *modes[WINDOW_MAX])
 			strcpy(newMode->name, m->name);
 			newMode->flags = m->flags;
 			newMode->bindings = malloc(sizeof(*newMode->bindings) * m->nBindings);
+			if(!newMode->bindings) {
+				free(newMode);
+				return -1;
+			}
 			for(unsigned b = 0; b < m->nBindings; b++) {
 				const struct binding bind = m->bindings[b];
 				newMode->bindings[b] = (struct binding) {
 					.nKeys = bind.nKeys,
 					.nCalls = bind.nCalls,
-					.keys = const_alloc(bind.keys, sizeof(*bind.keys) * bind.nKeys),
-					.calls = const_alloc(bind.calls, sizeof(*bind.calls) * bind.nCalls),
+					.keys = mode_allockeys(bind.keys, bind.nKeys),
+					.calls = mode_alloccalls(bind.calls, bind.nCalls),
 				};
 			}
 			newMode->nBindings = m->nBindings;

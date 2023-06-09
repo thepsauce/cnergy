@@ -166,9 +166,9 @@ main(int argc, char **argv)
 
 	// uncomment this code to add a fileviewer
 	// don't worry if it looks a little scuffed, may need to add borders
-	/*struct window *w = window_new(WINDOW_FILEVIEWER);
+	struct window *w = window_new(WINDOW_FILEVIEWER);
 	windows[2]->below = w;
-	w->above = windows[2];*/
+	w->above = windows[2];
 
 	while(1) {
 		int c;
@@ -259,7 +259,7 @@ main(int argc, char **argv)
 			printw("%zd", num);
 		for(unsigned i = 0; i < nKeys; i++)
 			printw("%s", keyname(keys[i]));
-		printw("%*s", COLS - getcurx(stdscr), "");
+		ersline(COLS - getcurx(stdscr));
 	}
 	endwin();
 	printf("normal exit\n");

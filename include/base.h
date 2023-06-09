@@ -11,6 +11,7 @@
 #include <limits.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -62,13 +63,5 @@
 })
 
 #define ARRLEN(a) (sizeof(a)/sizeof*(a))
-
-#define TINY_SIZE_MAX UINT16_MAX
-#define SMALL_SIZE_MAX UINT32_MAX
-
-typedef uint16_t tiny_size_t;
-typedef uint32_t small_size_t;
-
-void *const_alloc(const void *data, small_size_t sz);
 
 #endif

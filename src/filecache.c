@@ -26,7 +26,7 @@ fc_addcache(fileid_t parent, const char *name, unsigned nName)
 	fileid_t *newChildren;
 
 	assert(!locks && "a lock is still in place, unluck all filecaches before continuing");
-
+	assert(parent < n_file_caches && "file id is invalid");
 	// check if the file is already cached
 	p = file_caches + parent;
 	for(unsigned i = 0; i < p->nChildren; i++) {
@@ -34,7 +34,7 @@ fc_addcache(fileid_t parent, const char *name, unsigned nName)
 		if(!strncmp(fc->name, name, nName) && !fc->name[nName])
 			return fc;
 	}
-	newFileCaches = realloc(file_caches, sizeof(*file_caches) * (n_file_caches + 1));
+	newFileCaches = dialog_realloc(file_caches, sizeof(*file_caches) * (n_file_caches + 1));
 	if(!newFileCaches)
 		return NULL;
 	file_caches = newFileCaches;
@@ -45,7 +45,7 @@ fc_addcache(fileid_t parent, const char *name, unsigned nName)
 	memcpy(fc->name, name, nName);
 	fc->name[nName] = 0;
 	fc->parent = parent;
-	newChildren = realloc(p->children, sizeof(*p->children) * (p->nChildren + 1));
+	newChildren = dialog_realloc(p->children, sizeof(*p->children) * (p->nChildren + 1));
 	if(!newChildren)
 		return NULL;
 	p->children = newChildren;
@@ -88,7 +88,10 @@ fc_init(void)
 	struct filecache *fc;
 	char path[PATH_MAX];
 
-	getcwd(path, sizeof(path));
+	if(!getcwd(path, sizeof(path))) {
+		perror("getcwd");
+		abort();
+	}
 	file_caches = malloc(sizeof(*file_caches) * 20);
 	n_file_caches = 1;
 
@@ -146,7 +149,7 @@ void
 fc_unlock(struct filecache *fc)
 {
 	const fileid_t id = fc - file_caches;
-	assert(id < n_file_caches && "file is invalid");
+	assert(id < n_file_caches && "file id is invalid");
 	assert(locks && "there are no locks to unlock (mismatch of lock and unlock)");
 	locks--;
 }
@@ -161,8 +164,10 @@ fc_locate(struct filecache *from, const char *path, const char **endPath, struct
 	if(path[0] == '~') {
 		// go to home
 		const char *const home = getenv("HOME");
-		if(!home)
+		if(!home) {
+			fprintf(stderr, "[%s:%u in fc_locate()] failed to get home directory\n", __FILE__, __LINE__);
 			return -1;
+		}
 		pushBack = path;
 		path = home;
 	}
@@ -176,8 +181,11 @@ walk:
 	// find end of name segment
 	while(*path && *(path++) != '/')
 		nName++;
-	if(nName >= NAME_MAX)
+	if(nName >= NAME_MAX) {
+		fprintf(stderr, "[%s:%u in fc_locate()] name segment too long (exceeds %u byte)\n",
+				__FILE__, __LINE__, (unsigned) NAME_MAX);
 		return -1;
+	}
 	if(!nName) {
 		if(pushBack) {
 			path = pushBack;
@@ -229,17 +237,20 @@ fc_getrelativepath(fileid_t from, fileid_t file, char *dest, size_t maxDest)
 	dest += --maxDest;
 	*dest = 0;
 	while(fc != file_caches + from) {
-		if(fc == file_caches)
-			return -1; // file is not inside of from or any of its recursive subdirectories
-		if(!maxDest)
-			return -1; // not enough room inside the buffer
+		if(fc == file_caches) {
+			fprintf(stderr, "[%s:%u in fc_getrelativepath()] file '%s' is not relative to '%s'\n",
+					__FILE__, __LINE__, file_caches[from].name, file_caches[file].name);
+			return -1;
+		}
+		n = strlen(fc->name);
+		if(maxDest <= n) {
+			fprintf(stderr, "[%s:%u in fc_getrelativepath()] path is too long\n", __FILE__, __LINE__);
+			return -1;
+		}
 		dest--;
 		if(dest[1])
 			*dest = '/';
 		maxDest--;
-		n = strlen(fc->name);
-		if(maxDest < n)
-			return -1; // not enough room
 		dest -= n;
 		maxDest -= n;
 		memcpy(dest, fc->name, n);
@@ -255,15 +266,17 @@ fc_getabsolutepath(fileid_t file, char *dest, size_t maxDest)
 	struct filecache *fc;
 	unsigned n;
 
+	assert(file < n_file_caches && "file id does not exist");
+	assert(dest && "destination can not be null");
 	if(maxDest < 2)
-		return -1;
+		goto err_path_too_long;
 	const size_t sMaxDest = maxDest;
 	dest += --maxDest;
 	*dest = 0;
 	fc = file_caches + file;
 	while(1) {
 		if(!maxDest)
-			return -1;
+			goto err_path_too_long;
 		dest--;
 		if(dest[1])
 			*dest = '/';
@@ -272,7 +285,7 @@ fc_getabsolutepath(fileid_t file, char *dest, size_t maxDest)
 			break;
 		n = strlen(fc->name);
 		if(maxDest < n)
-			return -1;
+			goto err_path_too_long;
 		dest -= n;
 		maxDest -= n;
 		memcpy(dest, fc->name, n);
@@ -282,6 +295,9 @@ fc_getabsolutepath(fileid_t file, char *dest, size_t maxDest)
 	// make it from left to right
 	memmove(dest - maxDest, dest, sMaxDest - maxDest);
 	return 0;
+err_path_too_long:
+	fprintf(stderr, "[%s:%u in fc_getabsolutepath()] path of file '%s' is too long (exceeding '%u' bytes)\n", __FILE__, __LINE__, file_caches[file].name, sMaxDest);
+	return -1;
 }
 
 FILE *
@@ -290,11 +306,14 @@ fc_open(fileid_t file, const char *mode)
 	char path[PATH_MAX];
 	FILE *fp;
 
+	assert(file < n_file_caches && "file id does not exist");
 	if(fc_getrelativepath(file_current, file, path, sizeof(path)) < 0)
 		return NULL;
 	fp = fopen(path, mode);
-	if(!fp)
+	if(!fp) {
+		fprintf(stderr, "[%s:%u in fc_open()] failed opening file '%s'\n", __FILE__, __LINE__, file_caches[file].name);
 		return NULL;
+	}
 	return fp;
 }
 
@@ -306,6 +325,7 @@ fc_cache(fileid_t file, const char *path)
 	unsigned nName;
 	char curPath[PATH_MAX];
 
+	assert(file < n_file_caches && "file id is invalid");
 	if(!fc_locate(file_caches + file, path, &path, &fc))
 		return fc - file_caches; // already cached
 	// cache the file by creating a path from a valid node to the file
@@ -315,8 +335,11 @@ walk:
 	// find end of name segment
 	while(*path && *(path++) != '/')
 		nName++;
-	if(nName >= NAME_MAX)
+	if(nName >= NAME_MAX) {
+		fprintf(stderr, "[%s:%u in fc_cache()] name segment too long (exceeds %u byte) (at='%s')\n",
+				__FILE__, __LINE__, (unsigned) NAME_MAX, name);
 		return -1;
+	}
 	if(!nName)
 		return fc - file_caches;
 	memset(&newfc, 0, sizeof(newfc));
@@ -334,6 +357,7 @@ fc_recache(fileid_t file)
 {
 	char path[PATH_MAX];
 
+	assert(file < n_file_caches && "file id is invalid");
 	fc_getrelativepath(file_current, file, path, sizeof(path));
 	fc_getdata(file_caches + file, path);
 	if(file_caches[file].flags & FC_COLLAPSED) {
@@ -365,6 +389,7 @@ fc_find(fileid_t file, const char *path)
 {
 	struct filecache *fc;
 
+	assert(file < n_file_caches && "file id is invalid");
 	if(!fc_locate(file_caches + file, path, &path, &fc))
 		return fc - file_caches;
 	return 0;

@@ -6,8 +6,8 @@
 #include <curses.h>
 
 #define ersline(max) ({ \
-	__auto_type _m = (max); \
-	printw("%*s", MAX((int) _m - getcurx(stdscr), 0), ""); \
+	const int _m = (max); \
+	printw("%*s", MAX(_m - getcurx(stdscr), 0), ""); \
 })
 
 /* Settings */

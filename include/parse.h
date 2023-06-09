@@ -44,19 +44,18 @@
  * Loops, caching and any key *
  ******************************
  * *********************************
- * f ** #N (( #- & [!find %1] $[ ))
+ * f ** #N (( #- & !find %1 $[ ))
  * *********************************
  * Here is a breakdown of this command line:
  * f								If the user presses f
  *   **								If the user pressed any other key
  *      #N  						Load N into the register
- *         ((                    )) Loop until the inside fails
+ *         ((                  ))	Loop until the inside fails
  *            #- 					Decrement the register
  *               & 					Stop the loop if the register is 0 or if find fails
- *                 [        ]		Cache the value
- *                  !find %1		Find the text the user pressed
- *                            $		Move the cursor
- *                             [	to the cached value (find result)
+ *                 !find %1			Find the text the user pressed
+ *                          $		Move the cursor
+ *                           [		to the cached value (find result)
  */
 
 /**
@@ -106,7 +105,6 @@ typedef enum {
 	ERR_EXPECTED_WORD_AT,
 	ERR_EXPECTED_MODE_NAME,
 	ERR_INVALID_WINDOW_TYPE,
-	ERR_CACHE_MISMATCH,
 } parser_error_t;
 
 struct parser {

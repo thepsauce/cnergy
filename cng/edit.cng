@@ -21,16 +21,17 @@ p !paste
 u !undo
 ^R !redo
 v :visual
-## ** means that any key can be presed here
+## ** means that any key can be pressed here
 ## %0 will get the first key pressed (f in this case)
 ## %1 will get the second key pressed
-## Using [!find %1] the result of find is cached and
-## can be used later using [
-f ** >1 & [!find %1] & $[
+## The find command stores its return value in a special place
+## that can be accessed using "["
+f ** #N (( #- & >1 & !find %1 & $[ ))
 r ** >x1 & +%1
 : e !open
 : w !write
 : r !read
+H ** +%0 +%1 <1 ?"A" ^ +"A" >x1
 
 ## Testing
 T #N (( #-1 & +"T" ))

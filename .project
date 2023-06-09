@@ -1,2 +1,2 @@
--g -Wall -Wextra -pg -fshort-enums
+-g -Wall -Wextra -pg -fshort-enums -Wpedantic
 -lcurses

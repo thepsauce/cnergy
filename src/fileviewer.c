@@ -54,7 +54,8 @@ fileviewer_render(struct window *win)
 	win->base = fc_getbasefile(); // TODO: let each fileview have it's own base
 	attrset(statusbar2Color);
 	move(win->line, win->col);
-	fc_getabsolutepath(win->base, basePath, sizeof(basePath));
+	if(fc_getabsolutepath(win->base, basePath, sizeof(basePath)) < 0)
+		return -1;
 	addstr(basePath);
 	ersline(win->col + win->cols);
 	stack[0].fc = fc = fc_lock(win->base);
@@ -151,6 +152,7 @@ fileviewer_type(struct window *win, const char *str, size_t nStr)
 bool
 fileviewer_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
 {
+	(void) pCached;
 	switch(bc->type) {
 	case BIND_CALL_CHOOSE: {
 		fileid_t file;
@@ -182,6 +184,7 @@ fileviewer_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param
 	}
 	default:
 		// let the other switches take care of these types
+		break;
 	}
 	if(win->bindMode->flags & FBIND_MODE_TYPE) {
 		switch(bc->type) {

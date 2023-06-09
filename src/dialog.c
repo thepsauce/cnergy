@@ -72,7 +72,7 @@ messagebox(const char *title, const char *msg, ...)
 			case 'c':
 				msg++;
 				storedMsg = msg;
-				snprintf(buf, sizeof(buf), "%c", va_arg(l, char));
+				snprintf(buf, sizeof(buf), "%c", va_arg(l, int));
 				msg = buf;
 				break;
 			case 'u':

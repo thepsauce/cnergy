@@ -45,6 +45,8 @@ bufferviewer_render(struct window *win)
 bool
 bufferviewer_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
 {
+	(void) win;
+	(void) pCached;
 	switch(bc->type) {
 	case BIND_CALL_MOVEVERT:
 		if(!row && param < 0)

@@ -73,7 +73,6 @@ parser_getkeylist(struct parser *parser)
 		parser_pusherror(parser, ERR_BIND_OUTSIDEOF_MODE);
 		return FAIL;
 	}
-	parser->keys = NULL;
 	parser->nKeys = 0;
 	while(!(r = parser_getkey(parser))) {
 		if(parser->c == ',') {
@@ -196,10 +195,6 @@ parser_getcall(struct parser *parser)
 	default:
 		parser->calls[parser->nCalls].flags = 0;
 	}
-	if(parser->c == '[') {
-		parser->calls[parser->nCalls].flags |= FBIND_CALL_CACHE;
-		parser_getc(parser);
-	}
 	switch(parser->c) {
 	case '(':
 		if(parser_getc(parser) != '(') {
@@ -295,7 +290,7 @@ parser_getcall(struct parser *parser)
 			return OUTOFMEMORY;
 		if(r != SUCCESS)
 			return FAIL;
-		char *const str = const_alloc(parser->str, parser->nStr);
+		char *const str = mode_allocstr(parser->str, parser->nStr);
 		if(!str)
 			return OUTOFMEMORY;
 		parser->calls[parser->nCalls].str = str;
@@ -311,7 +306,7 @@ parser_getcall(struct parser *parser)
 		}
 		if(setMode) {
 			parser->calls[parser->nCalls].type = BIND_CALL_SETMODE;
-			parser->calls[parser->nCalls].str = const_alloc(parser->word, strlen(parser->word) + 1);
+			parser->calls[parser->nCalls].str = mode_allocstr(parser->word, strlen(parser->word));
 		} else {
 			unsigned i;
 			for(i = 0; i < ARRLEN(namedCommands); i++)
@@ -335,12 +330,6 @@ parser_getcall(struct parser *parser)
 		parser_pusherror(parser, ERR_INVALID_COMMAND);
 		return FAIL;
 	}
-	if(parser->calls[parser->nCalls].flags & FBIND_CALL_CACHE) {
-		if(parser->c != ']')
-			parser_pusherror(parser, ERR_CACHE_MISMATCH);
-		else
-			parser_getc(parser);
-	}
 	parser->nCalls++;
 	return SUCCESS;
 }
@@ -350,21 +339,16 @@ parser_getcalllist(struct parser *parser)
 {
 	int r;
 
-	parser->calls = NULL;
 	parser->nCalls = 0;
 	while(1) {
 		while(isblank(parser->c))
 			parser_getc(parser);
 		if(parser->c == EOF || parser->c == '\n')
 			break;
-		if((r = parser_getcall(parser)) < 0) {
-			free(parser->calls);
+		if((r = parser_getcall(parser)) < 0)
 			return r;
-		}
-		if(r == FAIL) {
-			free(parser->calls);
+		if(r == FAIL)
 			return FAIL;
-		}
 	}
 	return parser->nCalls ? SUCCESS : FAIL;
 }
@@ -373,16 +357,22 @@ int
 parser_addbind(struct parser *parser)
 {
 	struct binding *newBindings;
+	int *keys;
+	struct binding_call *calls;
 
 	newBindings = realloc(parser->curMode->bindings, sizeof(*parser->curMode->bindings) * (parser->curMode->nBindings + 1));
 	if(!newBindings)
+		return OUTOFMEMORY;
+	if(!(keys = mode_allockeys(parser->keys, parser->nKeys)))
+		return OUTOFMEMORY;
+	if(!(calls = mode_alloccalls(parser->calls, parser->nCalls)))
 		return OUTOFMEMORY;
 	parser->curMode->bindings = newBindings;
 	parser->curMode->bindings[parser->curMode->nBindings++] = (struct binding) {
 		.nKeys = parser->nKeys,
 		.nCalls = parser->nCalls,
-		.keys = parser->keys,
-		.calls = parser->calls,
+		.keys = keys,
+		.calls = calls,
 	};
 	return FINISH;
 }

@@ -60,7 +60,6 @@ typedef enum {
 	FBIND_CALL_XOR 			= 1 << 3,
 	FBIND_CALL_USECACHE 	= 1 << 4,
 	FBIND_CALL_USEKEY 		= 1 << 5,
-	FBIND_CALL_CACHE 		= 1 << 6,
 } bind_flags_t;
 
 struct binding_call {
@@ -70,12 +69,13 @@ struct binding_call {
 	union {
 		void *ptr;
 		char *str;
+		char name[64];
 	};
 };
 
 struct binding {
-	small_size_t nKeys;
-	small_size_t nCalls;
+	unsigned nKeys;
+	unsigned nCalls;
 	int *keys;
 	struct binding_call *calls;
 };
@@ -89,13 +89,16 @@ enum {
 struct binding_mode {
 	char name[64];
 	unsigned flags;
-	small_size_t nBindings;
+	unsigned nBindings;
 	struct binding *bindings;
 	struct binding_mode *next;
 };
 
 extern struct binding_mode *all_modes[WINDOW_MAX];
 
+char *mode_allocstr(const char *str, size_t nStr);
+int *mode_allockeys(const int *keys, unsigned nKeys);
+struct binding_call *mode_alloccalls(const struct binding_call *calls, unsigned nCalls);
 int modes_add(struct binding_mode *modes[WINDOW_MAX]);
 int bind_exec(const int *keys, ptrdiff_t param);
 
