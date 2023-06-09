@@ -21,12 +21,10 @@ drawframe(const char *title, int y, int x, int ny, int nx)
 }
 
 int
-messagebox(const char *title, const char *msg, ...)
+messagebox(const char *title, const char *format, ...)
 {
 	va_list l;
 	const char *opt;
-	const char *storedMsg = NULL;
-	char buf[88];
 	char options[8];
 	unsigned nOptions = 0;
 	int defaultOption = -1;
@@ -34,6 +32,8 @@ messagebox(const char *title, const char *msg, ...)
 	int lines, cols;
 	int y, x;
 	int maxY, maxX;
+	char *msg;
+	int nMsg;
 
 	line = LINES / 5;
 	col = COLS / 5;
@@ -47,68 +47,22 @@ messagebox(const char *title, const char *msg, ...)
 	maxX = col + cols * 4 / 5;
 	move(y, x);
 	// for format
-	va_start(l, msg);
-	while(1) {
+	va_start(l, format);
+	nMsg = vsnprintf(NULL, 0, format, l);
+	va_end(l);
+	if(nMsg < 0)
+		return -1;
+	va_start(l, format);
+	msg = alloca(nMsg);	
+	vsprintf(msg, format, l);
+	while(*msg) {
 		char *space;
 		int next_x;
-		size_t n;
+		int n;
 
-		if(!*msg) {
-			if(!storedMsg || !*storedMsg)
-				break;
-			msg = storedMsg;
-			storedMsg = NULL;
-		}
-		// intepret %
-		if(*msg == '%') {
-			msg++;
-			switch(*msg) {
-			case 0: msg--; break;
-			case 's':
-				msg++;
-				storedMsg = msg;
-				msg = va_arg(l, const char*);
-				break;
-			case 'c':
-				msg++;
-				storedMsg = msg;
-				snprintf(buf, sizeof(buf), "%c", va_arg(l, int));
-				msg = buf;
-				break;
-			case 'u':
-				msg++;
-				storedMsg = msg;
-				snprintf(buf, sizeof(buf), "%u", va_arg(l, unsigned));
-				msg = buf;
-				break;
-			case 'd':
-				msg++;
-				storedMsg = msg;
-				snprintf(buf, sizeof(buf), "%d", va_arg(l, int));
-				msg = buf;
-				break;
-			case 'z':
-				msg++;
-				storedMsg = msg;
-				switch(*msg) {
-				case 'd':
-					msg++;
-					snprintf(buf, sizeof(buf), "%zd", va_arg(l, ptrdiff_t));
-					break;
-				case 'u':
-					msg++;
-				/* fall through */
-				default:
-					snprintf(buf, sizeof(buf), "%zu", va_arg(l, size_t));
-					break;
-				}
-				msg = buf;
-				break;
-			}
-		}
 		// break words at spaces
 		space = strchr(msg, ' ');
-		n = space ? (size_t) (space - msg) : strlen(msg);
+		n = space ? (int) (space - msg) : (int) strlen(msg);
 		next_x = x + (int) n;
 		if(next_x >= maxX && x != col + cols / 5) {
 			x = col + cols / 5;

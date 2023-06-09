@@ -147,8 +147,8 @@ main(int argc, char **argv)
 	const char *files[] = {
 		"src/main.c",
 		"src/window.c",
-		"include/cnergy.h",
-		"src/bind.c",
+		//"include/cnergy.h",
+		//"src/bind.c",
 	};
 	struct window *windows[ARRLEN(files)];
 	for(unsigned i = 0; i < ARRLEN(files); i++) {
@@ -158,17 +158,13 @@ main(int argc, char **argv)
 	}
 	windows[0]->right = windows[1];
 	windows[1]->left = windows[0];
-	windows[1]->right = windows[2];
-	windows[2]->left = windows[1];
-	windows[1]->below = windows[3];
-	windows[3]->above = windows[1];
 	focus_window = windows[0];
 
 	// uncomment this code to add a fileviewer
 	// don't worry if it looks a little scuffed, may need to add borders
-	struct window *w = window_new(WINDOW_FILEVIEWER);
+	/*struct window *w = window_new(WINDOW_FILEVIEWER);
 	windows[2]->below = w;
-	w->above = windows[2];
+	w->above = windows[2];*/
 
 	while(1) {
 		int c;

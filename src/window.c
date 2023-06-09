@@ -79,7 +79,7 @@ window_close(struct window *win)
 		focus_window = win->below ? win->below :
 			win->right ? win->right :
 			win->left ? win->left :
-			win->above ? win->above : n_windows > 1 ? 
+			win->above ? win->above : n_windows > 1 ?
 				(win == all_windows[0] ? all_windows[1] :
 					all_windows[0]) : NULL;
 	window_detach(win);
@@ -199,26 +199,29 @@ window_attach(struct window *to, struct window *win, int pos)
 	}
 	// find shortest list
 	nVert = 0;
+	nHorz = 0;
 	for(w = to; w->above; w = w->above);
 	for(; w->below; w = w->below)
 		nVert++;
-
-	nHorz = 0;
 	for(w = to; w->left; w = w->left);
 	for(; w->right; w = w->right)
 		nHorz++;
-	if(nHorz < nVert)
+	if(nVert > nHorz)
 		goto horizontal_attach;
 vertical_attach:
 	if(to->below)
 		to->below->above = win;
 	win->below = to->below;
 	win->above = to;
+	win->left = NULL;
+	win->right = NULL;
 	to->below = win;
 	return;
 horizontal_attach:
 	if(to->right)
 		to->right->left = win;
+	win->above = NULL;
+	win->below = NULL;
 	win->right = to->right;
 	win->left = to;
 	to->right = win;
@@ -245,23 +248,26 @@ window_detach(struct window *win)
 		l->right = r;
 	if(r)
 		r->left = l;
-	if(b && !a && l) {
-		b->left = l;
-		if(!b->right) {
+	if(!a && !l) {
+		if(b && r) {
+			while(b->right)
+				b = b->right;
 			b->right = r;
-			if(r)
-				r->left = b;
-		}
-		l->right = b;
-	}
-	if(r && !l && a) {
-		r->above = a;
-		if(!r->below) {
+			r->left = b;
+			/*// Second option:
+			while(r->below)
+				r = r->below;
 			r->below = b;
-			if(b)
-				b->above = r;
+			b->above = r;*/
 		}
+	} else if(a && r) {
+		r->above = a;
+		r->below = b;
 		a->below = r;
+	} else if(l && b) {
+		b->left = l;
+		b->right = r;
+		l->right = b;
 	}
 }
 
@@ -269,32 +275,31 @@ void
 window_layout(struct window *win)
 {
 	struct window *w;
-	int i;
-	unsigned nRight = 1, nBelow = 1;
+	unsigned nBelow = 1, nRight = 1;
 	int linesPer, colsPer, linesRemainder, colsRemainder;
-	int nextCol, nextLine;
+	int nextLine, nextCol;
 	const int line = win->line;
 	const int col = win->col;
 	const int lines = win->lines;
 
-	if(!win->left)
-		for(w = win->right; w; w = w->right)
-			nRight++;
 	if(!win->above)
 		for(w = win->below; w; w = w->below)
 			nBelow++;
+	if(!win->left)
+		for(w = win->right; w; w = w->right)
+			nRight++;
 	linesPer = win->lines / nBelow;
 	colsPer = win->cols / nRight;
 	linesRemainder = win->lines % nBelow;
 	colsRemainder = win->cols % nRight;
 
-	win->cols = colsPer;
 	win->lines = linesPer;
-	nextCol = col + colsPer;
+	win->cols = colsPer;
 	nextLine = line + linesPer;
+	nextCol = col + colsPer;
 	/* if there is a window left, it will not handle the right windows, we don't want to handle them twice */
 	if(!win->left)
-		for(w = win->right; w; w = w->right) {
+		for(w = win; (w = w->right); ) {
 			w->line = line;
 			w->col = nextCol;
 			w->lines = lines;
@@ -308,7 +313,7 @@ window_layout(struct window *win)
 		}
 	/* if there is a window above, it will not handle the below windows, we don't want to handle them twice */
 	if(!win->above)
-		for(i = 1, w = win->below; w; w = w->below, i++) {
+		for(w = win; (w = w->below); ) {
 			w->line = nextLine;
 			w->col = col;
 			/* note that we use linesPer and not lines here */
