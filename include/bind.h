@@ -9,7 +9,8 @@
  * For further information, see parser.h
  */
 
-typedef enum {
+typedef enum
+{
 	BIND_CALL_NULL,
 	// general bindings calls, these have a default behavior which cannot be overwritten but only extended
 	BIND_CALL_STARTLOOP,
@@ -51,42 +52,49 @@ typedef enum {
 	BIND_CALL_SORTMODIFICATIONTIME,
 	BIND_CALL_SORTALPHABETICAL,
 	BIND_CALL_SORTCHANGETIME,
+	BIND_CALL_SETTINGS,
 } bind_call_t;
 
-typedef enum {
-	FBIND_CALL_USENUMBER 	= 1 << 0,
-	FBIND_CALL_AND 			= 1 << 1,
-	FBIND_CALL_OR 			= 1 << 2,
-	FBIND_CALL_XOR 			= 1 << 3,
-	FBIND_CALL_USECACHE 	= 1 << 4,
-	FBIND_CALL_USEKEY 		= 1 << 5,
-	FBIND_CALL_CACHE 		= 1 << 6,
+typedef enum
+{
+	FBIND_CALL_USENUMBER = 1 << 0,
+	FBIND_CALL_AND = 1 << 1,
+	FBIND_CALL_OR = 1 << 2,
+	FBIND_CALL_XOR = 1 << 3,
+	FBIND_CALL_USECACHE = 1 << 4,
+	FBIND_CALL_USEKEY = 1 << 5,
+	FBIND_CALL_CACHE = 1 << 6,
 } bind_flags_t;
 
-struct binding_call {
+struct binding_call
+{
 	bind_call_t type;
 	bind_flags_t flags;
 	ptrdiff_t param;
-	union {
+	union
+	{
 		void *ptr;
 		char *str;
 	};
 };
 
-struct binding {
+struct binding
+{
 	small_size_t nKeys;
 	small_size_t nCalls;
 	int *keys;
 	struct binding_call *calls;
 };
 
-enum {
-	FBIND_MODE_SUPPLEMENTARY 	= 1 << 0,
-	FBIND_MODE_SELECTION 		= 1 << 1,
-	FBIND_MODE_TYPE 			= 1 << 2,
+enum
+{
+	FBIND_MODE_SUPPLEMENTARY = 1 << 0,
+	FBIND_MODE_SELECTION = 1 << 1,
+	FBIND_MODE_TYPE = 1 << 2,
 };
 
-struct binding_mode {
+struct binding_mode
+{
 	char name[64];
 	unsigned flags;
 	small_size_t nBindings;

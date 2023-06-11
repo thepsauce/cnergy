@@ -4,10 +4,12 @@
 #define _GNU_SOURCE // for qsort_r
 #include "base.h"
 #include <curses.h>
+#include <stddef.h>
+#include <time.h>
 
-#define ersline(max) ({ \
-	__auto_type _m = (max); \
-	printw("%*s", MAX((int) _m - getcurx(stdscr), 0), ""); \
+#define ersline(max) ({                                   \
+	__auto_type _m = (max);                               \
+	printw("%*s", MAX((int)_m - getcurx(stdscr), 0), ""); \
 })
 
 /* Settings */
@@ -16,7 +18,8 @@
  * Settings allow for high customizability. Settings include
  * colors, tabsize and so on.
  */
-typedef enum {
+typedef enum
+{
 	SET_TABSIZE,
 	// line numbers of a focused window
 	SET_COLOR_LINENR_FOCUS,
@@ -54,8 +57,10 @@ extern int all_settings[];
  * of slightly slower insertion times.
  */
 
-struct sortedlist {
-	struct sortedlist_entry {
+struct sortedlist
+{
+	struct sortedlist_entry
+	{
 		char *word;
 		// the parameter can be anything you want
 		void *param;
@@ -82,7 +87,8 @@ bool sortedlist_exists(struct sortedlist *s, const char *word, size_t nWord, voi
 
 typedef unsigned fileid_t;
 
-struct filecache {
+struct filecache
+{
 	char name[NAME_MAX];
 	unsigned flags;
 	unsigned mode;
@@ -103,7 +109,8 @@ FILE *fc_open(fileid_t file, const char *mode);
 /** Get the file cache data */
 struct filecache *fc_lock(fileid_t file);
 /** Get a file type compute from the mode member of fc */
-enum {
+enum
+{
 	FC_TYPE_DIR,
 	FC_TYPE_REG,
 	FC_TYPE_EXEC, // this is not really a type but it's still good to differentiate files with and without execution rights
@@ -180,14 +187,16 @@ int clipboard_paste(char **text);
  * insertion and especially deletion operations but slightly slows down caret movement
  */
 
-enum {
+enum
+{
 	EVENT_INSERT,
 	EVENT_DELETE,
 	EVENT_REPLACE,
 };
 
 // TODO: maybe make a global event queue that can be used from anywhere and is also stored in a file (restore session on crash)
-struct event {
+struct event
+{
 	unsigned flags;
 	unsigned type;
 	size_t iGap;
@@ -199,7 +208,8 @@ struct event {
 // Default size of the buffer gap
 #define BUFFER_GAP_SIZE 64
 
-struct buffer {
+struct buffer
+{
 	char *data;
 	size_t nData;
 	size_t iGap;
@@ -260,7 +270,8 @@ size_t buffer_getline(const struct buffer *buf, int line, char *dest, size_t max
  * The syntax will in the future not be defined in c files but rather in .cng files where the user can also add custom syntax
  */
 
-struct state {
+struct state
+{
 	// the window we draw inside of
 	struct window *win;
 	// the stack can be used to repurpose states (states within states)
@@ -273,7 +284,8 @@ struct state {
 	// the words array should be freed when finished
 	struct sortedlist words;
 	// paranthesis matching
-	struct state_paran {
+	struct state_paran
+	{
 		int line, col;
 		int ch;
 	} *parans, *misparans;
@@ -299,7 +311,9 @@ struct state {
 
 // Skip spaces and tabs
 // Note: Put this at the beginning of a state function
-#define STATE_SKIPSPACE(s) if(isblank(s->data[s->index])) return 0
+#define STATE_SKIPSPACE(s)          \
+	if (isblank(s->data[s->index])) \
+	return 0
 // Push a state to the state stack
 int state_push(struct state *s, unsigned state);
 // Pop the state from the state stack into the current state

@@ -19,34 +19,39 @@
  * above the current selected base path using ..
  */
 
-typedef enum {
+typedef enum
+{
 	WINDOW_ALL,
 	WINDOW_EDIT,
 	WINDOW_BUFFERVIEWER,
 	WINDOW_FILEVIEWER,
 	// TODO: add more
 	WINDOW_MAX,
+	WINDOW_SETTINGS,
 } window_type_t;
 
 #define FILEVIEW_SORT_ALPHA 0
 #define FILEVIEW_SORT_MODTIME 1
 #define FILEVIEW_SORT_CHGTIME 2
 
-typedef struct {
+typedef struct
+{
 	// Can also add global flags here
-	union {
+	union
+	{
 		// WINDOW_EDIT
 		// edit.c
-		struct {
-
+		struct
+		{
 		};
 		// WINDOW_FILEVIEWER
 		// fileview.c
-		struct {
-			unsigned hidden: 1;
-			unsigned sort: 2;
-			unsigned sortType: 1;
-			unsigned sortReverse: 1;
+		struct
+		{
+			unsigned hidden : 1;
+			unsigned sort : 2;
+			unsigned sortType : 1;
+			unsigned sortReverse : 1;
 		};
 	};
 } window_flags_t;
@@ -55,7 +60,8 @@ struct state;
 struct binding_mode;
 struct binding_call;
 
-struct window {
+struct window
+{
 	window_flags_t flags;
 	window_type_t type; // defined in cnergy.h
 	// the binding mode this window is in
@@ -68,9 +74,11 @@ struct window {
 	struct window *above, *below;
 	// that window is left/right of this window
 	struct window *left, *right;
-	union {
+	union
+	{
 		// WINDOW_EDIT
-		struct {
+		struct
+		{
 			// text buffer
 			struct buffer *buffer;
 			// syntax states
@@ -81,7 +89,8 @@ struct window {
 			size_t selection;
 		};
 		// WINDOW_FILEVIEWER
-		struct {
+		struct
+		{
 			fileid_t base;
 			int selected;
 			int scroll;
@@ -95,7 +104,8 @@ struct window {
 	};
 };
 
-extern struct window_type {
+extern struct window_type
+{
 	int (*render)(struct window *win);
 	int (*type)(struct window *win, const char *str, size_t nStr);
 	bool (*bindcall)(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
@@ -133,7 +143,8 @@ struct window *window_right(const struct window *win);
 /** ATT_WINDOW_UNSPECIFIED: The function decides where the window should best go */
 /** ATT_WINDOW_VERTICAL: The window should go below */
 /** ATT_WINDOW_HORIZONTAL: The window should go right */
-enum {
+enum
+{
 	ATT_WINDOW_UNSPECIFIED,
 	ATT_WINDOW_VERTICAL,
 	ATT_WINDOW_HORIZONTAL,

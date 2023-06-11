@@ -67,7 +67,8 @@
  * When a function has to abort and it's not possible to recover, it returns MUSTSKIP
  * When a syntax construct was read correctly and the next can being, FINISH is returns
  */
-enum {
+enum
+{
 	OUTOFMEMORY = -1,
 	SUCCESS,
 	FAIL,
@@ -78,7 +79,8 @@ enum {
 /**
  * Errors cause the parser to throw all away after it finished, warnings just give information
  */
-typedef enum {
+typedef enum
+{
 	WARN_,
 	WARN_MAX,
 
@@ -109,8 +111,10 @@ typedef enum {
 	ERR_CACHE_MISMATCH,
 } parser_error_t;
 
-struct parser {
-	struct parser_file {
+struct parser
+{
+	struct parser_file
+	{
 		FILE *fp;
 		fileid_t file;
 	} files[16];
@@ -126,7 +130,8 @@ struct parser {
 	struct binding_mode *curMode;
 	// the requests are necessary to allow usage before declaration
 	// append requests are added when a mode should be extended by another
-	struct append_request {
+	struct append_request
+	{
 		struct binding_mode *mode;
 		window_type_t windowType;
 		char donor[64];
@@ -138,7 +143,8 @@ struct parser {
 	int nLoopStack;
 	struct binding_call *calls;
 	unsigned nCalls;
-	struct {
+	struct
+	{
 		parser_error_t err;
 		long pos;
 		fileid_t file;
