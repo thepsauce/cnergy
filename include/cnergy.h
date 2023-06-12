@@ -141,6 +141,27 @@ bool utf8_valid(const char *utf8, size_t nStr);
 /** Convert byte distance to char distance */
 ptrdiff_t utf8_cnvdist(const char *str, size_t nStr, size_t index, ptrdiff_t distance);
 
+/* Regex */
+
+typedef unsigned regex_nodeid_t;
+
+struct regex_group {
+	regex_nodeid_t head, tail;
+};
+
+struct regex_matcher {
+	// unnamed capture groups
+	struct regex_group unnGroups[9];
+	// named capture groups
+	struct {
+		char name[64];
+		struct regex_group group;
+	} *groups;
+	unsigned nGroups;
+};
+
+int regex_addpattern(struct regex_matcher *matcher, const char *pattern);
+
 /* Dialog */
 // dialog.c
 /**
@@ -204,7 +225,7 @@ struct buffer {
 	size_t nData;
 	size_t iGap;
 	size_t nGap;
-	unsigned vct;
+	int vct;
 	fileid_t file;
 	unsigned saveEvent;
 	struct event *events;

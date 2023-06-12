@@ -33,7 +33,7 @@ mode_allockeys(const int *keys, unsigned nKeys)
 		if(!memcmp(k, keys, sizeof(*keys) * nKeys))
 			return k;
 	if((void*) (mode_keys + nKeys) > (void*) mode_calls)
-	   return NULL;
+		return NULL;
 	k = mode_keys;
 	memcpy(mode_keys, keys, sizeof(*keys) * nKeys);
 	mode_keys += nKeys;
@@ -47,8 +47,8 @@ mode_alloccalls(const struct binding_call *calls, unsigned nCalls)
 
 	for(c = (struct binding_call*) (mode_space + sizeof(mode_space));
 			c > mode_calls + nCalls; c--)
-	   if(!memcmp(c, calls, sizeof(*calls) * nCalls))
-		   return c;
+		if(!memcmp(c, calls, sizeof(*calls) * nCalls))
+			return c;
 	if((void*) (mode_calls - nCalls) < (void*) mode_keys)
 		return NULL;
 	mode_calls -= nCalls;
@@ -272,7 +272,7 @@ print_modes(struct binding_mode *m)
 	printf("MODE: %s (%#x)(%u bindings)\n", m->name, m->flags, m->nBindings);
 	for(unsigned j = 0; j < m->nBindings; j++) {
 		const struct binding bind = m->bindings[j];
-		printf("  BIND([%p]%u, [%p]%u): ", bind.keys, bind.nKeys, bind.calls, bind.nCalls);
+		printf("  BIND([%p]%u, [%p]%u): ", (void*) bind.keys, bind.nKeys, (void*) bind.calls, bind.nCalls);
 		fflush(stdout);
 		for(int *k = bind.keys, *e = k + bind.nKeys;;) {
 			for(;;) {
@@ -489,25 +489,17 @@ bind_exec(const int *keys, ptrdiff_t amount)
 			break;
 		}
 		case BIND_CALL_OPENWINDOW: {
-			const fileid_t file = 0; // TODO: add choosefile(); again
-			if(file) {
-				struct buffer *buf;
-				struct window *win;
+			struct window *win;
+			struct window *oldFocus;
 
-				buf = buffer_new(file);
-				if(!buf) {
-					b = false;
-					break;
-				}
-				win = edit_new(buf, edit_statesfromfiletype(file));
-				if(win) {
-					window_attach(focus_window, win, ATT_WINDOW_UNSPECIFIED);
-					focus_window = win;
-				} else {
-					buffer_free(buf);
-					b = false;
-				}
+			win = window_new(WINDOW_FILEVIEWER);
+			if(!win) {
+				b = false;
+				break;
 			}
+			oldFocus = focus_window;
+			window_copylayout(win, focus_window);
+			window_delete(oldFocus);
 			break;
 		}
 		case BIND_CALL_NEWWINDOW: {
