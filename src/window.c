@@ -1,49 +1,5 @@
 #include "cnergy.h"
 
-int
-null_render(windowid_t winid)
-{
-	(void) winid;
-	return 1;
-}
-
-int
-null_type(windowid_t winid, const char *str, size_t nStr)
-{
-	(void) winid;
-	(void) str;
-	(void) nStr;
-	return 1;
-}
-
-bool
-null_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
-{
-	(void) winid;
-	(void) bc;
-	(void) param;
-	(void) pCached;
-	return false;
-}
-
-// edit
-int edit_render(windowid_t winid);
-int edit_type(windowid_t winid, const char *str, size_t nStr);
-bool edit_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
-// buffer viewer
-int bufferviewer_render(windowid_t winid);
-bool bufferviewer_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
-// file view
-int fileviewer_render(windowid_t winid);
-int fileviewer_type(windowid_t winid, const char *str, size_t nStr);
-bool fileviewer_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
-
-struct window_type window_types[] = {
-	[WINDOW_EDIT] = { edit_render, edit_type, edit_bindcall },
-	[WINDOW_BUFFERVIEWER] = { bufferviewer_render, null_type, bufferviewer_bindcall },
-	[WINDOW_FILEVIEWER] = { fileviewer_render, fileviewer_type, fileviewer_bindcall },
-};
-
 /* all windows in here are rendered */
 struct window *all_windows;
 windowid_t n_windows;
@@ -316,18 +272,3 @@ window_layout(windowid_t winid)
 			window_layout(wid);
 		}
 }
-
-int
-window_render(windowid_t winid)
-{
-	/* don't need to render empty windows */
-	if(window_getarea(winid) == 0)
-		return 1;
-	window_types[window_gettype(winid)].render(winid);
-	if(window_getbelow(winid) != ID_NULL)
-		window_render(window_getbelow(winid));
-	if(window_getright(winid) != ID_NULL)
-		window_render(window_getright(winid));
-	return 0;
-}
-

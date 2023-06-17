@@ -94,11 +94,6 @@ struct window {
 	};
 };
 
-extern struct window_type {
-	int (*render)(windowid_t winid);
-	int (*type)(windowid_t winid, const char *str, size_t nStr);
-	bool (*bindcall)(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
-} window_types[];
 extern struct window *all_windows;
 extern windowid_t n_windows;
 extern windowid_t focus_window;

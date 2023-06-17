@@ -145,38 +145,6 @@ parser_getintparam(struct parser *parser)
 int
 parser_getcall(struct parser *parser)
 {
-	// TODO: when this list is complete, add binary search or hashing (same goes for translate_key)
-	static const struct {
-		const char *word;
-		bind_call_t type;
-		unsigned paramType;
-	} namedCommands[] = {
-		{ "COLOR", BIND_CALL_COLORWINDOW, 0 },
-		{ "CLOSE", BIND_CALL_CLOSEWINDOW, 0 },
-		{ "NEW", BIND_CALL_NEWWINDOW, 0 },
-		{ "OPEN", BIND_CALL_OPENWINDOW, 0 },
-		{ "HSPLIT", BIND_CALL_HSPLIT, 0 },
-		{ "VSPLIT", BIND_CALL_VSPLIT, 0 },
-		{ "QUIT", BIND_CALL_QUIT, 0 },
-
-		{ "DELETE", BIND_CALL_DELETESELECTION, 0 },
-		{ "COPY", BIND_CALL_COPY, 0 },
-		{ "PASTE", BIND_CALL_PASTE, 0 },
-		{ "UNDO", BIND_CALL_UNDO, 0 },
-		{ "REDO", BIND_CALL_REDO, 0 },
-		{ "WRITE", BIND_CALL_WRITEFILE, 0 },
-		{ "READ", BIND_CALL_READFILE, 0 },
-
-		{ "FIND", BIND_CALL_FIND, 1 },
-
-		{ "CHOOSE", BIND_CALL_CHOOSE, 0 },
-		{ "SORT_ALPHABETICAL", BIND_CALL_SORTALPHABETICAL, 0 },
-		{ "SORT_CHANGETIME", BIND_CALL_SORTCHANGETIME, 0 },
-		{ "SORT_MODIFICATIONTIME", BIND_CALL_SORTMODIFICATIONTIME, 0 },
-		{ "TOGGLE_SORT_TYPE", BIND_CALL_TOGGLESORTTYPE, 0 },
-		{ "TOGGLE_SORT_REVERSE", BIND_CALL_TOGGLESORTREVERSE, 0 },
-		{ "TOGGLE_HIDDEN", BIND_CALL_TOGGLEHIDDEN, 0 },
-	};
 	struct binding_call *newCalls;
 
 	newCalls = realloc(parser->calls, sizeof(*parser->calls) * (parser->nCalls + 1));
@@ -211,7 +179,7 @@ parser_getcall(struct parser *parser)
 			break;
 		}
 		parser->loopStack[parser->nLoopStack++] = parser->nCalls;
-		parser->calls[parser->nCalls].type = BIND_CALL_STARTLOOP;
+		parser->calls[parser->nCalls].type = EVENT_STARTLOOP;
 		break;
 	case ')':
 		if(parser_getc(parser) != ')') {
@@ -232,11 +200,11 @@ parser_getcall(struct parser *parser)
 			parser_pusherror(parser, ERR_EMPTY_LOOP);
 			break;
 		}
-		parser->calls[parser->nCalls].type = BIND_CALL_ENDLOOP;
+		parser->calls[parser->nCalls].type = EVENT_ENDLOOP;
 		break;
 	case '#':
 		parser_getc(parser);
-		parser->calls[parser->nCalls].type = BIND_CALL_REGISTER;
+		parser->calls[parser->nCalls].type = EVENT_REGISTER;
 		parser_getintparam(parser);
 		break;
 	case '$':
@@ -265,11 +233,11 @@ parser_getcall(struct parser *parser)
 				parser_pusherror(parser, ERR_WINDOW_DEL);
 				break;
 			}
-			parser->calls[parser->nCalls].type = vert ? BIND_CALL_MOVEWINDOW_BELOW : BIND_CALL_MOVEWINDOW_RIGHT;
+			parser->calls[parser->nCalls].type = vert ? EVENT_MOVEWINDOW_BELOW : EVENT_MOVEWINDOW_RIGHT;
 		} else if(del) {
-			parser->calls[parser->nCalls].type = vert ? BIND_CALL_DELETELINE : BIND_CALL_DELETE;
+			parser->calls[parser->nCalls].type = vert ? EVENT_DELETELINE : EVENT_DELETE;
 		} else {
-			parser->calls[parser->nCalls].type = vert ? BIND_CALL_MOVEVERT : horz ? BIND_CALL_MOVEHORZ : BIND_CALL_MOVECURSOR;
+			parser->calls[parser->nCalls].type = vert ? EVENT_MOVEVERT : horz ? EVENT_MOVEHORZ : EVENT_MOVECURSOR;
 		}
 		parser->calls[parser->nCalls].param = SAFE_MUL(sign, parser->num);
 		break;
@@ -278,11 +246,11 @@ parser_getcall(struct parser *parser)
 	case '+': {
 		int r;
 
-		parser->calls[parser->nCalls].type = parser->c == '+' ? BIND_CALL_INSERT : BIND_CALL_ASSERT;
+		parser->calls[parser->nCalls].type = parser->c == '+' ? EVENT_INSERT : EVENT_ASSERT;
 		parser_getc(parser);
 		if(parser->c != '\"') {
-			parser->calls[parser->nCalls].type = parser->calls[parser->nCalls].type == BIND_CALL_INSERT ?
-				BIND_CALL_INSERTCHAR : BIND_CALL_ASSERTCHAR;
+			parser->calls[parser->nCalls].type = parser->calls[parser->nCalls].type == EVENT_INSERT ?
+				EVENT_INSERTCHAR : EVENT_ASSERTCHAR;
 			parser_getintparam(parser);
 			break;
 		}
@@ -305,21 +273,23 @@ parser_getcall(struct parser *parser)
 			return FAIL;
 		}
 		if(setMode) {
-			parser->calls[parser->nCalls].type = BIND_CALL_SETMODE;
+			parser->calls[parser->nCalls].type = EVENT_SETMODE;
 			parser->calls[parser->nCalls].str = mode_allocstr(parser->word, strlen(parser->word));
 		} else {
-			unsigned i;
-			for(i = 0; i < ARRLEN(namedCommands); i++)
-				if(!strcasecmp(namedCommands[i].word, parser->word)) {
-					parser->calls[parser->nCalls].type = namedCommands[i].type;
-					if(namedCommands[i].paramType) {
+			event_type_t type;
+
+			for(type = 0; type < EVENT_MAX; type++)
+				if(infoEvents[type].name &&
+						!strcasecmp(infoEvents[type].name, parser->word)) {
+					parser->calls[parser->nCalls].type = type;
+					if(infoEvents[type].paramType) {
 						while(isblank(parser->c))
 							parser_getc(parser);
 						parser_getintparam(parser);
 					}
 					break;
 				}
-			if(i == ARRLEN(namedCommands)) {
+			if(type == EVENT_MAX) {
 				parser_pusherror(parser, ERR_INVALID_COMMAND);
 				break;
 			}

@@ -10,50 +10,6 @@
  */
 
 typedef enum {
-	BIND_CALL_NULL,
-	// general bindings calls, these have a default behavior which cannot be overwritten but only extended
-	BIND_CALL_STARTLOOP,
-	BIND_CALL_ENDLOOP,
-	BIND_CALL_REGISTER,
-	BIND_CALL_SETMODE,
-	BIND_CALL_VSPLIT,
-	BIND_CALL_HSPLIT,
-	BIND_CALL_COLORWINDOW,
-	BIND_CALL_OPENWINDOW,
-	BIND_CALL_CLOSEWINDOW,
-	BIND_CALL_NEWWINDOW,
-	BIND_CALL_MOVEWINDOW_RIGHT,
-	BIND_CALL_MOVEWINDOW_BELOW,
-	BIND_CALL_QUIT,
-	// these have no default behavior and it solely depends on the window type what the behavior is
-	BIND_CALL_ASSERT,
-	BIND_CALL_ASSERTCHAR,
-	BIND_CALL_MOVECURSOR,
-	BIND_CALL_MOVEHORZ,
-	BIND_CALL_MOVEVERT,
-	BIND_CALL_INSERT,
-	BIND_CALL_INSERTCHAR,
-	BIND_CALL_DELETE,
-	BIND_CALL_DELETELINE,
-	BIND_CALL_DELETESELECTION,
-	BIND_CALL_COPY,
-	BIND_CALL_PASTE,
-	BIND_CALL_UNDO,
-	BIND_CALL_REDO,
-	BIND_CALL_WRITEFILE,
-	BIND_CALL_READFILE,
-	BIND_CALL_FIND,
-
-	BIND_CALL_CHOOSE,
-	BIND_CALL_TOGGLEHIDDEN,
-	BIND_CALL_TOGGLESORTTYPE,
-	BIND_CALL_TOGGLESORTREVERSE,
-	BIND_CALL_SORTMODIFICATIONTIME,
-	BIND_CALL_SORTALPHABETICAL,
-	BIND_CALL_SORTCHANGETIME,
-} bind_call_t;
-
-typedef enum {
 	FBIND_CALL_USENUMBER 	= 1 << 0,
 	FBIND_CALL_AND 			= 1 << 1,
 	FBIND_CALL_OR 			= 1 << 2,
@@ -63,10 +19,11 @@ typedef enum {
 } bind_flags_t;
 
 struct binding_call {
-	bind_call_t type;
+	event_type_t type;
 	bind_flags_t flags;
-	ptrdiff_t param;
 	union {
+		char input[64];
+		ptrdiff_t param;
 		void *ptr;
 		char *str;
 		char name[64];

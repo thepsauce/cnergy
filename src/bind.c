@@ -197,57 +197,57 @@ print_binding_calls(struct binding_call *calls, unsigned nCalls) {
 		if(calls->flags & FBIND_CALL_OR)
 			printf("| ");
 		switch(calls->type) {
-		case BIND_CALL_NULL:
+		case EVENT_NULL:
 			printf("NULL ");
 			break;
-		case BIND_CALL_ASSERT:
+		case EVENT_ASSERT:
 			printf("ASSERT ");
 			print_escaped_string(calls->str);
 			break;
-		case BIND_CALL_STARTLOOP:
+		case EVENT_STARTLOOP:
 			printf("((");
 			break;
-		case BIND_CALL_ENDLOOP:
+		case EVENT_ENDLOOP:
 			printf("))");
 			break;
-		case BIND_CALL_REGISTER:
+		case EVENT_REGISTER:
 			printf("REGISTER %zd", calls->param);
 			break;
-		case BIND_CALL_MOVECURSOR:
+		case EVENT_MOVECURSOR:
 			printf("MOVECURSOR %zd", calls->param);
 			break;
-		case BIND_CALL_MOVEHORZ:
+		case EVENT_MOVEHORZ:
 			printf("MOVEHORZ %zd", calls->param);
 			break;
-		case BIND_CALL_MOVEVERT:
+		case EVENT_MOVEVERT:
 			printf("MOVEVERT %zd", calls->param);
 			break;
-		case BIND_CALL_INSERT:
+		case EVENT_INSERT:
 			printf("INSERT ");
 			print_escaped_string(calls->str);
 			break;
-		case BIND_CALL_DELETE:
+		case EVENT_DELETE:
 			printf("DELETE %zd", calls->param);
 			break;
-		case BIND_CALL_DELETELINE:
+		case EVENT_DELETELINE:
 			printf("DELETELINE %zd", calls->param);
 			break;
-		case BIND_CALL_DELETESELECTION:
+		case EVENT_DELETESELECTION:
 			printf("DELETESELECTION");
 			break;
-		case BIND_CALL_SETMODE:
+		case EVENT_SETMODE:
 			printf("SETMODE %s", calls->str);
 			break;
-		case BIND_CALL_COPY:
+		case EVENT_COPY:
 			printf("COPY");
 			break;
-		case BIND_CALL_PASTE:
+		case EVENT_PASTE:
 			printf("PASTE");
 			break;
-		case BIND_CALL_UNDO:
+		case EVENT_UNDO:
 			printf("UNDO");
 			break;
-		case BIND_CALL_REDO:
+		case EVENT_REDO:
 			printf("REDO");
 			break;
 		default:
@@ -390,6 +390,7 @@ bind_exec(const int *keys, ptrdiff_t amount)
 	ptrdiff_t reg = 0;
 	ptrdiff_t cached = 0;
 	unsigned nKeys = 0;
+	struct event ev;
 
 	bind = mode_findbind(window_getbindmode(focus_window), keys);
 	if(bind == (struct binding*) window_getbindmode(focus_window))
@@ -428,27 +429,27 @@ bind_exec(const int *keys, ptrdiff_t amount)
 			continue;
 		}
 		switch(bc.type) {
-		case BIND_CALL_STARTLOOP:
+		case EVENT_STARTLOOP:
 			frame.state = true;
 			stateStack[nStateStack++] = frame;
 			frame.run = false;
 			// continue to ignore flags like and/or (they wouldn't do anything for startloop anyway)
 			continue;
-		case BIND_CALL_ENDLOOP:
+		case EVENT_ENDLOOP:
 			bcs -= bc.param;
 			nbc += bc.param;
 			frame.state = true;
 			frame.run = true;
 			// continue to ignore flags like and/or
 			continue;
-		case BIND_CALL_REGISTER:
+		case EVENT_REGISTER:
 			b = !!reg;
 			reg += m;
 			break;
-		case BIND_CALL_SETMODE:
+		case EVENT_SETMODE:
 			window_setbindmode(focus_window, mode_find(window_gettype(focus_window), bc.str));
 			break;
-		case BIND_CALL_CLOSEWINDOW:
+		case EVENT_CLOSEWINDOW:
 			window_close(focus_window);
 			b = !!focus_window;
 			if(!n_windows) {
@@ -457,12 +458,12 @@ bind_exec(const int *keys, ptrdiff_t amount)
 				exit(0);
 			}
 			break;
-		case BIND_CALL_MOVEWINDOW_RIGHT:
-		case BIND_CALL_MOVEWINDOW_BELOW: {
+		case EVENT_MOVEWINDOW_RIGHT:
+		case EVENT_MOVEWINDOW_BELOW: {
 			ptrdiff_t i = 0;
 			// get the right directional function
 			windowid_t (*const next)(windowid_t) =
-				bc.type == BIND_CALL_MOVEWINDOW_RIGHT ?
+				bc.type == EVENT_MOVEWINDOW_RIGHT ?
 					(m > 0 ? window_right : window_left) :
 				m > 0 ? window_below : window_above;
 			const ptrdiff_t di = m < 0 ? -1 : 1;
@@ -471,7 +472,7 @@ bind_exec(const int *keys, ptrdiff_t amount)
 			b = i == m;
 			break;
 		}
-		case BIND_CALL_VSPLIT: {
+		case EVENT_VSPLIT: {
 			windowid_t winid;
 
 			winid = window_dup(focus_window);
@@ -482,7 +483,7 @@ bind_exec(const int *keys, ptrdiff_t amount)
 			window_attach(focus_window, winid, ATT_WINDOW_HORIZONTAL);
 			break;
 		}
-		case BIND_CALL_HSPLIT: {
+		case EVENT_HSPLIT: {
 			const windowid_t winid = window_dup(focus_window);
 			if(winid == ID_NULL) {
 				b = false;
@@ -491,7 +492,7 @@ bind_exec(const int *keys, ptrdiff_t amount)
 			window_attach(focus_window, winid, ATT_WINDOW_VERTICAL);
 			break;
 		}
-		case BIND_CALL_OPENWINDOW: {
+		case EVENT_OPENWINDOW: {
 			const windowid_t winid = window_new(WINDOW_FILEVIEWER);
 			if(winid == ID_NULL) {
 				b = false;
@@ -502,7 +503,7 @@ bind_exec(const int *keys, ptrdiff_t amount)
 			window_copylayout(winid, focus_window);
 			break;
 		}
-		case BIND_CALL_NEWWINDOW: {
+		case EVENT_NEWWINDOW: {
 			bufferid_t bufid;
 			windowid_t winid;
 
@@ -521,14 +522,18 @@ bind_exec(const int *keys, ptrdiff_t amount)
 			}
 			break;
 		}
-		case BIND_CALL_COLORWINDOW:
+		case EVENT_COLORWINDOW:
 			// TODO: open a color window or focus an existing one
 			break;
 		default:
 			// not a general bind call
 			break;
 		}
-		b &= window_types[window_gettype(focus_window)].bindcall(focus_window, &bc, m, &cached);
+		/* Generate window event */
+		ev.type = bc.type;
+		memcpy(ev.input, bc.input, MIN(sizeof(ev.input), sizeof(bc.input)));
+		event_dispatch(&ev);
+		cached = ev.cached;
 		while(((bc.flags & FBIND_CALL_OR) && !(frame.state |= b))
 				|| ((bc.flags & FBIND_CALL_AND) && !(frame.state &= b))) {
 		end_frame:
@@ -538,7 +543,7 @@ bind_exec(const int *keys, ptrdiff_t amount)
 				if(!nbc)
 					return 0; // found end of program without any endloop in our way
 				bc = *bcs;
-			} while(bc.type != BIND_CALL_ENDLOOP);
+			} while(bc.type != EVENT_ENDLOOP);
 			b = frame.run;
 			frame = stateStack[--nStateStack];
 		}

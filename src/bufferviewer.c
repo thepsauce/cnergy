@@ -5,7 +5,7 @@
 static int row = 0;
 static int column = 0;
 
-int
+static inline int
 bufferviewer_render(windowid_t winid)
 {
 	bufferid_t bid = 0;
@@ -44,38 +44,37 @@ bufferviewer_render(windowid_t winid)
 }
 
 bool
-bufferviewer_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
+bufferviewer_event(windowid_t winid, struct event *ev)
 {
 	(void) winid;
-	(void) pCached;
-	switch(bc->type) {
-	case BIND_CALL_MOVEVERT:
-		if(!row && param < 0)
+	switch(ev->type) {
+	case EVENT_MOVEVERT:
+		if(!row && ev->amount < 0)
 			return false;
-		if(row + 1 >= (int) n_buffers && param > 0)
+		if(row + 1 >= (int) n_buffers && ev->amount> 0)
 			return false;
-		row = SAFE_ADD(row, param);
+		row = SAFE_ADD(row, ev->amount);
 		row = MIN(row, (int) n_buffers - 1);
 		row = MAX(row, 0);
 		break;
-	case BIND_CALL_MOVEHORZ:
-		if(!column && param < 0)
+	case EVENT_MOVEHORZ:
+		if(!column && ev->amount < 0)
 			return false;
-		if(column + 1 >= MAXCOLUMN && param > 0)
+		if(column + 1 >= MAXCOLUMN && ev->amount > 0)
 			return false;
-		column = SAFE_ADD(column, param);
+		column = SAFE_ADD(column, ev->amount);
 		column = MIN(column, MAXCOLUMN - 1);
 		column = MAX(column, 0);
 		break;
-	case BIND_CALL_MOVECURSOR: {
+	case EVENT_MOVECURSOR: {
 		int cursor;
 		const int maxCursor = n_buffers * MAXCOLUMN;
 		cursor = column + row * MAXCOLUMN;
-		if(!cursor && param < 0)
+		if(!cursor && ev->amount < 0)
 			return false;
-		if(cursor >= maxCursor && param > 0)
+		if(cursor >= maxCursor && ev->amount > 0)
 			return false;
-		cursor = SAFE_ADD(cursor, param);
+		cursor = SAFE_ADD(cursor, ev->amount);
 		cursor = MIN(cursor, maxCursor - 1);
 		cursor = MAX(cursor, 0);
 		row = cursor / MAXCOLUMN;

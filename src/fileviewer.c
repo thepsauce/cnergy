@@ -28,7 +28,7 @@ files_compare(const void *a, const void *b, void *arg)
 	return cmp;
 }
 
-int
+static inline int
 fileviewer_render(windowid_t winid)
 {
 	struct {
@@ -137,26 +137,21 @@ end:
 	return 0;
 }
 
-int
-fileviewer_type(struct window *win, const char *str, size_t nStr)
-{
-	if(iscntrl(*str))
-		return 1;
-	if(strlen(win->path) + nStr >= sizeof(win->path))
-		return 1;
-	memcpy(win->path + win->cursor + nStr, win->path + win->cursor, strlen(win->path + win->cursor) + 1);
-	memcpy(win->path + win->cursor, str, nStr);
-	win->cursor += nStr;
-	return 0;
-}
-
 bool
-fileviewer_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
+fileviewer_event(windowid_t winid, struct event *ev)
 {
 	struct window *const win = all_windows + winid;
-	(void) pCached;
-	switch(bc->type) {
-	case BIND_CALL_CHOOSE: {
+	switch(ev->type) {
+	case EVENT_TYPE:
+		if(iscntrl(*ev->str))
+			return false;
+		if(strlen(win->path) + strlen(ev->str) >= sizeof(win->path))
+			return false;
+		memcpy(win->path + win->cursor + strlen(ev->str), win->path + win->cursor, strlen(win->path + win->cursor) + 1);
+		memcpy(win->path + win->cursor, ev->str, strlen(ev->str));
+		win->cursor += strlen(ev->str);
+		return true;
+	case EVENT_CHOOSE: {
 		fileid_t file;
 		struct filecache *fc;
 		file = fc_find(win->base, win->path);
@@ -189,33 +184,33 @@ fileviewer_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, 
 		break;
 	}
 	if(win->bindMode->flags & FBIND_MODE_TYPE) {
-		switch(bc->type) {
-		case BIND_CALL_MOVEHORZ: {
-			const ssize_t p = utf8_cnvdist(win->path, strlen(win->path), win->cursor, param);
+		switch(ev->type) {
+		case EVENT_MOVEHORZ: {
+			const ssize_t p = utf8_cnvdist(win->path, strlen(win->path), win->cursor, ev->amount);
 			win->cursor += p;
-			return p == param;
+			return p == ev->amount;
 		}
-		case BIND_CALL_DELETE: {
+		case EVENT_DELETE: {
 			const size_t n = strlen(win->path);
-			const ssize_t p = utf8_cnvdist(win->path, n, win->cursor, param);
+			const ssize_t p = utf8_cnvdist(win->path, n, win->cursor, ev->amount);
 			if(p < 0) {
 				memmove(win->path + win->cursor + p, win->path + win->cursor, n + 1 - win->cursor);
 				win->cursor += p;
 			} else {
 				memmove(win->path + win->cursor, win->path + win->cursor + p, n + 1 - win->cursor - p);
 			}
-			return p == param;
+			return p == ev->amount;
 		}
 		default:
 			return false;
 		}
 	} else {
-		switch(bc->type) {
-		case BIND_CALL_MOVEVERT:
-			if((!win->selected && param < 0) ||
-					(win->selected == win->maxSelected && param >= 0))
+		switch(ev->type) {
+		case EVENT_MOVEVERT:
+			if((!win->selected && ev->amount < 0) ||
+					(win->selected == win->maxSelected && ev->amount >= 0))
 				return false;
-			win->selected = SAFE_ADD(win->selected, param);
+			win->selected = SAFE_ADD(win->selected, ev->amount);
 			if(win->selected < 0) {
 				win->selected = 0;
 				win->scroll = 0;
@@ -231,12 +226,12 @@ fileviewer_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, 
 			else if(win->selected - win->scroll >= win->lines - 3)
 				win->scroll = win->selected - win->lines + 3;
 			break;
-		case BIND_CALL_TOGGLEHIDDEN: win->flags.hidden = !win->flags.hidden; break;
-		case BIND_CALL_TOGGLESORTTYPE: win->flags.sortType = !win->flags.sortType; break;
-		case BIND_CALL_TOGGLESORTREVERSE: win->flags.sortReverse = !win->flags.sortReverse; break;
-		case BIND_CALL_SORTALPHABETICAL: win->flags.sort = FILEVIEW_SORT_ALPHA; break;
-		case BIND_CALL_SORTMODIFICATIONTIME: win->flags.sort = FILEVIEW_SORT_MODTIME; break;
-		case BIND_CALL_SORTCHANGETIME: win->flags.sort = FILEVIEW_SORT_CHGTIME; break;
+		case EVENT_TOGGLEHIDDEN: win->flags.hidden = !win->flags.hidden; break;
+		case EVENT_TOGGLESORTTYPE: win->flags.sortType = !win->flags.sortType; break;
+		case EVENT_TOGGLESORTREVERSE: win->flags.sortReverse = !win->flags.sortReverse; break;
+		case EVENT_SORTALPHABETICAL: win->flags.sort = FILEVIEW_SORT_ALPHA; break;
+		case EVENT_SORTMODIFICATIONTIME: win->flags.sort = FILEVIEW_SORT_MODTIME; break;
+		case EVENT_SORTCHANGETIME: win->flags.sort = FILEVIEW_SORT_CHGTIME; break;
 		default:
 			return false;
 		}

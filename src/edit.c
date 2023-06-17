@@ -49,14 +49,7 @@ edit_new(bufferid_t bufid, int (**states)(struct state *s))
 	return winid;
 }
 
-int
-edit_type(windowid_t winid, const char *str, size_t nStr)
-{
-	buffer_insert(all_windows[winid].buffer, str, nStr);
-	return 0;
-}
-
-int
+static inline int
 edit_render(windowid_t winid)
 {
 	bufferid_t bufid;
@@ -284,34 +277,38 @@ edit_render(windowid_t winid)
 }
 
 bool
-edit_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
+edit_event(windowid_t winid, struct event *ev)
 {
 	struct window *const win = all_windows + winid;
 	const bufferid_t bufid = win->buffer;
 	struct buffer *const buf = all_buffers + bufid;
-	switch(bc->type) {
-	case BIND_CALL_SETMODE:
+	switch(ev->type) {
+	case EVENT_TYPE:
+		buffer_insert(bufid, ev->str, strlen(ev->str));
+		break;
+	case EVENT_RENDER:
+		edit_render(winid);
+		break;
+	case EVENT_SETMODE:
 		if(win->bindMode->flags & FBIND_MODE_SELECTION)
 			win->selection = buf->iGap;
 		return true;
-	case BIND_CALL_ASSERT:
-		return !memcmp(bc->str, buf->data + buf->iGap + buf->nGap, MIN(strlen(bc->str), buf->nData - buf->iGap));
-	case BIND_CALL_ASSERTCHAR:
-		return buf->iGap != buf->nData && (char) param == buf->data[buf->iGap + buf->nGap];
-	case BIND_CALL_MOVECURSOR: return buffer_movecursor(bufid, param) == param;
-	case BIND_CALL_MOVEHORZ: return buffer_movehorz(bufid, param) == param;
-	case BIND_CALL_INSERTCHAR: {
-		char ch = param;
-		buffer_insert(bufid, &ch, 1);
+	case EVENT_ASSERT:
+		return !memcmp(ev->str, buf->data + buf->iGap + buf->nGap, MIN(strlen(ev->str), buf->nData - buf->iGap));
+	case EVENT_ASSERTCHAR:
+		return buf->iGap != buf->nData && ev->c == buf->data[buf->iGap + buf->nGap];
+	case EVENT_MOVECURSOR: return buffer_movecursor(bufid, ev->amount) == ev->amount;
+	case EVENT_MOVEHORZ: return buffer_movehorz(bufid, ev->amount) == ev->amount;
+	case EVENT_INSERTCHAR:
+		buffer_insert(bufid, &ev->c, 1);
 		return true;
-	}
-	case BIND_CALL_MOVEVERT: return buffer_movevert(bufid, param) == param;
-	case BIND_CALL_INSERT:
-		buffer_insert(bufid, bc->str, strlen(bc->str));
+	case EVENT_MOVEVERT: return buffer_movevert(bufid, ev->amount) == ev->amount;
+	case EVENT_INSERT:
+		buffer_insert(bufid, ev->str, strlen(ev->str));
 		return true;
-	case BIND_CALL_DELETE: return buffer_delete(bufid, param) == param;
-	case BIND_CALL_DELETELINE: return buffer_deleteline(bufid, param) == param;
-	case BIND_CALL_DELETESELECTION: {
+	case EVENT_DELETE: return buffer_delete(bufid, ev->amount) == ev->amount;
+	case EVENT_DELETELINE: return buffer_deleteline(bufid, ev->amount) == ev->amount;
+	case EVENT_DELETESELECTION: {
 		size_t n;
 
 		if(!(win->bindMode->flags & FBIND_MODE_SELECTION) || !buf->nData)
@@ -326,7 +323,7 @@ edit_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdif
 		win->selection = buf->iGap;
 		return true;
 	}
-	case BIND_CALL_COPY: {
+	case EVENT_COPY: {
 		char *text;
 		size_t nText;
 
@@ -341,7 +338,7 @@ edit_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdif
 		}
 		return !clipboard_copy(text, nText);
 	}
-	case BIND_CALL_PASTE: {
+	case EVENT_PASTE: {
 		char *text;
 
 		if(!clipboard_paste(&text)) {
@@ -351,21 +348,21 @@ edit_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdif
 		}
 		return false;
 	}
-	case BIND_CALL_UNDO:
+	case EVENT_UNDO:
 		return buffer_undo(bufid);
-	case BIND_CALL_REDO:
+	case EVENT_REDO:
 		return buffer_redo(bufid);
-	case BIND_CALL_WRITEFILE:
+	case EVENT_WRITEFILE:
 		return buffer_save(bufid);
-	case BIND_CALL_FIND:
+	case EVENT_FIND:
+		// TODO: find should get a rework soon where regex is used
 		for(size_t i = buf->iGap + buf->nGap; i < buf->nData + buf->nGap; i++)
-			if(buf->data[i] == param) {
-				*pCached = i - buf->iGap - buf->nGap;
+			if(buf->data[i] == ev->amount) {
+				ev->cached = i - buf->iGap - buf->nGap;
 				return true;
 			}
 		return false;
 	default:
 		return false;
 	}
-	return true;
 }

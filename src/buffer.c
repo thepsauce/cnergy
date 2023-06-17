@@ -56,13 +56,13 @@ buffer_free(bufferid_t bufid)
 	free(buf->data);
 	for(unsigned i = 0; i < buf->nEvents; i++) {
 		switch(buf->events[i].type) {
-		case EVENT_INSERT:
+		case BUFFER_EVENT_INSERT:
 			free(buf->events[i].ins);
 			break;
-		case EVENT_DELETE:
+		case BUFFER_EVENT_DELETE:
 			free(buf->events[i].del);
 			break;
-		case EVENT_REPLACE:
+		case BUFFER_EVENT_REPLACE:
 			free(buf->events[i].ins);
 			free(buf->events[i].del);
 			break;
@@ -269,21 +269,21 @@ buffer_movevert(bufferid_t bufid, ptrdiff_t distance)
 	return cDistance - distance;
 }
 
-static struct event *
+static struct buffer_event *
 buffer_addevent(bufferid_t bufid)
 {
-	struct event *ev, *newEvents;
+	struct buffer_event *ev, *newEvents;
 	struct buffer *const buf = all_buffers + bufid;
 	if(buf->nEvents > buf->iEvent) {
 		for(unsigned i = buf->iEvent; i < buf->nEvents; i++) {
 			switch(buf->events[i].type) {
-			case EVENT_INSERT:
+			case BUFFER_EVENT_INSERT:
 				free(buf->events[i].ins);
 				break;
-			case EVENT_DELETE:
+			case BUFFER_EVENT_DELETE:
 				free(buf->events[i].del);
 				break;
-			case EVENT_REPLACE:
+			case BUFFER_EVENT_REPLACE:
 				free(buf->events[i].ins);
 				free(buf->events[i].del);
 				break;
@@ -302,7 +302,7 @@ buffer_addevent(bufferid_t bufid)
 size_t
 buffer_insert(bufferid_t bufid, const char *str, size_t nStr)
 {
-	struct event *ev;
+	struct buffer_event *ev;
 	struct buffer *const buf = all_buffers + bufid;
 	// if gap is too small to insert n characters, increase gap size
 	if(nStr > buf->nGap) {
@@ -326,7 +326,7 @@ buffer_insert(bufferid_t bufid, const char *str, size_t nStr)
 	// try to join events
 	if(buf->iEvent) {
 		ev = buf->events + buf->iEvent - 1;
-		if(ev->type == EVENT_INSERT && ev->iGap + ev->nIns == buf->iGap - nStr) {
+		if(ev->type == BUFFER_EVENT_INSERT && ev->iGap + ev->nIns == buf->iGap - nStr) {
 			ev->ins = dialog_realloc(ev->ins, ev->nIns + nStr);
 			memcpy(ev->ins + ev->nIns, str, nStr);
 			ev->vct = buf->vct;
@@ -337,9 +337,9 @@ buffer_insert(bufferid_t bufid, const char *str, size_t nStr)
 	// add event
 	if(!(ev = buffer_addevent(bufid)))
 		return nStr;
-	*ev = (struct event) {
+	*ev = (struct buffer_event) {
 		.flags = 0,
-		.type = EVENT_INSERT,
+		.type = BUFFER_EVENT_INSERT,
 		.iGap = buf->iGap - nStr,
 		.vct = buf->vct,
 		.prevVct = prevVct,
@@ -375,7 +375,7 @@ buffer_insert_file(bufferid_t bufid, fileid_t file)
 ptrdiff_t
 buffer_delete(bufferid_t bufid, ptrdiff_t amount)
 {
-	struct event *ev;
+	struct buffer_event *ev;
 	struct buffer *const buf = all_buffers + bufid;
 	amount = buffer_cnvdist(buf, amount);
 	if(!amount)
@@ -383,9 +383,9 @@ buffer_delete(bufferid_t bufid, ptrdiff_t amount)
 	// add event
 	if(!(ev = buffer_addevent(bufid)))
 		return amount;
-	*ev = (struct event) {
+	*ev = (struct buffer_event) {
 		.flags = 0,
-		.type = EVENT_DELETE,
+		.type = BUFFER_EVENT_DELETE,
 		.prevVct = buf->vct,
 		.del = dialog_alloc(ABS(amount)),
 		.nDel = ABS(amount),
@@ -415,7 +415,7 @@ buffer_delete(bufferid_t bufid, ptrdiff_t amount)
 ptrdiff_t
 buffer_deleteline(bufferid_t bufid, ptrdiff_t amount)
 {
-	struct event *ev;
+	struct buffer_event *ev;
 	size_t l, r;
 	size_t nLinesDeleted = 0;
 	struct buffer *const buf = all_buffers + bufid;
@@ -456,9 +456,9 @@ buffer_deleteline(bufferid_t bufid, ptrdiff_t amount)
 	// add event
 	if(!(ev = buffer_addevent(bufid)))
 		return nLinesDeleted;
-	*ev = (struct event) {
+	*ev = (struct buffer_event) {
 		.flags = 0,
-		.type = EVENT_DELETE,
+		.type = BUFFER_EVENT_DELETE,
 		.iGap = buf->iGap,
 		.vct = buf->vct,
 		.prevVct = buf->vct,
@@ -479,21 +479,21 @@ buffer_undo(bufferid_t bufid)
 	struct buffer *const buf = all_buffers + bufid;
 	if(!buf->iEvent)
 		return 0;
-	const struct event ev = buf->events[--buf->iEvent];
+	const struct buffer_event ev = buf->events[--buf->iEvent];
 	switch(ev.type) {
-	case EVENT_INSERT:
+	case BUFFER_EVENT_INSERT:
 		unsafe_buffer_movecursor(buf, ev.iGap - buf->iGap);
 		buf->nGap += ev.nIns;
 		buf->nData -= ev.nIns;
 		break;
-	case EVENT_DELETE:
+	case BUFFER_EVENT_DELETE:
 		unsafe_buffer_movecursor(buf, ev.iGap - buf->iGap);
 		memmove(buf->data + ev.iGap, ev.del, ev.nDel);
 		buf->iGap += ev.nDel;
 		buf->nGap -= ev.nDel;
 		buf->nData += ev.nDel;
 		break;
-	case EVENT_REPLACE:
+	case BUFFER_EVENT_REPLACE:
 		unsafe_buffer_movecursor(buf, ev.iGap - buf->iGap);
 		memmove(buf->data + ev.iGap, ev.del, ev.nDel);
 		buf->iGap -= ev.nIns;
@@ -514,21 +514,21 @@ buffer_redo(bufferid_t bufid)
 	struct buffer *const buf = all_buffers + bufid;
 	if(buf->iEvent == buf->nEvents)
 		return 0;
-	const struct event ev = buf->events[buf->iEvent++];
+	const struct buffer_event ev = buf->events[buf->iEvent++];
 	switch(ev.type) {
-	case EVENT_INSERT:
+	case BUFFER_EVENT_INSERT:
 		unsafe_buffer_movecursor(buf, ev.iGap - buf->iGap);
 		memmove(buf->data + buf->iGap, ev.ins, ev.nIns);
 		buf->iGap += ev.nIns;
 		buf->nGap -= ev.nIns;
 		buf->nData += ev.nIns;
 		break;
-	case EVENT_DELETE:
+	case BUFFER_EVENT_DELETE:
 		unsafe_buffer_movecursor(buf, ev.iGap - buf->iGap);
 		buf->nGap += ev.nDel;
 		buf->nData -= ev.nDel;
 		break;
-	case EVENT_REPLACE:
+	case BUFFER_EVENT_REPLACE:
 		unsafe_buffer_movecursor(buf, ev.iGap - buf->iGap);
 		memmove(buf->data + ev.iGap, ev.ins, ev.nIns);
 		buf->iGap += ev.nIns;

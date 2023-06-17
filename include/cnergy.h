@@ -57,7 +57,7 @@ extern int all_settings[];
 struct sortedlist {
 	struct sortedlist_entry {
 		char *word;
-		// the parameter can be anything you want
+		/* The parameter can be anything you want */
 		void *param;
 	} *entries;
 	size_t nEntries;
@@ -68,78 +68,112 @@ int sortedlist_add(struct sortedlist *s, const char *word, size_t nWord, void *p
 int sortedlist_remove(struct sortedlist *s, const char *word, size_t nWord);
 bool sortedlist_exists(struct sortedlist *s, const char *word, size_t nWord, void **pParam);
 
-/* File caching */
-// filecache.c
-/**
- * This tries to create a cache of the files and directories
- * of the user.
- */
-
-/** If a cached file has this flag and it's a directory, all sub files/dirs are also cached */
-#define FC_COLLAPSED 0x10
-/** The node is not in the user's filesystem */
-#define FC_VIRTUAL 0x80
-
-typedef unsigned fileid_t;
-
-struct filecache {
-	char name[NAME_MAX];
-	unsigned flags;
-	unsigned mode;
-	time_t atime, ctime, mtime;
-	fileid_t *children;
-	unsigned nChildren;
-	fileid_t parent;
-};
-
-/** Similar to getting the current working directory */
-fileid_t fc_getbasefile(void);
-/** Get the relative file path of given file */
-int fc_getrelativepath(fileid_t from, fileid_t file, char *dest, size_t maxDest);
-/** Get the absolute file path of given file */
-int fc_getabsolutepath(fileid_t file, char *dest, size_t maxDest);
-/** Open the file at given fileid */
-FILE *fc_open(fileid_t file, const char *mode);
-/** Get the file cache data */
-struct filecache *fc_lock(fileid_t file);
-/** Get a file type compute from the mode member of fc */
-enum {
-	FC_TYPE_DIR,
-	FC_TYPE_REG,
-	FC_TYPE_EXEC, // this is not really a type but it's still good to differentiate files with and without execution rights
-	FC_TYPE_OTHER,
-};
-int fc_type(struct filecache *fc);
-bool fc_isdir(struct filecache *fc);
-bool fc_isreg(struct filecache *fc);
-bool fc_isexec(struct filecache *fc);
-bool fc_iswrite(struct filecache *fc);
-bool fc_isread(struct filecache *fc);
-void fc_unlock(struct filecache *fc);
-/** Caches a path that starts from given file */
-fileid_t fc_cache(fileid_t file, const char *path);
-/** Compares cached file with real filesystem */
-int fc_recache(fileid_t file);
-/** Finds a cached file that starts from given path */
-fileid_t fc_find(fileid_t file, const char *path);
-
 /* UTF8 */
 // utf8.c
 
-// Returns the width this would visually take up
-// Note: Newlines are interpreted as ^J
+/**
+ * Returns the width this would visually take up
+ * Note: Newlines are interpreted as ^J
+ */
 int utf8_widthnstr(const char *str, size_t nStr);
 int utf8_widthstr(const char *str);
-// Returns the number of columns this character takes up
-// Note: nStr is not allowed to be 0, it's undefined behavior
+/**
+ * Returns the number of columns this character takes up
+ * Note: nStr is not allowed to be 0, it's undefined behavior
+ */
 int utf8_width(const char *utf8, size_t nStr, int tabRef);
-// Returns the length of bytes of a single character
+/** Returns the length of bytes of a single character */
 unsigned utf8_len(const char *str, size_t nStr);
-// Checks if the given character is valid utf8
-// Note: nStr is not allowed to be 0, might cause segfault
+/**
+ * Checks if the given character is valid utf8
+ * Note: nStr is not allowed to be 0, might cause segfault
+ */
 bool utf8_valid(const char *utf8, size_t nStr);
 /** Convert byte distance to char distance */
 ptrdiff_t utf8_cnvdist(const char *str, size_t nStr, size_t index, ptrdiff_t distance);
+
+/* Event */
+
+typedef enum {
+	EVENT_NULL,
+	// general events, these have a default behavior which cannot be overwritten but only extended
+	EVENT_STARTLOOP,
+	EVENT_ENDLOOP,
+	EVENT_REGISTER,
+	EVENT_SETMODE,
+	EVENT_VSPLIT,
+	EVENT_HSPLIT,
+	EVENT_COLORWINDOW,
+	EVENT_OPENWINDOW,
+	EVENT_CLOSEWINDOW,
+	EVENT_NEWWINDOW,
+	EVENT_MOVEWINDOW_RIGHT,
+	EVENT_MOVEWINDOW_BELOW,
+	EVENT_QUIT,
+	// these have no default behavior and it solely depends on the window type what the behavior is
+	EVENT_CREATE,
+	EVENT_DESTROY,
+	EVENT_RENDER,
+	EVENT_TYPE,
+	EVENT_ASSERT,
+	EVENT_ASSERTCHAR,
+	EVENT_MOVECURSOR,
+	EVENT_MOVEHORZ,
+	EVENT_MOVEVERT,
+	EVENT_INSERT,
+	EVENT_INSERTCHAR,
+	EVENT_DELETE,
+	EVENT_DELETELINE,
+	EVENT_DELETESELECTION,
+	EVENT_COPY,
+	EVENT_PASTE,
+	EVENT_UNDO,
+	EVENT_REDO,
+	EVENT_WRITEFILE,
+	EVENT_READFILE,
+	EVENT_FIND,
+
+	EVENT_CHOOSE,
+	EVENT_TOGGLEHIDDEN,
+	EVENT_TOGGLESORTTYPE,
+	EVENT_TOGGLESORTREVERSE,
+	EVENT_SORTMODIFICATIONTIME,
+	EVENT_SORTALPHABETICAL,
+	EVENT_SORTCHANGETIME,
+
+	EVENT_MAX,
+} event_type_t;
+
+struct event {
+	event_type_t type;
+	/* Input space */
+	union {
+		char input[64];
+		void *create;
+		// nothing for destroy
+		// nothing for render
+		const char *str;
+		void *ptr;
+		char name[64];
+		char c;
+		ptrdiff_t amount;
+	};
+	/* Output space */
+	union {
+		char output[64];
+		ptrdiff_t cached;
+	};
+};
+
+struct event_info {
+	const char *name;
+	unsigned paramType;
+};
+
+extern const struct event_info infoEvents[EVENT_MAX];
+
+/** Dispatches event, uses the focus window */
+bool event_dispatch(struct event *ev);
 
 /* Regex */
 
@@ -168,7 +202,6 @@ int regex_addpattern(struct regex_matcher *matcher, const char *pattern);
  * Dialogs temporarily block all user input to show a message and wait for a user's reaction
  */
 
-const char *choosefile(void);
 int messagebox(const char *title, const char *msg, ...);
 // These functions show a dialog to the user if the allocation failed
 // The user may then retry allocating or cancel
@@ -182,100 +215,29 @@ void *dialog_realloc(void *ptr, size_t newSz);
 // X11 support YES
 // MacOS support NO
 
-// This function copies the given text to the clipboard
-// Returns 0 if the function succeeded
+/**
+ * This function copies the given text to the clipboard
+ * Returns 0 if the function succeeded
+ */
 int clipboard_copy(const char *text, size_t nText);
-// This function gets the clipboard text and stores it inside text,
-// the received pointer must be freed by the caller
-// Returns 0 if the function succeeded
+/**
+ * This function gets the clipboard text and stores it inside text,
+ * the received pointer must be freed by the caller
+ * Returns 0 if the function succeeded
+ */
 int clipboard_paste(char **text);
 
 #define ID_NULL UINT_MAX
 
+typedef unsigned fileid_t;
 typedef unsigned windowid_t;
 typedef unsigned bufferid_t;
 
+#include "filecache.h"
+#include "buffer.h"
 #include "window.h"
 #include "bind.h"
 #include "parse.h"
-
-/* Gap buffer */
-// buffer.c
-/**
- * The gap buffer is a dynamic array that has a gap which is part of the data, this makes for very efficient
- * insertion and especially deletion operations but slightly slows down caret movement
- */
-
-enum {
-	EVENT_INSERT,
-	EVENT_DELETE,
-	EVENT_REPLACE,
-};
-
-// TODO: maybe make a global event queue that can be used from anywhere and is also stored in a file (restore session on crash)
-struct event {
-	unsigned flags;
-	unsigned type;
-	size_t iGap;
-	unsigned vct, prevVct;
-	char *ins, *del;
-	size_t nIns, nDel;
-};
-
-// Default size of the buffer gap
-#define BUFFER_GAP_SIZE 64
-
-struct buffer {
-	char *data;
-	size_t nData;
-	size_t iGap;
-	size_t nGap;
-	int vct;
-	fileid_t file;
-	unsigned saveEvent;
-	struct event *events;
-	unsigned nEvents;
-	unsigned iEvent;
-};
-
-extern struct buffer *all_buffers;
-extern unsigned n_buffers;
-
-// Create a new buffer based on the given file, it may be 0, then an empty buffer is created
-// This also adds it to the internal buffer list
-bufferid_t buffer_new(fileid_t file);
-// Free all resources associated to this buffer
-// Make sure to delete all windows associated to this buffer before calling this function
-void buffer_free(bufferid_t bufid);
-// Saves the buffer to its file; if it has none, the user will be asked to choose a file
-int buffer_save(bufferid_t bufid);
-// Returns the moved amount
-ptrdiff_t unsafe_buffer_movecursor(struct buffer *buf, ptrdiff_t distance);
-ptrdiff_t buffer_movecursor(bufferid_t bufid, ptrdiff_t distance);
-// Moves the cursor horizontally
-// Returns the moved amount
-ptrdiff_t buffer_movehorz(bufferid_t bufid, ptrdiff_t distance);
-// Move the cursor up or down by the specified number of lines
-// Returns the moved amount
-ptrdiff_t buffer_movevert(bufferid_t bufid, ptrdiff_t distance);
-// Returns the number of characters inserted
-size_t buffer_insert(bufferid_t bufid, const char *str, size_t nStr);
-// Returns the number of characters inserted
-size_t buffer_insert_file(bufferid_t bufid, fileid_t file);
-// Returns the amount that was deleted
-ptrdiff_t buffer_delete(bufferid_t bufid, ptrdiff_t amount);
-// Returns the amount of lines that were deleted
-ptrdiff_t buffer_deleteline(bufferid_t bufid, ptrdiff_t amount);
-// Returns the amount of events undone
-int buffer_undo(bufferid_t bufid);
-// Returns the amount of events redone
-int buffer_redo(bufferid_t bufid);
-// Returns line index at cursor
-int buffer_line(bufferid_t bufid);
-// Returns column index at cursor
-int buffer_col(bufferid_t bufid);
-// Returns the length of the line
-size_t buffer_getline(bufferid_t bufid, int line, char *dest, size_t maxDest);
 
 /* Syntax highlighting */
 // state.c

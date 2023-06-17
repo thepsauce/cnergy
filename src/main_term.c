@@ -144,6 +144,7 @@ main(int argc, char **argv)
 	int keys[32];
 	unsigned nKeys = 0;
 	ptrdiff_t num = 0;
+	struct event ev;
 
 	// setup some windows for testing
 	const char *files[] = {
@@ -161,7 +162,6 @@ main(int argc, char **argv)
 	all_windows[1].left = 0;
 
 	// uncomment this code to add a fileviewer
-	// don't worry if it looks a little scuffed, may need to add borders
 	/*struct window *w = window_new(WINDOW_FILEVIEWER);
 	windows[2]->below = w;
 	w->above = windows[2];*/
@@ -188,7 +188,8 @@ main(int argc, char **argv)
 				w->lines = nextLines;
 				w->cols = nextCols;
 				window_layout(i);
-				window_render(i);
+				ev.type = EVENT_RENDER;
+				event_dispatch(&ev);
 				nextLine += nextLines / 6;
 				nextCol += nextCols / 6;
 				nextLines = nextLines * 4 / 6;
@@ -228,7 +229,9 @@ main(int argc, char **argv)
 			const unsigned len = (c & 0xe0) == 0xc0 ? 2 : (c & 0xf0) == 0xe0 ? 3 : (c & 0xf8) == 0xf0 ? 4 : 1;
 			for(unsigned i = 1; i < len; i++)
 				b[i] = getch();
-			window_types[window_gettype(focus_window)].type(focus_window, b, len);
+			ev.type = EVENT_TYPE;
+			ev.str = (const char*) b;
+			event_dispatch(&ev);
 		}
 		// either append the digit to the number or try to execute a bind
 		// render status bar
