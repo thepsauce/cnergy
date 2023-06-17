@@ -29,7 +29,7 @@ files_compare(const void *a, const void *b, void *arg)
 }
 
 int
-fileviewer_render(struct window *win)
+fileviewer_render(windowid_t winid)
 {
 	struct {
 		struct filecache *fc;
@@ -40,7 +40,8 @@ fileviewer_render(struct window *win)
 	fileid_t file;
 	int y = 0;
 	char basePath[PATH_MAX];
-	const int statusbar1Color = all_settings[win == focus_window ? SET_COLOR_STATUSBAR1_FOCUS : SET_COLOR_STATUSBAR1];
+	struct window *const win = all_windows + winid;
+	const int statusbar1Color = all_settings[winid == focus_window ? SET_COLOR_STATUSBAR1_FOCUS : SET_COLOR_STATUSBAR1];
 	const int statusbar2Color = all_settings[SET_COLOR_STATUSBAR2];
 	const int dirselectedColor = all_settings[SET_COLOR_DIRSELECTED];
 	const int fileselectedColor = all_settings[SET_COLOR_FILESELECTED];
@@ -78,7 +79,7 @@ fileviewer_render(struct window *win)
 		if(win->selected == y) {
 			fc_getrelativepath(win->base, file, win->path, sizeof(win->path));
 			win->cursor = strlen(win->path);
-			if(win == focus_window) {
+			if(winid == focus_window) {
 				focus_x = win->col;
 				focus_y = win->line + y + 1 - win->scroll;
 			}
@@ -128,7 +129,7 @@ end:
 	addstr(win->path);
 	ersline(win->col + win->cols);
 	if(win->bindMode->flags & FBIND_MODE_TYPE) {
-		if(win == focus_window) {
+		if(winid == focus_window) {
 			focus_y = win->line + win->lines - 1;
 			focus_x = win->col + win->cursor;
 		}
@@ -150,8 +151,9 @@ fileviewer_type(struct window *win, const char *str, size_t nStr)
 }
 
 bool
-fileviewer_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
+fileviewer_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
 {
+	struct window *const win = all_windows + winid;
 	(void) pCached;
 	switch(bc->type) {
 	case BIND_CALL_CHOOSE: {
@@ -167,16 +169,16 @@ fileviewer_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param
 			fc_recache(file);
 		} else if(fc_isreg(fc)) {
 			struct buffer *buf;
-			struct window *newWin;
+			windowid_t wid;
 
 			fc_unlock(fc);
 			buf = buffer_new(file);
 			if(!buf)
 				break;
-			newWin = edit_new(buf, edit_statesfromfiletype(file));
-			if(newWin) {
-				window_copylayout(win, newWin);
-				window_delete(win);
+			wid = edit_new(buf, edit_statesfromfiletype(file));
+			if(wid != ID_NULL) {
+				window_copylayout(wid, winid);
+				window_delete(winid);
 				return true;
 			}
 		}

@@ -6,13 +6,14 @@ static int row = 0;
 static int column = 0;
 
 int
-bufferviewer_render(struct window *win)
+bufferviewer_render(windowid_t winid)
 {
 	unsigned i = 0;
+	struct window *const win = all_windows + winid;
 	const int itemselectedColor = all_settings[SET_COLOR_ITEMSELECTED];
 	const int itemColor = all_settings[SET_COLOR_ITEM];
-	const int statusbar1Color = win == focus_window ? all_settings[SET_COLOR_STATUSBAR1_FOCUS] : all_settings[SET_COLOR_STATUSBAR1];
-	const int statusbar2Color = win == focus_window ? all_settings[SET_COLOR_STATUSBAR2_FOCUS] : all_settings[SET_COLOR_STATUSBAR2];
+	const int statusbar1Color = winid == focus_window ? all_settings[SET_COLOR_STATUSBAR1_FOCUS] : all_settings[SET_COLOR_STATUSBAR1];
+	const int statusbar2Color = winid == focus_window ? all_settings[SET_COLOR_STATUSBAR2_FOCUS] : all_settings[SET_COLOR_STATUSBAR2];
 	const int maxCol1 = win->cols * 2 / 3;
 	for(int y = win->line; i < n_buffers && y < win->line + win->lines - 1; i++, y++) {
 		struct filecache *fc;
@@ -35,7 +36,7 @@ bufferviewer_render(struct window *win)
 	attrset(statusbar2Color);
 	printw("%u", n_buffers);
 	ersline(win->col + win->cols);
-	if(win == focus_window) {
+	if(winid == focus_window) {
 		focus_y = 0;
 		focus_x = 0;
 	}
@@ -43,9 +44,9 @@ bufferviewer_render(struct window *win)
 }
 
 bool
-bufferviewer_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
+bufferviewer_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
 {
-	(void) win;
+	(void) winid;
 	(void) pCached;
 	switch(bc->type) {
 	case BIND_CALL_MOVEVERT:

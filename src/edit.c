@@ -34,28 +34,30 @@ int (**edit_statesfromfiletype(fileid_t file))(struct state *s)
 	return states;
 }
 
-struct window *
+windowid_t
 edit_new(struct buffer *buf, int (**states)(struct state *s))
 {
+	windowid_t winid;
 	struct window *win;
 
-	win = window_new(WINDOW_EDIT);
-	if(!win)
-		return NULL;
+	winid = window_new(WINDOW_EDIT);
+	if(winid == ID_NULL)
+		return ID_NULL;
+	win = all_windows + winid;
 	win->buffer = buf;
 	win->states = states;
-	return win;
+	return winid;
 }
 
 int
-edit_type(struct window *win, const char *str, size_t nStr)
+edit_type(windowid_t winid, const char *str, size_t nStr)
 {
-	buffer_insert(win->buffer, str, nStr);
+	buffer_insert(all_windows[winid].buffer, str, nStr);
 	return 0;
 }
 
 int
-edit_render(struct window *win)
+edit_render(windowid_t winid)
 {
 	struct buffer *buf;
 	int curLine, curCol;
@@ -64,6 +66,7 @@ edit_render(struct window *win)
 	struct state state;
 	size_t minSel, maxSel;
 
+	struct window *const win = all_windows + winid;
 	// get buffer and cursor position
 	buf = win->buffer;
 	curLine = buffer_line(buf);
@@ -95,7 +98,7 @@ edit_render(struct window *win)
 
 	// get width of line numbers
 	nLineNumbers = 1; // initial padding to the right side
-	if(window_left(win))
+	if(window_left(winid) == ID_NULL)
 		nLineNumbers++; // add some padding
 	for(int i = state.maxLine; i; i /= 10)
 		nLineNumbers++;
@@ -111,7 +114,7 @@ edit_render(struct window *win)
 	state.maxCol = win->hScroll - nLineNumbers + win->cols;
 
 	// get bounds of selection
-	if(win == focus_window && (win->bindMode->flags & FBIND_MODE_SELECTION)) {
+	if(winid == focus_window && (win->bindMode->flags & FBIND_MODE_SELECTION)) {
 		if(win->selection > saveiGap) {
 			minSel = saveiGap;
 			maxSel = win->selection;
@@ -126,11 +129,11 @@ edit_render(struct window *win)
 	}
 
 	const int tabsize = all_settings[SET_TABSIZE];
-	const int lnrColor = win == focus_window ? all_settings[SET_COLOR_LINENR_FOCUS] : all_settings[SET_COLOR_LINENR];
+	const int lnrColor = winid == focus_window ? all_settings[SET_COLOR_LINENR_FOCUS] : all_settings[SET_COLOR_LINENR];
 	const int cntrlColor = all_settings[SET_COLOR_CNTRL];
 	const int endofbufferColor = all_settings[SET_COLOR_ENDOFBUFFER];
-	const int statusbar1Color = win == focus_window ? all_settings[SET_COLOR_STATUSBAR1_FOCUS] : all_settings[SET_COLOR_STATUSBAR1];
-	const int statusbar2Color = win == focus_window ? all_settings[SET_COLOR_STATUSBAR2_FOCUS] : all_settings[SET_COLOR_STATUSBAR2];
+	const int statusbar1Color = winid == focus_window ? all_settings[SET_COLOR_STATUSBAR1_FOCUS] : all_settings[SET_COLOR_STATUSBAR1];
+	const int statusbar2Color = winid == focus_window ? all_settings[SET_COLOR_STATUSBAR2_FOCUS] : all_settings[SET_COLOR_STATUSBAR2];
 
 	// setup loop
 	move(win->line, win->col);
@@ -269,7 +272,7 @@ edit_render(struct window *win)
 	printw(" %u, %u", curLine, curCol);
 	printw("%*s", MAX(win->col + win->cols - getcurx(stdscr), 0), "");
 	// set the global end caret position
-	if(win == focus_window) {
+	if(winid == focus_window) {
 		focus_y = win->line + curLine - state.minLine;
 		focus_x = win->col + curCol + nLineNumbers - state.minCol;
 	}
@@ -279,8 +282,9 @@ edit_render(struct window *win)
 }
 
 bool
-edit_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
+edit_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
 {
+	struct window *const win = all_windows + winid;
 	struct buffer *const buf = win->buffer;
 	switch(bc->type) {
 	case BIND_CALL_SETMODE:

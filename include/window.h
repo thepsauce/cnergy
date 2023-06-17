@@ -33,7 +33,8 @@ typedef enum {
 #define FILEVIEW_SORT_CHGTIME 2
 
 typedef struct {
-	// Can also add global flags here
+	/* Marks this window as dead, meaning it can be recycled */
+	unsigned dead: 1;
 	union {
 		// WINDOW_EDIT
 		// edit.c
@@ -64,10 +65,8 @@ struct window {
 	int line, col;
 	// size of the window
 	int lines, cols;
-	// that window is above/below this window
-	struct window *above, *below;
-	// that window is left/right of this window
-	struct window *left, *right;
+	// that window is above/below/left of/right of this window
+	windowid_t above, below, left, right;
 	union {
 		// WINDOW_EDIT
 		struct {
@@ -96,38 +95,104 @@ struct window {
 };
 
 extern struct window_type {
-	int (*render)(struct window *win);
-	int (*type)(struct window *win, const char *str, size_t nStr);
-	bool (*bindcall)(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
+	int (*render)(windowid_t win);
+	int (*type)(windowid_t win, const char *str, size_t nStr);
+	bool (*bindcall)(windowid_t win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
 } window_types[];
-extern struct window **all_windows;
+extern struct window *all_windows;
 extern unsigned n_windows;
-extern struct window *first_window;
-extern struct window *focus_window;
+extern windowid_t focus_window;
 extern int focus_y, focus_x;
 
+/** Helpful macros */
+#define window_get(g, wid) all_windows[wid].g
+#define window_getflags(wid) window_get(flags, wid)
+#define window_gettype(wid) window_get(type, wid)
+#define window_getbindmode(wid) window_get(bindMode, wid)
+#define window_setbindmode(wid, bm) all_windows[wid].bindMode = (bm)
+/** Getter for attached window */
+#define window_getabove(wid) window_get(above, wid)
+#define window_getbelow(wid) window_get(below, wid)
+#define window_getleft(wid) window_get(left, wid)
+#define window_getright(wid) window_get(right, wid)
+/** Setter for attached window */
+#define window_setabove(wid, a) all_windows[wid].above = (a)
+#define window_setbelow(wid, b) all_windows[wid].below = (b)
+#define window_setleft(wid, l) all_windows[wid].left = (l)
+#define window_setright(wid, r) all_windows[wid].right = (r)
+/** Get position and size of this window */
+#define window_getposition(wid, l, c, ls, cs) ({ \
+	struct window *_w = &all_windows[wid]; \
+	l = _w->line; \
+	c = _w->col; \
+	ls = _w->lines; \
+	cs = _w->cols; \
+	0; \
+})
+/** Set position and size of this window */
+#define window_setposition(wid, l, c, ls, cs) ({ \
+	struct window *_w = &all_windows[wid]; \
+	_w->line = (l); \
+	_w->col = (c); \
+	_w->lines = (ls); \
+	_w->cols = (cs); \
+	0; \
+})
+#define window_setsize(wid, ls, cs) ({ \
+	struct window *_w = &all_windows[wid]; \
+	_w->lines = (ls); \
+	_w->cols = (cs); \
+	0; \
+})
+#define window_getarea(wid) ({ \
+	struct window *_w = &all_windows[wid]; \
+	_w->cols * _w->lines; \
+})
+/** Returns the window that is most {dir} of given window */
+#define window_getmost(dir, wid) ({ \
+	windowid_t _wid = (wid); \
+	for(; _wid != ID_NULL; _wid = window_get(dir, _wid)); \
+	_wid; \
+})
+#define window_getmostabove(wid) window_getmost(above, wid)
+#define window_getmostbelow(wid) window_getmost(below, wid)
+#define window_getmostleft(wid) window_getmost(left, wid)
+#define window_getmostright(wid) window_getmost(right, wid)
+/** Counts the number of windows in a given direction, always includes the window itself */
+#define window_count(dir, wid) ({ \
+	windowid_t _wid = (wid); \
+	unsigned _c = 0; \
+	for(; _wid != ID_NULL; _wid = window_get(dir, _wid)) \
+		_c++; \
+	_c; \
+})
+#define window_countabove(wid) window_count(above, wid)
+#define window_countbelow(wid) window_count(below, wid)
+#define window_countleft(wid) window_count(left, wid)
+#define window_countright(wid) window_count(right, wid)
+
 /** Create a new window and add it to the window list */
-struct window *window_new(window_type_t type);
+windowid_t window_new(window_type_t type);
 /** Safe function that detaches, deletes the window and changes focus-/first window if needed */
-int window_close(struct window *win);
+int window_close(windowid_t winid);
 /** Delete this window from memory */
 /** Note: You must detach the window or copy the layout to another window before deleting it, otherwise it's undefined behavior */
-void window_delete(struct window *win);
-/** The second window will take the place of the first one; this also swaps the focus */
-void window_copylayout(struct window *win, struct window *rep);
+void window_delete(windowid_t winid);
+/** The destination window will take place of the source window; this also swaps the focus */
+void window_copylayout(windowid_t destid, windowid_t srcid);
 /** Creates a duplicate of the given window */
-struct window *window_dup(const struct window *win);
+windowid_t window_dup(windowid_t winid);
 /** Creates a duplicate of the given window */
-struct window *window_dup(const struct window *win);
+windowid_t window_dup(windowid_t winid);
 /** Moves this window to the foreground, it will be drawn last */
-int window_setforeground(struct window *win);
+int window_setforeground(windowid_t winid);
 /** This gets the window at given position */
-struct window *window_atpos(int y, int x);
+windowid_t window_atpos(int y, int x);
 /** These four functions have additional handling and may return non null values even though the internal struct value is null */
-struct window *window_above(const struct window *win);
-struct window *window_below(const struct window *win);
-struct window *window_left(const struct window *win);
-struct window *window_right(const struct window *win);
+windowid_t window_above(windowid_t winid);
+windowid_t window_below(windowid_t winid);
+windowid_t window_left(windowid_t winid);
+windowid_t window_right(windowid_t winid);
 /** Attach a window to another one */
 /** pos can be one of the following values: */
 /** ATT_WINDOW_UNSPECIFIED: The function decides where the window should best go */
@@ -138,16 +203,16 @@ enum {
 	ATT_WINDOW_VERTICAL,
 	ATT_WINDOW_HORIZONTAL,
 };
-void window_attach(struct window *to, struct window *win, int pos);
+void window_attach(windowid_t toid, windowid_t winid, int pos);
 /** Remove all connections to any other windows */
-void window_detach(struct window *win);
-void window_layout(struct window *win);
+void window_detach(windowid_t winid);
+void window_layout(windowid_t winid);
 /** Return values of 1 mean that the window wasn't rendered */
-int window_render(struct window *win);
+int window_render(windowid_t winid);
 
 /* Additional functions for specific window types */
 // edit.c
 int (**edit_statesfromfiletype(fileid_t file))(struct state *s);
-struct window *edit_new(struct buffer *buf, int (**states)(struct state *s));
+windowid_t edit_new(struct buffer *buf, int (**states)(struct state *s));
 
 #endif

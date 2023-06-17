@@ -296,7 +296,7 @@ fc_getabsolutepath(fileid_t file, char *dest, size_t maxDest)
 	memmove(dest - maxDest, dest, sMaxDest - maxDest);
 	return 0;
 err_path_too_long:
-	fprintf(stderr, "[%s:%u in fc_getabsolutepath()] path of file '%s' is too long (exceeding '%u' bytes)\n", __FILE__, __LINE__, file_caches[file].name, sMaxDest);
+	fprintf(stderr, "[%s:%u in fc_getabsolutepath()] path of file '%s' is too long (exceeding '%zu' bytes)\n", __FILE__, __LINE__, file_caches[file].name, sMaxDest);
 	return -1;
 }
 

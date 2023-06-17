@@ -190,6 +190,10 @@ int clipboard_copy(const char *text, size_t nText);
 // Returns 0 if the function succeeded
 int clipboard_paste(char **text);
 
+#define ID_NULL UINT_MAX
+
+typedef unsigned windowid_t;
+
 #include "window.h"
 #include "bind.h"
 #include "parse.h"

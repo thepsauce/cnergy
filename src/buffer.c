@@ -247,7 +247,7 @@ buffer_movevert(struct buffer *buf, ptrdiff_t distance)
 			return 0;
 		while(i > 0 && buf->data[i - 1] != '\n')
 			i--;
-		for(unsigned travelled = 0; travelled < buf->vct;) {
+		for(int travelled = 0; travelled < buf->vct;) {
 			if(buf->data[i] == '\n')
 				break;
 			travelled += utf8_width(buf->data + i, buf->nData + buf->nGap - i, travelled);
@@ -270,7 +270,7 @@ buffer_movevert(struct buffer *buf, ptrdiff_t distance)
 			// i > 0 not needed since we know that we crossed over a \n already
 			while(buf->data[i - 1] != '\n')
 				i--;
-		for(unsigned travelled = 0; i < buf->nData + buf->nGap && travelled < buf->vct;) {
+		for(int travelled = 0; i < buf->nData + buf->nGap && travelled < buf->vct;) {
 			if(buf->data[i] == '\n')
 				break;
 			travelled += utf8_width(buf->data + i, buf->nData + buf->nGap - i, travelled);

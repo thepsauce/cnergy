@@ -1,3 +1,5 @@
+#ifndef GUI
+
 #include "cnergy.h"
 #include <locale.h>
 
@@ -150,15 +152,13 @@ main(int argc, char **argv)
 		//"include/cnergy.h",
 		//"src/bind.c",
 	};
-	struct window *windows[ARRLEN(files)];
 	for(unsigned i = 0; i < ARRLEN(files); i++) {
 		const char *file = files[i % ARRLEN(files)];
 		struct buffer *b = buffer_new(fc_cache(fc_getbasefile(), file));
-		windows[i] = edit_new(b, c_states);
+		edit_new(b, c_states);
 	}
-	windows[0]->right = windows[1];
-	windows[1]->left = windows[0];
-	focus_window = windows[0];
+	all_windows[0].right = 1;
+	all_windows[1].left = 0;
 
 	// uncomment this code to add a fileviewer
 	// don't worry if it looks a little scuffed, may need to add borders
@@ -170,7 +170,7 @@ main(int argc, char **argv)
 		int c;
 		int nextLine, nextCol, nextLines, nextCols;
 
-		if(!focus_window)
+		if(!n_windows)
 			break;
 		// -1 to reserve a line to show the global status bar
 		nextLine = 0;
@@ -178,24 +178,26 @@ main(int argc, char **argv)
 		nextLines = LINES - 1;
 		nextCols = COLS;
 		// find all windows that are layout origins and render them
-		for(unsigned i = 0; i < n_windows; i++) {
-			struct window *const w = all_windows[i];
-			if(!w->left && !w->above) {
+		for(windowid_t i = 0; i < n_windows; i++) {
+			struct window *const w = all_windows + i;
+			if(w->flags.dead)
+				continue;
+			if(w->left == ID_NULL && w->above == ID_NULL) {
 				if(nextLine)
 					drawframe("", nextLine - 1, nextCol - 1, nextLines + 2, nextCols + 2);
 				w->line = nextLine;
 				w->col = nextCol;
 				w->lines = nextLines;
 				w->cols = nextCols;
-				window_layout(w);
-				window_render(w);
+				window_layout(i);
+				window_render(i);
 				nextLine += nextLines / 6;
 				nextCol += nextCols / 6;
 				nextLines = nextLines * 4 / 6;
 				nextCols = nextCols * 4 / 6;
 			}
 		}
-		if(focus_window->bindMode->flags & FBIND_MODE_SELECTION)
+		if(window_getbindmode(focus_window)->flags & FBIND_MODE_SELECTION)
 			curs_set(0);
 		else {
 			curs_set(1);
@@ -219,7 +221,7 @@ main(int argc, char **argv)
 			}
 			break;
 		}
-		if((focus_window->bindMode->flags & FBIND_MODE_TYPE) &&
+		if((window_getbindmode(focus_window)->flags & FBIND_MODE_TYPE) &&
 				(isprint(c) || isspace(c))) {
 			char b[10];
 
@@ -228,13 +230,13 @@ main(int argc, char **argv)
 			const unsigned len = (c & 0xe0) == 0xc0 ? 2 : (c & 0xf0) == 0xe0 ? 3 : (c & 0xf8) == 0xf0 ? 4 : 1;
 			for(unsigned i = 1; i < len; i++)
 				b[i] = getch();
-			window_types[focus_window->type].type(focus_window, b, len);
+			window_types[window_gettype(focus_window)].type(focus_window, b, len);
 		}
 		// either append the digit to the number or try to execute a bind
 		// render status bar
 		attrset(COLOR(3, 0));
 		move(LINES - 1, 0);
-		if(!(focus_window->bindMode->flags & FBIND_MODE_TYPE) &&
+		if(!(window_getbindmode(focus_window)->flags & FBIND_MODE_TYPE) &&
 				isdigit(c) && (c != '0' || num)) {
 			num = SAFE_MUL(num, 10);
 			num = SAFE_ADD(num, c - '0');
@@ -250,7 +252,7 @@ main(int argc, char **argv)
 				num = 0;
 			}
 		}
-		printw("%s ", focus_window->bindMode->name);
+		printw("%s ", window_getbindmode(focus_window)->name);
 		if(num)
 			printw("%zd", num);
 		for(unsigned i = 0; i < nKeys; i++)
@@ -261,3 +263,5 @@ main(int argc, char **argv)
 	printf("normal exit\n");
 	return 0;
 }
+
+#endif

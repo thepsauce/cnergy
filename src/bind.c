@@ -391,11 +391,11 @@ bind_exec(const int *keys, ptrdiff_t amount)
 	ptrdiff_t cached = 0;
 	unsigned nKeys = 0;
 
-	bind = mode_findbind(focus_window->bindMode, keys);
-	if(bind == (struct binding*) focus_window->bindMode)
+	bind = mode_findbind(window_getbindmode(focus_window), keys);
+	if(bind == (struct binding*) window_getbindmode(focus_window))
 		return 1;
 	if(!bind) {
-		struct binding_mode *const mode = mode_find(WINDOW_ALL, focus_window->bindMode->name);
+		struct binding_mode *const mode = mode_find(WINDOW_ALL, window_getbindmode(focus_window)->name);
 		if(mode && (bind = mode_findbind(mode, keys)) == (struct binding*) mode)
 			return 1;
 	}
@@ -446,7 +446,7 @@ bind_exec(const int *keys, ptrdiff_t amount)
 			reg += m;
 			break;
 		case BIND_CALL_SETMODE:
-			focus_window->bindMode = mode_find(focus_window->type, bc.str);
+			window_setbindmode(focus_window, mode_find(window_gettype(focus_window), bc.str));
 			break;
 		case BIND_CALL_CLOSEWINDOW:
 			window_close(focus_window);
@@ -454,67 +454,62 @@ bind_exec(const int *keys, ptrdiff_t amount)
 			break;
 		case BIND_CALL_MOVEWINDOW_RIGHT:
 		case BIND_CALL_MOVEWINDOW_BELOW: {
-			int i = 0;
+			ptrdiff_t i = 0;
 			// get the right directional function
-			struct window *(*const next)(const struct window*) =
+			windowid_t (*const next)(windowid_t) =
 				bc.type == BIND_CALL_MOVEWINDOW_RIGHT ?
 					(m > 0 ? window_right : window_left) :
 				m > 0 ? window_below : window_above;
-			const int di = m < 0 ? -1 : 1;
-			for(struct window *w = focus_window; i != m && (w = (*next)(w)); i += di)
-				focus_window = w;
+			const ptrdiff_t di = m < 0 ? -1 : 1;
+			for(windowid_t wid = focus_window; i != m && (wid = (*next)(wid)) != ID_NULL; i += di)
+				focus_window = wid;
 			b = i == m;
 			break;
 		}
 		case BIND_CALL_VSPLIT: {
-			struct window *win;
+			windowid_t winid;
 
-			win = window_dup(focus_window);
-			if(!win) {
+			winid = window_dup(focus_window);
+			if(winid == ID_NULL) {
 				b = false;
 				break;
 			}
-			window_attach(focus_window, win, ATT_WINDOW_HORIZONTAL);
+			window_attach(focus_window, winid, ATT_WINDOW_HORIZONTAL);
 			break;
 		}
 		case BIND_CALL_HSPLIT: {
-			struct window *win;
-
-			win = window_dup(focus_window);
-			if(!win) {
+			const windowid_t winid = window_dup(focus_window);
+			if(winid == ID_NULL) {
 				b = false;
 				break;
 			}
-			window_attach(focus_window, win, ATT_WINDOW_VERTICAL);
+			window_attach(focus_window, winid, ATT_WINDOW_VERTICAL);
 			break;
 		}
 		case BIND_CALL_OPENWINDOW: {
-			struct window *win;
-			struct window *oldFocus;
-
-			win = window_new(WINDOW_FILEVIEWER);
-			if(!win) {
+			const windowid_t winid = window_new(WINDOW_FILEVIEWER);
+			if(winid == ID_NULL) {
 				b = false;
 				break;
 			}
-			oldFocus = focus_window;
-			window_copylayout(win, focus_window);
-			window_delete(oldFocus);
+			window_delete(focus_window);
+			// it is safe to use a deleted window as only a flag gets set
+			window_copylayout(winid, focus_window);
 			break;
 		}
 		case BIND_CALL_NEWWINDOW: {
 			struct buffer *buf;
-			struct window *win;
+			windowid_t winid;
 
 			buf = buffer_new(0);
 			if(!buf) {
 				b = false;
 				break;
 			}
-			win = edit_new(buf, NULL);
-			if(win) {
-				window_attach(focus_window, win, ATT_WINDOW_UNSPECIFIED);
-				focus_window = win;
+			winid = edit_new(buf, NULL);
+			if(winid != ID_NULL) {
+				window_attach(focus_window, winid, ATT_WINDOW_UNSPECIFIED);
+				focus_window = winid;
 			} else {
 				buffer_free(buf);
 				b = false;
@@ -528,7 +523,7 @@ bind_exec(const int *keys, ptrdiff_t amount)
 			// not a general bind call
 			break;
 		}
-		b &= window_types[focus_window->type].bindcall(focus_window, &bc, m, &cached);
+		b &= window_types[window_gettype(focus_window)].bindcall(focus_window, &bc, m, &cached);
 		while(((bc.flags & FBIND_CALL_OR) && !(frame.state |= b))
 				|| ((bc.flags & FBIND_CALL_AND) && !(frame.state &= b))) {
 		end_frame:

@@ -1,25 +1,25 @@
 #include "cnergy.h"
 
 int
-null_render(struct window *win)
+null_render(windowid_t winid)
 {
-	(void) win;
+	(void) winid;
 	return 1;
 }
 
 int
-null_type(struct window *win, const char *str, size_t nStr)
+null_type(windowid_t winid, const char *str, size_t nStr)
 {
-	(void) win;
+	(void) winid;
 	(void) str;
 	(void) nStr;
 	return 1;
 }
 
 bool
-null_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
+null_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
 {
-	(void) win;
+	(void) winid;
 	(void) bc;
 	(void) param;
 	(void) pCached;
@@ -27,16 +27,16 @@ null_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrd
 }
 
 // edit
-int edit_render(struct window *win);
-int edit_type(struct window *win, const char *str, size_t nStr);
-bool edit_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
+int edit_render(windowid_t winid);
+int edit_type(windowid_t winid, const char *str, size_t nStr);
+bool edit_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
 // buffer viewer
-int bufferviewer_render(struct window *win);
-bool bufferviewer_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
+int bufferviewer_render(windowid_t winid);
+bool bufferviewer_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
 // file view
-int fileviewer_render(struct window *win);
-int fileviewer_type(struct window *win, const char *str, size_t nStr);
-bool fileviewer_bindcall(struct window *win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
+int fileviewer_render(windowid_t winid);
+int fileviewer_type(windowid_t winid, const char *str, size_t nStr);
+bool fileviewer_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
 
 struct window_type window_types[] = {
 	[WINDOW_EDIT] = { edit_render, edit_type, edit_bindcall },
@@ -45,300 +45,277 @@ struct window_type window_types[] = {
 };
 
 /* all windows in here are rendered */
-struct window **all_windows;
+struct window *all_windows;
 unsigned n_windows;
 /* active window */
-struct window *focus_window;
+windowid_t focus_window;
 /* position of the terminal cursor (set by the focus window) */
 int focus_y, focus_x;
 
-struct window *
+windowid_t 
 window_new(window_type_t type)
 {
-	struct window **newWindows;
+	struct window *newWindows;
+	windowid_t winid;
 	struct window *win;
 
-	newWindows = dialog_realloc(all_windows, sizeof(*all_windows) * (n_windows + 1));
-	if(!newWindows)
-		return NULL;
-	win = dialog_alloc(sizeof(*win));
-	if(!win)
-		return NULL;
+	for(winid = 0; winid < n_windows; winid++)
+		if(all_windows[winid].flags.dead)
+			break;
+	if(winid == n_windows) {
+		newWindows = dialog_realloc(all_windows, sizeof(*all_windows) * (n_windows + 1));
+		if(!newWindows)
+			return ID_NULL;
+		all_windows = newWindows;
+		n_windows++;
+	}
+	win = all_windows + winid;
 	memset(win, 0, sizeof(*win));
+	win->above = ID_NULL;
+	win->below = ID_NULL;
+	win->left = ID_NULL;
+	win->right = ID_NULL;
 	win->type = type;
 	win->bindMode = all_modes[type];
-	all_windows = newWindows;
-	all_windows[n_windows++] = win;
-	return win;
+	return winid;
 }
 
 int
-window_close(struct window *win)
+window_close(windowid_t winid)
 {
-	if(win == focus_window)
-		focus_window = win->below ? win->below :
-			win->right ? win->right :
-			win->left ? win->left :
-			win->above ? win->above : n_windows > 1 ?
-				(win == all_windows[0] ? all_windows[1] :
-					all_windows[0]) : NULL;
-	window_detach(win);
-	window_delete(win);
+	if(winid == focus_window)
+		focus_window = window_getbelow(winid) != ID_NULL ? window_getbelow(winid) :
+			window_getright(winid) != ID_NULL ? window_getright(winid) :
+			window_getleft(winid) != ID_NULL ? window_getleft(winid) :
+			window_getabove(winid) != ID_NULL ? window_getabove(winid) : ID_NULL;
+	window_detach(winid);
+	window_delete(winid);
 	return 0;
 }
 
 void
-window_delete(struct window *win)
+window_delete(windowid_t winid)
 {
-	for(unsigned i = 0; i < n_windows; i++)
-		if(all_windows[i] == win) {
-			n_windows--;
-			memmove(all_windows + i, all_windows + i + 1, sizeof(*all_windows) * (n_windows - i));
-			break;
-		}
-	free(win);
+	all_windows[winid].flags.dead = true;
 }
 
-struct window *
-window_dup(const struct window *win)
+windowid_t 
+window_dup(windowid_t winid)
 {
-	struct window *dup;
+	windowid_t dupid;
 
-	dup = window_new(0);
-	if(!dup)
-		return NULL;
-	memcpy(dup, win, sizeof(*win));
-	return dup;
-}
-
-int
-window_setforeground(struct window *win)
-{
-	for(unsigned i = 0; i < n_windows; i++)
-		if(all_windows[i] == win) {
-			memmove(all_windows + i, all_windows + i + 1, sizeof(*all_windows) * (n_windows - i - 1));
-			all_windows[n_windows - 1] = win;
-			return 0;
-		}
-	return -1;
+	dupid = window_new(0);
+	if(dupid == ID_NULL)
+		return ID_NULL;
+	memcpy(all_windows + dupid, all_windows + winid, sizeof(*all_windows));
+	return dupid;
 }
 
 void
-window_copylayout(struct window *win, struct window *rep)
+window_copylayout(windowid_t destid, windowid_t srcid)
 {
-	if(focus_window == win)
-		focus_window = rep;
-	rep->above = win->above;
-	rep->below = win->below;
-	rep->left = win->left;
-	rep->right = win->right;
-	if(win->above)
-		win->above->below = rep;
-	if(win->below)
-		win->below->above = rep;
-	if(win->left)
-		win->left->right = rep;
-	if(win->right)
-		win->right->left = rep;
+	if(focus_window == srcid)
+		focus_window = destid;
+	window_setabove(destid, window_getabove(srcid));
+	window_setbelow(destid, window_getbelow(srcid));
+	window_setleft(destid, window_getleft(srcid));
+	window_setright(destid, window_getright(srcid));
+	if(window_getabove(srcid) != ID_NULL)
+		window_setbelow(window_getabove(srcid), destid);
+	if(window_getbelow(srcid) != ID_NULL)
+		window_setabove(window_getbelow(srcid), destid);
+	if(window_getleft(srcid) != ID_NULL)
+		window_setright(window_getleft(srcid), destid);
+	if(window_getright(srcid) != ID_NULL)
+		window_setleft(window_getright(srcid), destid);
 }
 
-struct window *
+windowid_t 
 window_atpos(int y, int x)
 {
-	for(unsigned i = n_windows; i > 0;) {
-		struct window *const w = all_windows[--i];
+	for(windowid_t i = n_windows; i > 0;) {
+		struct window *const w = all_windows + --i;
+		if(w->flags.dead)
+			continue;
 		if(y >= w->line && y < w->line + w->lines &&
 				x >= w->col && x < w->col + w->cols)
-			return w;
+			return i;
 	}
-	return NULL;
+	return ID_NULL;
 }
 
-struct window *
-window_above(const struct window *win)
+windowid_t 
+window_above(const windowid_t winid)
 {
+	struct window *const win = all_windows + winid;
 	const int yHit = win->line - 1;
-	const int xHit = win == focus_window ? focus_x : win->col + win->cols / 2;
+	const int xHit = winid == focus_window ? focus_x : win->col + win->cols / 2;
 	return window_atpos(yHit, xHit);
 }
 
-struct window *
-window_below(const struct window *win)
+windowid_t 
+window_below(const windowid_t winid)
 {
+	struct window *const win = all_windows + winid;
 	const int yHit = win->line + win->lines;
-	const int xHit = win == focus_window ? focus_x : win->col + win->cols / 2;
+	const int xHit = winid == focus_window ? focus_x : win->col + win->cols / 2;
 	return window_atpos(yHit, xHit);
 }
 
-struct window *
-window_left(const struct window *win)
+windowid_t 
+window_left(const windowid_t winid)
 {
-	const int yHit = win == focus_window ? focus_y : win->line + win->lines / 2;
+	struct window *const win = all_windows + winid;
+	const int yHit = winid == focus_window ? focus_y : win->line + win->lines / 2;
 	const int xHit = win->col - 1;
 	return window_atpos(yHit, xHit);
 }
 
-struct window *
-window_right(const struct window *win)
+windowid_t 
+window_right(const windowid_t winid)
 {
-	const int yHit = win == focus_window ? focus_y : win->line + win->lines / 2;
+	struct window *const win = all_windows + winid;
+	const int yHit = winid == focus_window ? focus_y : win->line + win->lines / 2;
 	const int xHit = win->col + win->cols;
 	return window_atpos(yHit, xHit);
 }
 
 void
-window_attach(struct window *to, struct window *win, int pos)
+window_attach(windowid_t toid, windowid_t winid, int pos)
 {
-	unsigned nVert;
-	unsigned nHorz;
-	struct window *w;
-
 	switch(pos) {
 	case ATT_WINDOW_VERTICAL: goto vertical_attach;
 	case ATT_WINDOW_HORIZONTAL: goto horizontal_attach;
 	}
-	// find shortest list
-	nVert = 0;
-	nHorz = 0;
-	for(w = to; w->above; w = w->above);
-	for(; w->below; w = w->below)
-		nVert++;
-	for(w = to; w->left; w = w->left);
-	for(; w->right; w = w->right)
-		nHorz++;
+	/* Find shortest list */
+	const unsigned
+		nVert = window_countbelow(window_getmostabove(winid)),
+		nHorz = window_countright(window_getmostleft(winid));
 	if(nVert > nHorz)
 		goto horizontal_attach;
 vertical_attach:
-	if(to->below)
-		to->below->above = win;
-	win->below = to->below;
-	win->above = to;
-	win->left = NULL;
-	win->right = NULL;
-	to->below = win;
+	if(window_getbelow(toid) != ID_NULL)
+		window_setabove(window_getbelow(toid), winid);
+	window_setbelow(winid, window_getbelow(toid));
+	window_setabove(winid, toid);
+	window_setleft(winid, ID_NULL);
+	window_setright(winid, ID_NULL);
+	window_setbelow(toid, winid);
 	return;
 horizontal_attach:
-	if(to->right)
-		to->right->left = win;
-	win->above = NULL;
-	win->below = NULL;
-	win->right = to->right;
-	win->left = to;
-	to->right = win;
+	if(window_getright(toid) != ID_NULL)
+		window_setleft(window_getright(toid), winid);
+	window_setabove(winid, ID_NULL);
+	window_setbelow(winid, ID_NULL);
+	window_setright(winid, window_getright(toid));
+	window_setleft(winid, toid);
+	window_setright(toid, winid);
 }
 
 void
-window_detach(struct window *win)
+window_detach(windowid_t winid)
 {
-	struct window *a, *b, *l, *r;
+	windowid_t a, b, l, r;
 
-	a = win->above;
-	b = win->below;
-	l = win->left;
-	r = win->right;
-	win->above = NULL;
-	win->below = NULL;
-	win->left = NULL;
-	win->right = NULL;
-	if(a)
-		a->below = b;
-	if(b)
-		b->above = a;
-	if(l)
-		l->right = r;
-	if(r)
-		r->left = l;
-	if(!a && !l) {
-		if(b && r) {
-			while(b->right)
-				b = b->right;
-			b->right = r;
-			r->left = b;
+	a = window_getabove(winid);
+	b = window_getbelow(winid);
+	l = window_getleft(winid);
+	r = window_getright(winid);
+	window_setabove(winid, ID_NULL);
+	window_setbelow(winid, ID_NULL);
+	window_setleft(winid, ID_NULL);
+	window_setright(winid, ID_NULL);
+	if(a != ID_NULL)
+		window_setbelow(a, b);
+	if(b != ID_NULL)
+		window_setabove(b, a);
+	if(l != ID_NULL)
+		window_setright(l, r);
+	if(r != ID_NULL)
+		window_setleft(r, l);
+	if(a == ID_NULL && l == ID_NULL) {
+		if(b != ID_NULL && r != ID_NULL) {
+			b = window_getmostright(b);
+			window_setright(b, r);
+			window_setleft(r, b);
 			/*// Second option:
-			while(r->below)
-				r = r->below;
-			r->below = b;
-			b->above = r;*/
+			r = window_getmostbelow(r);
+			window_setbelow(r, b);
+			window_setabove(b, r);*/
 		}
-	} else if(a && r) {
-		r->above = a;
-		r->below = b;
-		a->below = r;
-	} else if(l && b) {
-		b->left = l;
-		b->right = r;
-		l->right = b;
+	} else if(a != ID_NULL && r != ID_NULL) {
+		window_setabove(r, a);
+		window_setbelow(r, b);
+		window_setbelow(a, r);
+	} else if(l != ID_NULL && b != ID_NULL) {
+		window_setleft(b, l);
+		window_setright(b, r);
+		window_setright(l, b);
 	}
 }
 
 void
-window_layout(struct window *win)
+window_layout(windowid_t winid)
 {
-	struct window *w;
+	windowid_t wid;
 	unsigned nBelow = 1, nRight = 1;
 	int linesPer, colsPer, linesRemainder, colsRemainder;
 	int nextLine, nextCol;
-	const int line = win->line;
-	const int col = win->col;
-	const int lines = win->lines;
+	int line, col, lines, cols;
 
-	if(!win->above)
-		for(w = win->below; w; w = w->below)
-			nBelow++;
-	if(!win->left)
-		for(w = win->right; w; w = w->right)
-			nRight++;
-	linesPer = win->lines / nBelow;
-	colsPer = win->cols / nRight;
-	linesRemainder = win->lines % nBelow;
-	colsRemainder = win->cols % nRight;
+	window_getposition(winid, line, col, lines, cols);
+	nBelow = window_getabove(winid) == ID_NULL ? window_countbelow(winid) : 1;
+	nRight = window_getleft(winid) == ID_NULL ? window_countright(winid) : 1;
+	linesPer = lines / nBelow;
+	colsPer = cols / nRight;
+	linesRemainder = lines % nBelow;
+	colsRemainder = cols % nRight;
 
-	win->lines = linesPer;
-	win->cols = colsPer;
+	window_setsize(winid, linesPer, colsPer);
 	nextLine = line + linesPer;
 	nextCol = col + colsPer;
 	/* if there is a window left, it will not handle the right windows, we don't want to handle them twice */
-	if(!win->left)
-		for(w = win; (w = w->right); ) {
-			w->line = line;
-			w->col = nextCol;
-			w->lines = lines;
-			w->cols = colsPer;
+	if(window_getleft(winid) == ID_NULL)
+		for(wid = winid; (wid = window_getright(wid)) != ID_NULL; ) {
+			int cols;
+
+			cols = colsPer;
 			if(colsRemainder) {
 				colsRemainder--;
-				w->cols++;
+				cols++;
 			}
-			nextCol += w->cols;
-			window_layout(w);
+			window_setposition(wid, line, nextCol, lines, cols);
+			nextCol += cols;
+			window_layout(wid);
 		}
 	/* if there is a window above, it will not handle the below windows, we don't want to handle them twice */
-	if(!win->above)
-		for(w = win; (w = w->below); ) {
-			w->line = nextLine;
-			w->col = col;
-			/* note that we use linesPer and not lines here */
-			w->lines = linesPer;
-			w->cols = colsPer;
+	if(window_getabove(winid) == ID_NULL)
+		for(wid = winid; (wid = window_getbelow(wid)) != ID_NULL; ) {
+			int lines;
+
+			lines = linesPer;
 			if(linesRemainder) {
 				linesRemainder--;
-				w->lines++;
+				lines++;
 			}
-			nextLine += w->lines;
-			window_layout(w);
+			/* note that we use linesPer and not lines here */
+			window_setposition(wid, nextLine, col, lines, colsPer);
+			nextLine += lines;
+			window_layout(wid);
 		}
 }
 
 int
-window_render(struct window *win)
+window_render(windowid_t winid)
 {
 	/* don't need to render empty windows */
-	if(win->lines <= 0 || win->cols <= 0)
+	if(window_getarea(winid) == 0)
 		return 1;
-	window_types[win->type].render(win);
-	if(win->below)
-		window_render(win->below);
-	if(win->right)
-		window_render(win->right);
+	window_types[window_gettype(winid)].render(winid);
+	if(window_getbelow(winid) != ID_NULL)
+		window_render(window_getbelow(winid));
+	if(window_getright(winid) != ID_NULL)
+		window_render(window_getright(winid));
 	return 0;
 }
 
