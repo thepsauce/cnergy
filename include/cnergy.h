@@ -193,6 +193,7 @@ int clipboard_paste(char **text);
 #define ID_NULL UINT_MAX
 
 typedef unsigned windowid_t;
+typedef unsigned bufferid_t;
 
 #include "window.h"
 #include "bind.h"
@@ -237,44 +238,44 @@ struct buffer {
 	unsigned iEvent;
 };
 
-extern struct buffer **all_buffers;
+extern struct buffer *all_buffers;
 extern unsigned n_buffers;
 
 // Create a new buffer based on the given file, it may be 0, then an empty buffer is created
 // This also adds it to the internal buffer list
-struct buffer *buffer_new(fileid_t file);
+bufferid_t buffer_new(fileid_t file);
 // Free all resources associated to this buffer
 // Make sure to delete all windows associated to this buffer before calling this function
-void buffer_free(struct buffer *buf);
+void buffer_free(bufferid_t bufid);
 // Saves the buffer to its file; if it has none, the user will be asked to choose a file
-int buffer_save(struct buffer *buf);
+int buffer_save(bufferid_t bufid);
 // Returns the moved amount
 ptrdiff_t unsafe_buffer_movecursor(struct buffer *buf, ptrdiff_t distance);
-ptrdiff_t buffer_movecursor(struct buffer *buf, ptrdiff_t distance);
+ptrdiff_t buffer_movecursor(bufferid_t bufid, ptrdiff_t distance);
 // Moves the cursor horizontally
 // Returns the moved amount
-ptrdiff_t buffer_movehorz(struct buffer *buf, ptrdiff_t distance);
+ptrdiff_t buffer_movehorz(bufferid_t bufid, ptrdiff_t distance);
 // Move the cursor up or down by the specified number of lines
 // Returns the moved amount
-ptrdiff_t buffer_movevert(struct buffer *buf, ptrdiff_t distance);
+ptrdiff_t buffer_movevert(bufferid_t bufid, ptrdiff_t distance);
 // Returns the number of characters inserted
-size_t buffer_insert(struct buffer *buf, const char *str, size_t nStr);
+size_t buffer_insert(bufferid_t bufid, const char *str, size_t nStr);
 // Returns the number of characters inserted
-size_t buffer_insert_file(struct buffer *buf, fileid_t file);
+size_t buffer_insert_file(bufferid_t bufid, fileid_t file);
 // Returns the amount that was deleted
-ptrdiff_t buffer_delete(struct buffer *buf, ptrdiff_t amount);
+ptrdiff_t buffer_delete(bufferid_t bufid, ptrdiff_t amount);
 // Returns the amount of lines that were deleted
-ptrdiff_t buffer_deleteline(struct buffer *buf, ptrdiff_t amount);
+ptrdiff_t buffer_deleteline(bufferid_t bufid, ptrdiff_t amount);
 // Returns the amount of events undone
-int buffer_undo(struct buffer *buf);
+int buffer_undo(bufferid_t bufid);
 // Returns the amount of events redone
-int buffer_redo(struct buffer *buf);
+int buffer_redo(bufferid_t bufid);
 // Returns line index at cursor
-int buffer_line(const struct buffer *buf);
+int buffer_line(bufferid_t bufid);
 // Returns column index at cursor
-int buffer_col(const struct buffer *buf);
+int buffer_col(bufferid_t bufid);
 // Returns the length of the line
-size_t buffer_getline(const struct buffer *buf, int line, char *dest, size_t maxDest);
+size_t buffer_getline(bufferid_t bufid, int line, char *dest, size_t maxDest);
 
 /* Syntax highlighting */
 // state.c

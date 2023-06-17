@@ -46,7 +46,7 @@ struct window_type window_types[] = {
 
 /* all windows in here are rendered */
 struct window *all_windows;
-unsigned n_windows;
+windowid_t n_windows;
 /* active window */
 windowid_t focus_window;
 /* position of the terminal cursor (set by the focus window) */
@@ -97,6 +97,18 @@ void
 window_delete(windowid_t winid)
 {
 	all_windows[winid].flags.dead = true;
+	/* Update the number of windows if needed */
+	for(windowid_t wid = winid; wid < n_windows; wid++)
+		if(!all_windows[wid].flags.dead)
+			/* We can not cap the n_windows because there are still windows above that are alive */
+			return;
+	/* Find the first window that is alive */
+	while(winid > 0) {
+		winid--;
+		if(!all_windows[winid].flags.dead)
+			break;
+	}
+	n_windows = winid;
 }
 
 windowid_t 
@@ -133,13 +145,13 @@ window_copylayout(windowid_t destid, windowid_t srcid)
 windowid_t 
 window_atpos(int y, int x)
 {
-	for(windowid_t i = n_windows; i > 0;) {
-		struct window *const w = all_windows + --i;
+	for(windowid_t wid = n_windows; wid > 0;) {
+		struct window *const w = all_windows + --wid;
 		if(w->flags.dead)
 			continue;
 		if(y >= w->line && y < w->line + w->lines &&
 				x >= w->col && x < w->col + w->cols)
-			return i;
+			return wid;
 	}
 	return ID_NULL;
 }

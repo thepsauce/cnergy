@@ -154,8 +154,8 @@ main(int argc, char **argv)
 	};
 	for(unsigned i = 0; i < ARRLEN(files); i++) {
 		const char *file = files[i % ARRLEN(files)];
-		struct buffer *b = buffer_new(fc_cache(fc_getbasefile(), file));
-		edit_new(b, c_states);
+		bufferid_t bid = buffer_new(fc_cache(fc_getbasefile(), file));
+		edit_new(bid, c_states);
 	}
 	all_windows[0].right = 1;
 	all_windows[1].left = 0;
@@ -170,8 +170,6 @@ main(int argc, char **argv)
 		int c;
 		int nextLine, nextCol, nextLines, nextCols;
 
-		if(!n_windows)
-			break;
 		// -1 to reserve a line to show the global status bar
 		nextLine = 0;
 		nextCol = 0;
@@ -260,7 +258,7 @@ main(int argc, char **argv)
 		ersline(COLS - getcurx(stdscr));
 	}
 	endwin();
-	printf("normal exit\n");
+	printf("^C exit\n");
 	return 0;
 }
 

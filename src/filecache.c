@@ -19,37 +19,37 @@ fc_getbasefile(void)
 }
 
 static struct filecache *
-fc_addcache(fileid_t parent, const char *name, unsigned nName)
+fc_addcache(fileid_t parentid, const char *name, unsigned nName)
 {
 	struct filecache *newFileCaches;
-	struct filecache *fc, *p;
+	struct filecache *fc, *parent;
 	fileid_t *newChildren;
 
 	assert(!locks && "a lock is still in place, unluck all filecaches before continuing");
-	assert(parent < n_file_caches && "file id is invalid");
+	assert(parentid < n_file_caches && "file id is invalid");
 	// check if the file is already cached
-	p = file_caches + parent;
-	for(unsigned i = 0; i < p->nChildren; i++) {
-		fc = file_caches + p->children[i];
+	parent = file_caches + parentid;
+	for(unsigned i = 0; i < parent->nChildren; i++) {
+		fc = file_caches + parent->children[i];
 		if(!strncmp(fc->name, name, nName) && !fc->name[nName])
 			return fc;
 	}
 	newFileCaches = dialog_realloc(file_caches, sizeof(*file_caches) * (n_file_caches + 1));
-	if(!newFileCaches)
+	if(newFileCaches == NULL)
 		return NULL;
 	file_caches = newFileCaches;
 	fc = file_caches + n_file_caches;
-	// it's possible that the base pointer of file_caches changed, so resetting the parent pointer is needed here
-	p = file_caches + parent;
+	// it is possible that the base pointer of file_caches changed, so resetting the parent pointer is needed here
+	parent = file_caches + parentid;
 	memset(fc, 0, sizeof(*fc));
 	memcpy(fc->name, name, nName);
 	fc->name[nName] = 0;
-	fc->parent = parent;
-	newChildren = dialog_realloc(p->children, sizeof(*p->children) * (p->nChildren + 1));
-	if(!newChildren)
+	fc->parent = parentid;
+	newChildren = dialog_realloc(parent->children, sizeof(*parent->children) * (parent->nChildren + 1));
+	if(newChildren == NULL)
 		return NULL;
-	p->children = newChildren;
-	p->children[p->nChildren++] = n_file_caches;
+	parent->children = newChildren;
+	parent->children[parent->nChildren++] = n_file_caches;
 	n_file_caches++;
 	return fc;
 }
@@ -104,11 +104,11 @@ fc_init(void)
 }
 
 struct filecache *
-fc_lock(fileid_t id)
+fc_lock(fileid_t fileid)
 {
-	assert(id < n_file_caches && "file is invalid");
+	assert(fileid < n_file_caches && "file is invalid");
 	locks++;
-	return file_caches + id;
+	return file_caches + fileid;
 }
 
 inline int fc_type(struct filecache *fc)
@@ -310,7 +310,7 @@ fc_open(fileid_t file, const char *mode)
 	if(fc_getrelativepath(file_current, file, path, sizeof(path)) < 0)
 		return NULL;
 	fp = fopen(path, mode);
-	if(!fp) {
+	if(fp == NULL) {
 		fprintf(stderr, "[%s:%u in fc_open()] failed opening file '%s'\n", __FILE__, __LINE__, file_caches[file].name);
 		return NULL;
 	}
@@ -338,7 +338,7 @@ walk:
 	if(nName >= NAME_MAX) {
 		fprintf(stderr, "[%s:%u in fc_cache()] name segment too long (exceeds %u byte) (at='%s')\n",
 				__FILE__, __LINE__, (unsigned) NAME_MAX, name);
-		return -1;
+		return ID_NULL;
 	}
 	if(!nName)
 		return fc - file_caches;
@@ -346,7 +346,7 @@ walk:
 	memcpy(newfc.name, name, nName);
 	newfc.name[nName] = 0;
 	if(!(fc = fc_addcache(fc - file_caches, name, nName)))
-		return -1;
+		return ID_NULL;
 	if(!fc_getrelativepath(file_current, fc - file_caches, curPath, sizeof(curPath)))
 		fc_getdata(fc, curPath);
 	goto walk;
@@ -392,7 +392,7 @@ fc_find(fileid_t file, const char *path)
 	assert(file < n_file_caches && "file id is invalid");
 	if(!fc_locate(file_caches + file, path, &path, &fc))
 		return fc - file_caches;
-	return 0;
+	return ID_NULL;
 }
 
 void

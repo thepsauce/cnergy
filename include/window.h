@@ -71,7 +71,7 @@ struct window {
 		// WINDOW_EDIT
 		struct {
 			// text buffer
-			struct buffer *buffer;
+			bufferid_t buffer;
 			// syntax states
 			int (**states)(struct state *s);
 			// scrolling values of the last render
@@ -95,12 +95,12 @@ struct window {
 };
 
 extern struct window_type {
-	int (*render)(windowid_t win);
-	int (*type)(windowid_t win, const char *str, size_t nStr);
-	bool (*bindcall)(windowid_t win, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
+	int (*render)(windowid_t winid);
+	int (*type)(windowid_t winid, const char *str, size_t nStr);
+	bool (*bindcall)(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached);
 } window_types[];
 extern struct window *all_windows;
-extern unsigned n_windows;
+extern windowid_t n_windows;
 extern windowid_t focus_window;
 extern int focus_y, focus_x;
 
@@ -213,6 +213,6 @@ int window_render(windowid_t winid);
 /* Additional functions for specific window types */
 // edit.c
 int (**edit_statesfromfiletype(fileid_t file))(struct state *s);
-windowid_t edit_new(struct buffer *buf, int (**states)(struct state *s));
+windowid_t edit_new(bufferid_t bufid, int (**states)(struct state *s));
 
 #endif

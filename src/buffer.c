@@ -1,70 +1,58 @@
 #include "cnergy.h"
 
-struct buffer **all_buffers;
-unsigned n_buffers;
+struct buffer *all_buffers;
+bufferid_t n_buffers;
 
-struct buffer *
+bufferid_t
 buffer_new(fileid_t file)
 {
-	struct buffer **newBuffers;
+	struct buffer *newBuffers;
+	bufferid_t bufid;
 	struct buffer *buf;
 
 	// find buffer with the same file
-	if(file) {
-		for(unsigned i = 0; i < n_buffers; i++) {
-			buf = all_buffers[i];
-			if(buf->file == file)
-				return buf;
-		}
-	}
-
+	if(file != ID_NULL)
+		for(bufid = 0; bufid < n_buffers; bufid++)
+			if(all_buffers[bufid].file == file)
+				return bufid;
 	newBuffers = dialog_realloc(all_buffers, sizeof(*all_buffers) * (n_buffers + 1));
 	if(!newBuffers)
-		return NULL;
-	buf = dialog_alloc(sizeof(*buf));
-	if(!buf)
-		return NULL;
+		return ID_NULL;
+	all_buffers = newBuffers;
+	bufid = n_buffers++;
+	buf = all_buffers + bufid;
 	memset(buf, 0, sizeof(*buf));
-	if(file) {
-		FILE *fp;
-
-		fp = fc_open(file, "r");
-		if(fp) {
+	if(file != ID_NULL) {
+		FILE *const fp = fc_open(file, "r");
+		if(fp != NULL) {
 			fseek(fp, 0, SEEK_END);
 			const long n = ftell(fp);
 			buf->data = dialog_alloc(BUFFER_GAP_SIZE + n);
-			if(!buf->data) {
-				free(buf);
-				return NULL;
-			}
+			if(buf->data == NULL)
+				return ID_NULL;
 			buf->nData = n;
 			fseek(fp, 0, SEEK_SET);
 			fread(buf->data + BUFFER_GAP_SIZE, 1, n, fp);
 			fclose(fp);
 		} else {
 			buf->data = dialog_alloc(BUFFER_GAP_SIZE);
-			if(!buf->data) {
-				free(buf);
-				return NULL;
-			}
+			if(buf->data == NULL)
+				return ID_NULL;
 		}
 		buf->file = file;
 	} else {
 		buf->data = dialog_alloc(BUFFER_GAP_SIZE);
-		if(!buf->data) {
-			free(buf);
-			return NULL;
-		}
+		if(buf->data == NULL)
+			return ID_NULL;
 	}
 	buf->nGap = BUFFER_GAP_SIZE;
-	all_buffers = newBuffers;
-	all_buffers[n_buffers++] = buf;
-	return buf;
+	return bufid;
 }
 
 void
-buffer_free(struct buffer *buf)
+buffer_free(bufferid_t bufid)
 {
+	struct buffer *const buf = all_buffers + bufid;
 	free(buf->data);
 	for(unsigned i = 0; i < buf->nEvents; i++) {
 		switch(buf->events[i].type) {
@@ -81,17 +69,15 @@ buffer_free(struct buffer *buf)
 		}
 	}
 	free(buf->events);
-	free(buf);
 }
 
 int
-buffer_save(struct buffer *buf)
+buffer_save(bufferid_t bufid)
 {
-	FILE *fp;
-
-	if(!buf->file) {
-		fileid_t file = 0; // TODO: add choosefile call again
-		if(!file)
+	struct buffer *const buf = all_buffers + bufid;
+	if(buf->file == ID_NULL) {
+		fileid_t file = ID_NULL; // TODO: add choosefile call again
+		if(file == ID_NULL)
 			return 1;
 		buf->file = file;
 	}
@@ -100,8 +86,8 @@ buffer_save(struct buffer *buf)
 		if(m != 0)
 			return 1;
 	}
-	fp = fc_open(buf->file, "w");
-	if(!fp)
+	FILE *const fp = fc_open(buf->file, "w");
+	if(fp == NULL)
 		return -1;
 	fwrite(buf->data, 1, buf->iGap, fp);
 	fwrite(buf->data + buf->iGap + buf->nGap, 1, buf->nData - buf->iGap, fp);
@@ -165,19 +151,20 @@ buffer_cnvdist(const struct buffer *buf, ptrdiff_t distance)
 }
 
 ptrdiff_t
-buffer_movecursor(struct buffer *buf, ptrdiff_t distance)
+buffer_movecursor(bufferid_t bufid, ptrdiff_t distance)
 {
+	struct buffer *const buf = all_buffers + bufid;
 	distance = buffer_cnvdist(buf, distance);
 	unsafe_buffer_movecursor(buf, distance);
-	buf->vct = buffer_col(buf);
+	buf->vct = buffer_col(bufid);
 	return distance;
 }
 
 ptrdiff_t
-buffer_movehorz(struct buffer *buf, ptrdiff_t distance)
+buffer_movehorz(bufferid_t bufid, ptrdiff_t distance)
 {
 	size_t i, iFirst, left, right;
-
+	struct buffer *const buf = all_buffers + bufid;
 	i = buf->iGap;
 	if(distance == INT32_MAX) {
 		i += buf->nGap;
@@ -227,12 +214,12 @@ buffer_movehorz(struct buffer *buf, ptrdiff_t distance)
 }
 
 ptrdiff_t
-buffer_movevert(struct buffer *buf, ptrdiff_t distance)
+buffer_movevert(bufferid_t bufid, ptrdiff_t distance)
 {
 	size_t i;
-	const ptrdiff_t cDistance = distance;
 	ptrdiff_t moved;
-
+	const ptrdiff_t cDistance = distance;
+	struct buffer *const buf = all_buffers + bufid;
 	i = buf->iGap;
 	if(distance < 0) {
 		while(distance) {
@@ -283,10 +270,10 @@ buffer_movevert(struct buffer *buf, ptrdiff_t distance)
 }
 
 static struct event *
-buffer_addevent(struct buffer *buf)
+buffer_addevent(bufferid_t bufid)
 {
 	struct event *ev, *newEvents;
-
+	struct buffer *const buf = all_buffers + bufid;
 	if(buf->nEvents > buf->iEvent) {
 		for(unsigned i = buf->iEvent; i < buf->nEvents; i++) {
 			switch(buf->events[i].type) {
@@ -313,10 +300,10 @@ buffer_addevent(struct buffer *buf)
 }
 
 size_t
-buffer_insert(struct buffer *buf, const char *str, size_t nStr)
+buffer_insert(bufferid_t bufid, const char *str, size_t nStr)
 {
 	struct event *ev;
-
+	struct buffer *const buf = all_buffers + bufid;
 	// if gap is too small to insert n characters, increase gap size
 	if(nStr > buf->nGap) {
 		char *const newData = dialog_realloc(buf->data, buf->nData + nStr + BUFFER_GAP_SIZE);
@@ -335,7 +322,7 @@ buffer_insert(struct buffer *buf, const char *str, size_t nStr)
 	buf->nData += nStr;
 	// update vct
 	const unsigned prevVct = buf->vct;
-	buf->vct = buffer_col(buf);
+	buf->vct = buffer_col(bufid);
 	// try to join events
 	if(buf->iEvent) {
 		ev = buf->events + buf->iEvent - 1;
@@ -348,7 +335,7 @@ buffer_insert(struct buffer *buf, const char *str, size_t nStr)
 		}
 	}
 	// add event
-	if(!(ev = buffer_addevent(buf)))
+	if(!(ev = buffer_addevent(bufid)))
 		return nStr;
 	*ev = (struct event) {
 		.flags = 0,
@@ -368,12 +355,10 @@ buffer_insert(struct buffer *buf, const char *str, size_t nStr)
 }
 
 size_t
-buffer_insert_file(struct buffer *buf, fileid_t file)
+buffer_insert_file(bufferid_t bufid, fileid_t file)
 {
 	char *s;
-	FILE *fp;
-
-	fp = fc_open(file, "r");
+	FILE *const fp = fc_open(file, "r");
 	if(!fp)
 		return 0;
 	fseek(fp, 0, SEEK_END);
@@ -382,21 +367,21 @@ buffer_insert_file(struct buffer *buf, fileid_t file)
 		return 0;
 	fseek(fp, 0, SEEK_SET);
 	fread(s, 1, n, fp);
-	const size_t nins = buffer_insert(buf, s, n);
+	const size_t nIns = buffer_insert(bufid, s, n);
 	free(s);
-	return nins;
+	return nIns;
 }
 
 ptrdiff_t
-buffer_delete(struct buffer *buf, ptrdiff_t amount)
+buffer_delete(bufferid_t bufid, ptrdiff_t amount)
 {
 	struct event *ev;
-
+	struct buffer *const buf = all_buffers + bufid;
 	amount = buffer_cnvdist(buf, amount);
 	if(!amount)
 		return 0;
 	// add event
-	if(!(ev = buffer_addevent(buf)))
+	if(!(ev = buffer_addevent(bufid)))
 		return amount;
 	*ev = (struct event) {
 		.flags = 0,
@@ -423,17 +408,17 @@ buffer_delete(struct buffer *buf, ptrdiff_t amount)
 		buf->nGap -= amount;
 		buf->nData += amount;
 	}
-	buf->vct = buffer_col(buf);
+	buf->vct = buffer_col(bufid);
 	return amount;
 }
 
 ptrdiff_t
-buffer_deleteline(struct buffer *buf, ptrdiff_t amount)
+buffer_deleteline(bufferid_t bufid, ptrdiff_t amount)
 {
 	struct event *ev;
 	size_t l, r;
 	size_t nLinesDeleted = 0;
-
+	struct buffer *const buf = all_buffers + bufid;
 	if(!amount)
 		return 0;
 	l = buf->iGap;
@@ -469,7 +454,7 @@ buffer_deleteline(struct buffer *buf, ptrdiff_t amount)
 	buf->nGap = r - l;
 	buf->nData -= amount;
 	// add event
-	if(!(ev = buffer_addevent(buf)))
+	if(!(ev = buffer_addevent(bufid)))
 		return nLinesDeleted;
 	*ev = (struct event) {
 		.flags = 0,
@@ -489,8 +474,9 @@ buffer_deleteline(struct buffer *buf, ptrdiff_t amount)
 }
 
 int
-buffer_undo(struct buffer *buf)
+buffer_undo(bufferid_t bufid)
 {
+	struct buffer *const buf = all_buffers + bufid;
 	if(!buf->iEvent)
 		return 0;
 	const struct event ev = buf->events[--buf->iEvent];
@@ -523,8 +509,9 @@ buffer_undo(struct buffer *buf)
 }
 
 int
-buffer_redo(struct buffer *buf)
+buffer_redo(bufferid_t bufid)
 {
+	struct buffer *const buf = all_buffers + bufid;
 	if(buf->iEvent == buf->nEvents)
 		return 0;
 	const struct event ev = buf->events[buf->iEvent++];
@@ -557,10 +544,10 @@ buffer_redo(struct buffer *buf)
 }
 
 int
-buffer_line(const struct buffer *buf)
+buffer_line(bufferid_t bufid)
 {
 	int line = 0;
-
+	struct buffer *const buf = all_buffers + bufid;
 	for(size_t i = buf->iGap; i > 0; i--)
 		if(buf->data[i - 1] == '\n')
 			line++;
@@ -568,10 +555,10 @@ buffer_line(const struct buffer *buf)
 }
 
 int
-buffer_col(const struct buffer *buf)
+buffer_col(bufferid_t bufid)
 {
 	size_t i;
-
+	struct buffer *const buf = all_buffers + bufid;
 	for(i = buf->iGap; i > 0; i--)
 		if(buf->data[i - 1] == '\n')
 			break;
@@ -579,10 +566,11 @@ buffer_col(const struct buffer *buf)
 }
 
 size_t
-buffer_getline(const struct buffer *buf, int line, char *dest, size_t maxDest)
+buffer_getline(bufferid_t bufid, int line, char *dest, size_t maxDest)
 {
 	size_t i, j;
 	int k;
+	struct buffer *const buf = all_buffers + bufid;
 	const size_t n = buf->nData + buf->nGap;
 	// find the start and end positions of the line
 	i = j = k = 0;

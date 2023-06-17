@@ -35,7 +35,7 @@ int (**edit_statesfromfiletype(fileid_t file))(struct state *s)
 }
 
 windowid_t
-edit_new(struct buffer *buf, int (**states)(struct state *s))
+edit_new(bufferid_t bufid, int (**states)(struct state *s))
 {
 	windowid_t winid;
 	struct window *win;
@@ -44,7 +44,7 @@ edit_new(struct buffer *buf, int (**states)(struct state *s))
 	if(winid == ID_NULL)
 		return ID_NULL;
 	win = all_windows + winid;
-	win->buffer = buf;
+	win->buffer = bufid;
 	win->states = states;
 	return winid;
 }
@@ -59,6 +59,7 @@ edit_type(windowid_t winid, const char *str, size_t nStr)
 int
 edit_render(windowid_t winid)
 {
+	bufferid_t bufid;
 	struct buffer *buf;
 	int curLine, curCol;
 	size_t saveiGap;
@@ -68,9 +69,10 @@ edit_render(windowid_t winid)
 
 	struct window *const win = all_windows + winid;
 	// get buffer and cursor position
-	buf = win->buffer;
-	curLine = buffer_line(buf);
-	curCol = buffer_col(buf);
+	bufid = win->buffer;
+	buf = all_buffers + bufid;
+	curLine = buffer_line(bufid);
+	curCol = buffer_col(bufid);
 	// move gap out of the way
 	saveiGap = buf->iGap;
 	unsafe_buffer_movecursor(buf, buf->nData - buf->iGap);
@@ -285,7 +287,8 @@ bool
 edit_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdiff_t *pCached)
 {
 	struct window *const win = all_windows + winid;
-	struct buffer *const buf = win->buffer;
+	const bufferid_t bufid = win->buffer;
+	struct buffer *const buf = all_buffers + bufid;
 	switch(bc->type) {
 	case BIND_CALL_SETMODE:
 		if(win->bindMode->flags & FBIND_MODE_SELECTION)
@@ -295,19 +298,19 @@ edit_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdif
 		return !memcmp(bc->str, buf->data + buf->iGap + buf->nGap, MIN(strlen(bc->str), buf->nData - buf->iGap));
 	case BIND_CALL_ASSERTCHAR:
 		return buf->iGap != buf->nData && (char) param == buf->data[buf->iGap + buf->nGap];
-	case BIND_CALL_MOVECURSOR: return buffer_movecursor(buf, param) == param;
-	case BIND_CALL_MOVEHORZ: return buffer_movehorz(buf, param) == param;
+	case BIND_CALL_MOVECURSOR: return buffer_movecursor(bufid, param) == param;
+	case BIND_CALL_MOVEHORZ: return buffer_movehorz(bufid, param) == param;
 	case BIND_CALL_INSERTCHAR: {
 		char ch = param;
-		buffer_insert(buf, &ch, 1);
+		buffer_insert(bufid, &ch, 1);
 		return true;
 	}
-	case BIND_CALL_MOVEVERT: return buffer_movevert(buf, param) == param;
+	case BIND_CALL_MOVEVERT: return buffer_movevert(bufid, param) == param;
 	case BIND_CALL_INSERT:
-		buffer_insert(buf, bc->str, strlen(bc->str));
+		buffer_insert(bufid, bc->str, strlen(bc->str));
 		return true;
-	case BIND_CALL_DELETE: return buffer_delete(buf, param) == param;
-	case BIND_CALL_DELETELINE: return buffer_deleteline(buf, param) == param;
+	case BIND_CALL_DELETE: return buffer_delete(bufid, param) == param;
+	case BIND_CALL_DELETELINE: return buffer_deleteline(bufid, param) == param;
 	case BIND_CALL_DELETESELECTION: {
 		size_t n;
 
@@ -317,9 +320,9 @@ edit_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdif
 			n = win->selection - buf->iGap + 1;
 		else {
 			n = buf->iGap - win->selection + 1;
-			buffer_movecursor(buf, win->selection - buf->iGap);
+			buffer_movecursor(bufid, win->selection - buf->iGap);
 		}
-		buffer_delete(buf, n);
+		buffer_delete(bufid, n);
 		win->selection = buf->iGap;
 		return true;
 	}
@@ -342,18 +345,18 @@ edit_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, ptrdif
 		char *text;
 
 		if(!clipboard_paste(&text)) {
-			buffer_insert(buf, text, strlen(text));
+			buffer_insert(bufid, text, strlen(text));
 			free(text);
 			return true;
 		}
 		return false;
 	}
 	case BIND_CALL_UNDO:
-		return buffer_undo(buf);
+		return buffer_undo(bufid);
 	case BIND_CALL_REDO:
-		return buffer_redo(buf);
+		return buffer_redo(bufid);
 	case BIND_CALL_WRITEFILE:
-		return buffer_save(win->buffer);
+		return buffer_save(bufid);
 	case BIND_CALL_FIND:
 		for(size_t i = buf->iGap + buf->nGap; i < buf->nData + buf->nGap; i++)
 			if(buf->data[i] == param) {

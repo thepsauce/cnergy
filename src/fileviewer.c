@@ -168,14 +168,14 @@ fileviewer_bindcall(windowid_t winid, struct binding_call *bc, ptrdiff_t param, 
 			fc_unlock(fc);
 			fc_recache(file);
 		} else if(fc_isreg(fc)) {
-			struct buffer *buf;
+			bufferid_t bid;
 			windowid_t wid;
 
 			fc_unlock(fc);
-			buf = buffer_new(file);
-			if(!buf)
+			bid = buffer_new(file);
+			if(bid == ID_NULL)
 				break;
-			wid = edit_new(buf, edit_statesfromfiletype(file));
+			wid = edit_new(bid, edit_statesfromfiletype(file));
 			if(wid != ID_NULL) {
 				window_copylayout(wid, winid);
 				window_delete(winid);

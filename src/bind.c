@@ -451,6 +451,11 @@ bind_exec(const int *keys, ptrdiff_t amount)
 		case BIND_CALL_CLOSEWINDOW:
 			window_close(focus_window);
 			b = !!focus_window;
+			if(!n_windows) {
+				endwin();
+				printf("all windows closed exit\n");
+				exit(0);
+			}
 			break;
 		case BIND_CALL_MOVEWINDOW_RIGHT:
 		case BIND_CALL_MOVEWINDOW_BELOW: {
@@ -498,20 +503,20 @@ bind_exec(const int *keys, ptrdiff_t amount)
 			break;
 		}
 		case BIND_CALL_NEWWINDOW: {
-			struct buffer *buf;
+			bufferid_t bufid;
 			windowid_t winid;
 
-			buf = buffer_new(0);
-			if(!buf) {
+			bufid = buffer_new(0);
+			if(bufid == ID_NULL) {
 				b = false;
 				break;
 			}
-			winid = edit_new(buf, NULL);
+			winid = edit_new(bufid, NULL);
 			if(winid != ID_NULL) {
 				window_attach(focus_window, winid, ATT_WINDOW_UNSPECIFIED);
 				focus_window = winid;
 			} else {
-				buffer_free(buf);
+				buffer_free(bufid);
 				b = false;
 			}
 			break;
