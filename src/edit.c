@@ -123,12 +123,15 @@ edit_render(windowid_t winid)
 		maxSel = 0;
 	}
 
-	const int tabsize = all_settings[SET_TABSIZE];
-	const int lnrColor = winid == focus_window ? all_settings[SET_COLOR_LINENR_FOCUS] : all_settings[SET_COLOR_LINENR];
-	const int cntrlColor = all_settings[SET_COLOR_CNTRL];
-	const int endofbufferColor = all_settings[SET_COLOR_ENDOFBUFFER];
-	const int statusbar1Color = winid == focus_window ? all_settings[SET_COLOR_STATUSBAR1_FOCUS] : all_settings[SET_COLOR_STATUSBAR1];
-	const int statusbar2Color = winid == focus_window ? all_settings[SET_COLOR_STATUSBAR2_FOCUS] : all_settings[SET_COLOR_STATUSBAR2];
+	const int tabsize = main_environment.settings[SET_TABSIZE];
+	const int lnrColor = winid == focus_window ? main_environment.settings[SET_COLOR_LINENR_FOCUS] :
+		main_environment.settings[SET_COLOR_LINENR];
+	const int cntrlColor = main_environment.settings[SET_COLOR_CNTRL];
+	const int endofbufferColor = main_environment.settings[SET_COLOR_ENDOFBUFFER];
+	const int statusbar1Color = winid == focus_window ? main_environment.settings[SET_COLOR_STATUSBAR1_FOCUS] :
+		main_environment.settings[SET_COLOR_STATUSBAR1];
+	const int statusbar2Color = winid == focus_window ? main_environment.settings[SET_COLOR_STATUSBAR2_FOCUS] :
+		main_environment.settings[SET_COLOR_STATUSBAR2];
 
 	// setup loop
 	move(win->line, win->col);
@@ -277,38 +280,63 @@ edit_render(windowid_t winid)
 }
 
 bool
-edit_event(windowid_t winid, struct event *ev)
+edit_call(windowid_t winid, call_t type)
 {
 	struct window *const win = all_windows + winid;
 	const bufferid_t bufid = win->buffer;
 	struct buffer *const buf = all_buffers + bufid;
-	switch(ev->type) {
-	case EVENT_TYPE:
-		buffer_insert(bufid, ev->str, strlen(ev->str));
+	switch(type) {
+	case CALL_TYPE: {
+		const char *const str = (const char*) main_environment.A;
+		buffer_insert(bufid, str, strlen(str));
 		break;
-	case EVENT_RENDER:
+	}
+	case CALL_RENDER:
 		edit_render(winid);
 		break;
-	case EVENT_SETMODE:
+	case CALL_SETMODE:
 		if(win->bindMode->flags & FBIND_MODE_SELECTION)
 			win->selection = buf->iGap;
 		return true;
-	case EVENT_ASSERT:
-		return !memcmp(ev->str, buf->data + buf->iGap + buf->nGap, MIN(strlen(ev->str), buf->nData - buf->iGap));
-	case EVENT_ASSERTCHAR:
-		return buf->iGap != buf->nData && ev->c == buf->data[buf->iGap + buf->nGap];
-	case EVENT_MOVECURSOR: return buffer_movecursor(bufid, ev->amount) == ev->amount;
-	case EVENT_MOVEHORZ: return buffer_movehorz(bufid, ev->amount) == ev->amount;
-	case EVENT_INSERTCHAR:
-		buffer_insert(bufid, &ev->c, 1);
+	case CALL_ASSERT: {
+		const char *const str = (const char*) main_environment.A;
+		return !memcmp(str, buf->data + buf->iGap + buf->nGap, MIN(strlen(str), buf->nData - buf->iGap));
+	}
+	case CALL_ASSERTCHAR: {
+		const char ch = (char) main_environment.A;
+		return buf->iGap != buf->nData && ch == buf->data[buf->iGap + buf->nGap];
+	}
+	case CALL_MOVECURSOR: {
+		ptrdiff_t amount = main_environment.A;
+		return buffer_movecursor(bufid, amount) == amount;
+	}
+	case CALL_MOVEHORZ: {
+		ptrdiff_t amount = main_environment.A;
+		return buffer_movehorz(bufid, amount) == amount;
+	}
+	case CALL_INSERTCHAR: {
+		const char ch = (char) main_environment.A;
+		buffer_insert(bufid, &ch, 1);
 		return true;
-	case EVENT_MOVEVERT: return buffer_movevert(bufid, ev->amount) == ev->amount;
-	case EVENT_INSERT:
-		buffer_insert(bufid, ev->str, strlen(ev->str));
+	}
+	case CALL_MOVEVERT: {
+		const ptrdiff_t amount = main_environment.A;
+		return buffer_movevert(bufid, amount) == amount;
+	}
+	case CALL_INSERT: {
+		const char *const str = (const char*) main_environment.A;
+		buffer_insert(bufid, str, strlen(str));
 		return true;
-	case EVENT_DELETE: return buffer_delete(bufid, ev->amount) == ev->amount;
-	case EVENT_DELETELINE: return buffer_deleteline(bufid, ev->amount) == ev->amount;
-	case EVENT_DELETESELECTION: {
+	}
+	case CALL_DELETE: {
+		const ptrdiff_t amount = main_environment.A;
+		return buffer_delete(bufid, amount) == amount;
+	}
+	case CALL_DELETELINE: {
+		const ptrdiff_t amount = main_environment.A;
+		return buffer_deleteline(bufid, amount) == amount;
+	}
+	case CALL_DELETESELECTION: {
 		size_t n;
 
 		if(!(win->bindMode->flags & FBIND_MODE_SELECTION) || !buf->nData)
@@ -323,7 +351,7 @@ edit_event(windowid_t winid, struct event *ev)
 		win->selection = buf->iGap;
 		return true;
 	}
-	case EVENT_COPY: {
+	case CALL_COPY: {
 		char *text;
 		size_t nText;
 
@@ -338,7 +366,7 @@ edit_event(windowid_t winid, struct event *ev)
 		}
 		return !clipboard_copy(text, nText);
 	}
-	case EVENT_PASTE: {
+	case CALL_PASTE: {
 		char *text;
 
 		if(!clipboard_paste(&text)) {
@@ -348,21 +376,24 @@ edit_event(windowid_t winid, struct event *ev)
 		}
 		return false;
 	}
-	case EVENT_UNDO:
+	case CALL_UNDO:
 		return buffer_undo(bufid);
-	case EVENT_REDO:
+	case CALL_REDO:
 		return buffer_redo(bufid);
-	case EVENT_WRITEFILE:
+	case CALL_WRITEFILE:
 		return buffer_save(bufid);
-	case EVENT_FIND:
-		// TODO: find should get a rework soon where regex is used
+	case CALL_FIND: {
+		const char ch = (char) main_environment.A;
+		// TODO: find should get a rework so on where regex is used
 		for(size_t i = buf->iGap + buf->nGap; i < buf->nData + buf->nGap; i++)
-			if(buf->data[i] == ev->amount) {
-				ev->cached = i - buf->iGap - buf->nGap;
+			if(buf->data[i] == ch) {
+				main_environment.A = i - buf->iGap - buf->nGap;
 				return true;
 			}
 		return false;
+	}
 	default:
 		return false;
 	}
+	return false;
 }

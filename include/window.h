@@ -201,9 +201,8 @@ enum {
 void window_attach(windowid_t toid, windowid_t winid, int pos);
 /** Remove all connections to any other windows */
 void window_detach(windowid_t winid);
+/** Relayout this window and all right/down connected windows */
 void window_layout(windowid_t winid);
-/** Return values of 1 mean that the window wasn't rendered */
-int window_render(windowid_t winid);
 
 /* Additional functions for specific window types */
 // edit.c

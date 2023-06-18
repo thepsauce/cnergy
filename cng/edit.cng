@@ -26,7 +26,7 @@ v :visual
 ## %1 will get the second key pressed
 ## The find command stores its return value in a special place
 ## that can be accessed using "["
-f ** #N (( #- & >1 & !find %1 & $[ ))
+f ** (( #N-- & >1 & !find %1 & $A ))
 r ** >x1 & +%1
 : e !open
 : w !write
@@ -34,7 +34,7 @@ r ** >x1 & +%1
 H ** +%0 +%1 <1 ?"A" ^ +"A" >x1
 
 ## Testing
-T #N (( #-1 & +"T" ))
+T (( #N-- & +"T" ))
 M ?"int" ^ +"int" ^ +"u" ^ <3 ^ <1
 
 bind $edit::insert:

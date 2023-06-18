@@ -89,7 +89,7 @@ utf8_width(const char *utf8, size_t nStr, int tabRef)
 
 	/* tab correction */
 	if(firstByte == '\t') {
-		const int tabsize = all_settings[SET_TABSIZE];
+		const int tabsize = main_environment.settings[SET_TABSIZE];
 		return tabsize - tabRef % tabsize;
 	}
 	/* ^A ^B ^C and so on */

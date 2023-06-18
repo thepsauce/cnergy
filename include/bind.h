@@ -9,32 +9,11 @@
  * For further information, see parser.h
  */
 
-typedef enum {
-	FBIND_CALL_USENUMBER 	= 1 << 0,
-	FBIND_CALL_AND 			= 1 << 1,
-	FBIND_CALL_OR 			= 1 << 2,
-	FBIND_CALL_XOR 			= 1 << 3,
-	FBIND_CALL_USECACHE 	= 1 << 4,
-	FBIND_CALL_USEKEY 		= 1 << 5,
-} bind_flags_t;
-
-struct binding_call {
-	event_type_t type;
-	bind_flags_t flags;
-	union {
-		char input[64];
-		ptrdiff_t param;
-		void *ptr;
-		char *str;
-		char name[64];
-	};
-};
-
 struct binding {
 	unsigned nKeys;
-	unsigned nCalls;
+	size_t szProgram;
 	int *keys;
-	struct binding_call *calls;
+	void *program;
 };
 
 enum {
@@ -53,10 +32,9 @@ struct binding_mode {
 
 extern struct binding_mode *all_modes[WINDOW_MAX];
 
-char *mode_allocstr(const char *str, size_t nStr);
 int *mode_allockeys(const int *keys, unsigned nKeys);
-struct binding_call *mode_alloccalls(const struct binding_call *calls, unsigned nCalls);
 int modes_add(struct binding_mode *modes[WINDOW_MAX]);
-int bind_exec(const int *keys, ptrdiff_t param);
+struct binding_mode *mode_find(window_type_t type, const char *name);
+int bind_find(const int *keys, struct binding **pBind);
 
 #endif

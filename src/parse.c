@@ -36,7 +36,7 @@ int (*constructs[][16])(struct parser *parser) = {
 		parser_skipspace, parser_getbindmodeprefix, parser_getmodename, parser_getbindmodesuffix,
 		parser_skipspace, parser_getbindmodeextensions, parser_addbindmode },
 	{ parser_getword, parser_checkincludeword, parser_skipspace, parser_getstring, parser_addinclude },
-	{ parser_getkeylist, parser_getcalllist, parser_addbind },
+	{ parser_getkeylist, parser_getprogram, parser_addbind },
 };
 
 int
@@ -315,7 +315,7 @@ parser_cleanup(struct parser *parser)
 {
 	free(parser->str);
 	free(parser->keys);
-	free(parser->calls);
+	free(parser->program);
 	for(window_type_t i = 0; i < WINDOW_MAX; i++) {
 		for(struct binding_mode *m = parser->firstModes[i], *next; m; m = next) {
 			next = m->next;

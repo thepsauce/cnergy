@@ -3,8 +3,6 @@
 #include "cnergy.h"
 #include <locale.h>
 
-int all_settings[SET_MAX];
-
 void print_modes(struct binding_mode *mode);
 
 void getfilepos(fileid_t file, long pos, int *line, int *col)
@@ -41,11 +39,6 @@ main(int argc, char **argv)
 	memset(&parser, 0, sizeof(parser));
 	if(!parser_open(&parser, fc_cache(fc_getbasefile(), "cng/draft.cng"))) {
 		while(!parser_next(&parser));
-		for(window_type_t i = 0; i < WINDOW_MAX; i++) {
-			printf("===== %u =====\n", i);
-			for(struct binding_mode *m = parser.firstModes[i]; m; m = m->next)
-				print_modes(m);
-		}
 		if(!parser.nErrors) {
 			for(unsigned i = 0; i < parser.nAppendRequests; i++) {
 				struct binding_mode *m;
@@ -68,7 +61,6 @@ main(int argc, char **argv)
 			modes_add(parser.firstModes);
 		}
 		parser_cleanup(&parser);
-		print_modes(NULL);
 	}
 	int line, col;
 	for(unsigned j = 0; j < parser.nErrStack; j++) {
@@ -121,30 +113,27 @@ main(int argc, char **argv)
 
 #define COLOR(bg, fg) COLOR_PAIR(1 + ((bg) | ((fg) * 16)))
 	// make default settings
-	all_settings[SET_TABSIZE] = 4;
-	all_settings[SET_COLOR_LINENR_FOCUS] = COLOR(11, 8);
-	all_settings[SET_COLOR_LINENR] = COLOR(3, 8);
-	all_settings[SET_COLOR_ENDOFBUFFER] = COLOR(6, 0);
-	all_settings[SET_COLOR_STATUSBAR1_FOCUS] = COLOR(14, 8);
-	all_settings[SET_COLOR_STATUSBAR2_FOCUS] = COLOR(11, 8);
-	all_settings[SET_COLOR_STATUSBAR1] = COLOR(6, 8);
-	all_settings[SET_COLOR_STATUSBAR2] = COLOR(3, 8);
-	all_settings[SET_COLOR_ITEM] = COLOR(3, 0);
-	all_settings[SET_COLOR_ITEMSELECTED] = COLOR(3, 8);
-	all_settings[SET_COLOR_DIRSELECTED] = COLOR(6, 8);
-	all_settings[SET_COLOR_FILESELECTED] = COLOR(7, 8);
-	all_settings[SET_COLOR_EXECSELECTED] = COLOR(3, 8);
-	all_settings[SET_COLOR_DIR] = COLOR(6, 0);
-	all_settings[SET_COLOR_FILE] = COLOR(7, 0);
-	all_settings[SET_COLOR_EXEC] = COLOR(3, 0);
-	all_settings[SET_COLOR_BROKENFILE] = A_REVERSE | COLOR(2, 0);
-	all_settings[SET_CHAR_DIR] = '/';
-	all_settings[SET_CHAR_EXEC] = '*';
+	main_environment.settings[SET_TABSIZE] = 4;
+	main_environment.settings[SET_COLOR_LINENR_FOCUS] = COLOR(11, 8);
+	main_environment.settings[SET_COLOR_LINENR] = COLOR(3, 8);
+	main_environment.settings[SET_COLOR_ENDOFBUFFER] = COLOR(6, 0);
+	main_environment.settings[SET_COLOR_STATUSBAR1_FOCUS] = COLOR(14, 8);
+	main_environment.settings[SET_COLOR_STATUSBAR2_FOCUS] = COLOR(11, 8);
+	main_environment.settings[SET_COLOR_STATUSBAR1] = COLOR(6, 8);
+	main_environment.settings[SET_COLOR_STATUSBAR2] = COLOR(3, 8);
+	main_environment.settings[SET_COLOR_ITEM] = COLOR(3, 0);
+	main_environment.settings[SET_COLOR_ITEMSELECTED] = COLOR(3, 8);
+	main_environment.settings[SET_COLOR_DIRSELECTED] = COLOR(6, 8);
+	main_environment.settings[SET_COLOR_FILESELECTED] = COLOR(7, 8);
+	main_environment.settings[SET_COLOR_EXECSELECTED] = COLOR(3, 8);
+	main_environment.settings[SET_COLOR_DIR] = COLOR(6, 0);
+	main_environment.settings[SET_COLOR_FILE] = COLOR(7, 0);
+	main_environment.settings[SET_COLOR_EXEC] = COLOR(3, 0);
+	main_environment.settings[SET_COLOR_BROKENFILE] = A_REVERSE | COLOR(2, 0);
+	main_environment.settings[SET_CHAR_DIR] = '/';
+	main_environment.settings[SET_CHAR_EXEC] = '*';
 
-	int keys[32];
-	unsigned nKeys = 0;
-	ptrdiff_t num = 0;
-	struct event ev;
+	int *const keys = (int*) main_environment.memory;
 
 	// setup some windows for testing
 	const char *files[] = {
@@ -166,6 +155,8 @@ main(int argc, char **argv)
 	windows[2]->below = w;
 	w->above = windows[2];*/
 
+	/* stack pointer grows downwards */
+	main_environment.sp = sizeof(main_environment.memory);
 	while(1) {
 		int c;
 		int nextLine, nextCol, nextLines, nextCols;
@@ -188,8 +179,7 @@ main(int argc, char **argv)
 				w->lines = nextLines;
 				w->cols = nextCols;
 				window_layout(i);
-				ev.type = EVENT_RENDER;
-				event_dispatch(&ev);
+				environment_call(CALL_RENDER);
 				nextLine += nextLines / 6;
 				nextCol += nextCols / 6;
 				nextLines = nextLines * 4 / 6;
@@ -213,50 +203,57 @@ main(int argc, char **argv)
 			// if we have anything already, discard it,
 			// meaning that escape cannot be repeated or be part of a bind
 			// it can only be the start of a bind
-			if(num || nKeys) {
-				num = 0;
-				nKeys = 0;
+			if(main_environment.N || main_environment.mp) {
+				main_environment.N = 0;
+				main_environment.mp = 0;
 				continue;
 			}
 			break;
 		}
 		if((window_getbindmode(focus_window)->flags & FBIND_MODE_TYPE) &&
 				(isprint(c) || isspace(c))) {
-			char b[10];
-
-			b[0] = c;
+			main_environment.memory[main_environment.mp] = c;
 			// get length of the following utf8 character and fully read it
-			const unsigned len = (c & 0xe0) == 0xc0 ? 2 : (c & 0xf0) == 0xe0 ? 3 : (c & 0xf8) == 0xf0 ? 4 : 1;
-			for(unsigned i = 1; i < len; i++)
-				b[i] = getch();
-			ev.type = EVENT_TYPE;
-			ev.str = (const char*) b;
-			event_dispatch(&ev);
+			for(unsigned
+					i = 1,
+					l = (c & 0xe0) == 0xc0 ? 2 :
+						(c & 0xf0) == 0xe0 ? 3 :
+						(c & 0xf8) == 0xf0 ? 4 : 1;
+					i < l; i++)
+				main_environment.memory[main_environment.mp + i] = getch();
+			main_environment.A = (ptrdiff_t) (main_environment.memory + main_environment.mp);
+			environment_call(CALL_TYPE);
 		}
 		// either append the digit to the number or try to execute a bind
 		// render status bar
 		attrset(COLOR(3, 0));
 		move(LINES - 1, 0);
 		if(!(window_getbindmode(focus_window)->flags & FBIND_MODE_TYPE) &&
-				isdigit(c) && (c != '0' || num)) {
-			num = SAFE_MUL(num, 10);
-			num = SAFE_ADD(num, c - '0');
+				isdigit(c) && (c != '0' || main_environment.N)) {
+			main_environment.N = SAFE_MUL(main_environment.N, 10);
+			main_environment.N = SAFE_ADD(main_environment.N, c - '0');
 		} else {
-			keys[nKeys] = c;
-			if(nKeys + 1 < ARRLEN(keys))
-				nKeys++;
-			keys[nKeys] = 0;
-			// a return value of 1 indicates that the user can get to a bind by pressing more keys,
-			// we check for the opposite
-			if(bind_exec(keys, num ? num : 1) != 1) {
-				nKeys = 0;
-				num = 0;
+			struct binding *bind;
+
+			*(int*) (main_environment.memory + main_environment.mp) = c;
+			main_environment.mp += sizeof(int);
+			*(int*) (main_environment.memory + main_environment.mp) = 0;
+			switch(bind_find(keys, &bind)) {
+			case 0:
+				environment_loadandexec(bind->program, bind->szProgram);
+			/* fall through */
+			case 2:
+				main_environment.mp = 0;
+				main_environment.N = 0;
+				break;
+			case 1:
+				break;
 			}
 		}
 		printw("%s ", window_getbindmode(focus_window)->name);
-		if(num)
-			printw("%zd", num);
-		for(unsigned i = 0; i < nKeys; i++)
+		if(main_environment.N)
+			printw("%zd", main_environment.N);
+		for(unsigned i = 0; i < main_environment.mp / sizeof(int); i++)
 			printw("%s", keyname(keys[i]));
 		ersline(COLS - getcurx(stdscr));
 	}

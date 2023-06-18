@@ -1,0 +1,107 @@
+; J .1 & `1 >end +" " >x1 (( ?"\t" | ?" " & >x1 ))
+
+JMP ... ; Jump over the data
+str1: " "
+str2: "\t"
+; .1
+LDA 1
+CALL MOVEVERT
+JZ ... ; Jump to exit
+; & `1
+LDA -1
+CALL MOVEVERT
+JZ ... ; Jump to exit
+; >end
+LDA MAX
+CALL MOVEHORZ
+; +" "
+LDOA ; Loads the program offset into the register
+ADDA str1
+CALL INSERT
+; >x1
+LDA 1
+CALL DELETE
+; ((
+; ?"\t"
+LDAO
+ADDA str2
+CALL TEST
+; | ?" "
+PSHB ; Since the user might be using B, we have to off-store it somewhere
+LDB %A ; Store the result somewhere
+LDAO
+ADDA STR2
+CALL TEST
+ORA %B
+JZ ... ; Jump to exit
+POPB
+; & >x1
+LDA 1
+CALL DELETE
+JZ ... ; Jump to exit
+; ))
+JMP -... ; Jump back to the start of the loop
+EXIT 0
+; The parser figures out all the correct offsets for jumping (for the ...)
+
+
+; T (( #N-- & +"T" ))
+LDX ...
+JMP ...
+
+str1: "T"
+
+LDX ...
+DECN
+LDAO
+ADDA str1
+ANDCALL INSERT
+JMP -...
+LDX ...
+EXIT 0
+
+;;;;;;;;;;;;;;;;;;;;;
+
+JMP ...
+
+str1: "T"
+
+DECN
+JZ ...
+LDAO
+ADDA str1
+CALL INSERT
+JZ ...
+JMP -...
+EXIT 0
+
+; f ** (( #N--& >1& !find %1& $M ))
+
+l1:
+	decn
+	jz		l2 
+
+	lda		1
+	call	movehorz
+
+	lda		[4] ; [4] is the second pressed key
+	call	find
+	jz		l2
+
+	call	movecursor
+
+	jmp		l1
+
+l2:
+	exit	0
+
+
+
+
+
+
+
+
+
+
+

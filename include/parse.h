@@ -44,18 +44,17 @@
  * Loops, caching and any key *
  ******************************
  * *********************************
- * f ** #N (( #- & !find %1 $[ ))
+ * f ** (( #-- & !find %1 $A ))
  * *********************************
  * Here is a breakdown of this command line:
- * f								If the user presses f
- *   **								If the user pressed any other key
- *      #N  						Load N into the register
- *         ((                  ))	Loop until the inside fails
- *            #- 					Decrement the register
- *               & 					Stop the loop if the register is 0 or if find fails
- *                 !find %1			Find the text the user pressed
- *                          $		Move the cursor
- *                           [		to the cached value (find result)
+ * f							If the user presses f
+ *   **							If the user pressed any other key
+ *       ((                  ))	Loop until the inside fails
+ *          #--					Decrement the register
+ *              &				Stop the loop if the register is 0 or if find fails
+ *               !find %1		Find the char the user pressed
+ *                        $		Move the cursor
+ *                         A	to the return value of find
  */
 
 /**
@@ -134,8 +133,8 @@ struct parser {
 	unsigned nKeys;
 	int loopStack[32];
 	int nLoopStack;
-	struct binding_call *calls;
-	unsigned nCalls;
+	void *program;
+	size_t szProgram;
 	struct {
 		parser_error_t err;
 		long pos;
@@ -241,7 +240,8 @@ int parser_getkey(struct parser *parser);
  */
 int parser_getkeylist(struct parser *parser);
 /**
- * Reads a call and stores it inside of parser->calls
+ * Reads an instruction and stores it inside of parser->program
+ * May add requests
  *
  * Examples:
  * >1
@@ -253,8 +253,8 @@ int parser_getkeylist(struct parser *parser);
  * ))
  * >w4
  */
-int parser_getcall(struct parser *parser);
-int parser_getcalllist(struct parser *parser);
+int parser_getinstruction(struct parser *parser);
+int parser_getprogram(struct parser *parser);
 int parser_addbind(struct parser *parser);
 
 // parse_include.c

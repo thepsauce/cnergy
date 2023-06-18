@@ -10,12 +10,18 @@
 	printw("%*s", MAX(_m - getcurx(stdscr), 0), ""); \
 })
 
-/* Settings */
-// main.c
+/****************************
+ * Settings and environment *
+ ****************************/
+
 /**
  * Settings allow for high customizability. Settings include
  * colors, tabsize and so on.
+ *
+ * The environment can be used to run
+ * custom programs and calls
  */
+
 typedef enum {
 	SET_TABSIZE,
 	// line numbers of a focused window
@@ -44,9 +50,152 @@ typedef enum {
 	SET_MAX,
 } setting_t;
 
-extern int all_settings[];
+typedef enum {
+#define REGISTER_LD(r) \
+	INSTR_LD##r
+#define REGISTER_LDO(r) \
+	INSTR_LD##r##O
+#define REGISTER_COMPATIBLELD(r1, r2) \
+	INSTR_LD##r1##r2
+#define REGISTER_LDMEM(r) \
+	INSTR_LD##r##MEMB, INSTR_LD##r##MEMI, INSTR_LD##r##MEMP
+#define REGISTER_STACK(r) \
+	INSTR_PSH##r, INSTR_POP##r
+#define REGISTER_MATH(r) \
+	INSTR_ADD##r, INSTR_SUB##r, INSTR_MUL##r, INSTR_DIV##r, INSTR_INC##r, INSTR_DEC##r
+	/* ldr [val] */
+	REGISTER_LD(A),
+	REGISTER_LD(B),
+	REGISTER_LD(M),
+	REGISTER_LD(N),
+	/* ldor [val] */
+	REGISTER_LDO(A),
+	REGISTER_LDO(B),
+	REGISTER_LDO(M),
+	REGISTER_LDO(N),
+	/* ldr1 r2 */
+	REGISTER_COMPATIBLELD(A, B),
+	REGISTER_COMPATIBLELD(A, M),
+	REGISTER_COMPATIBLELD(A, N),
 
-/* Sorted list */
+	REGISTER_COMPATIBLELD(B, A),
+	REGISTER_COMPATIBLELD(B, M),
+	REGISTER_COMPATIBLELD(B, N),
+
+	REGISTER_COMPATIBLELD(M, B),
+	REGISTER_COMPATIBLELD(M, A),
+	REGISTER_COMPATIBLELD(M, N),
+
+	REGISTER_COMPATIBLELD(N, B),
+	REGISTER_COMPATIBLELD(N, A),
+	REGISTER_COMPATIBLELD(N, M),
+	/* pushr */
+	/* popr */
+	REGISTER_STACK(A),
+	REGISTER_STACK(B),
+	REGISTER_STACK(M),
+	REGISTER_STACK(N),
+	/* [opr]r */
+	REGISTER_MATH(A),
+	REGISTER_MATH(B),
+	REGISTER_MATH(M),
+	REGISTER_MATH(N),
+	INSTR_JMP,
+	INSTR_JZ,
+	INSTR_CALL,
+	INSTR_EXIT,
+#undef REGISTER_LD
+#undef REGISTER_LDO
+#undef REGISTER_COMPATIBLELD
+#undef REGISTER_LDMEM
+#undef REGISTER_STACK
+#undef REGISTER_MATH
+} instr_t;
+
+typedef enum {
+	CALL_NULL,
+	// general callss, these have a default behavior which cannot be overwritten but only extended
+	CALL_SETMODE,
+	CALL_VSPLIT,
+	CALL_HSPLIT,
+	CALL_COLORWINDOW,
+	CALL_OPENWINDOW,
+	CALL_CLOSEWINDOW,
+	CALL_NEWWINDOW,
+	CALL_MOVEWINDOW_RIGHT,
+	CALL_MOVEWINDOW_BELOW,
+	CALL_QUIT,
+	// these have no default behavior and it solely depends on the window type what the behavior is
+	CALL_CREATE,
+	CALL_DESTROY,
+	CALL_RENDER,
+	CALL_TYPE,
+	CALL_ASSERT,
+	CALL_ASSERTCHAR,
+	CALL_MOVECURSOR,
+	CALL_MOVEHORZ,
+	CALL_MOVEVERT,
+	CALL_INSERT,
+	CALL_INSERTCHAR,
+	CALL_DELETE,
+	CALL_DELETELINE,
+	CALL_DELETESELECTION,
+	CALL_COPY,
+	CALL_PASTE,
+	CALL_UNDO,
+	CALL_REDO,
+	CALL_WRITEFILE,
+	CALL_READFILE,
+	CALL_FIND,
+
+	CALL_CHOOSE,
+	CALL_TOGGLEHIDDEN,
+	CALL_TOGGLESORTTYPE,
+	CALL_TOGGLESORTREVERSE,
+	CALL_SORTMODIFICATIONTIME,
+	CALL_SORTALPHABETICAL,
+	CALL_SORTCHANGETIME,
+
+	CALL_MAX,
+} call_t;
+
+extern const struct call_info {
+	const char *name;
+	unsigned paramType;
+} infoCalls[CALL_MAX];
+
+/**
+ * Enviroment is like a mini computer that is
+ * used to execute user programs and handle calls.
+ */
+extern struct environment {
+	/* memory pointer, stack pointer, instruction pointer */
+	size_t mp, sp, ip;
+	/* general porpuse registers */
+	ptrdiff_t B, M;
+	/**
+	 * A is mainly the first parameter to calls and
+	 * is als the return value.
+	 */
+	ptrdiff_t A;
+	/* N is the number the user types in front of a bind */
+	ptrdiff_t N;
+	/* z flag is set on mathematical operations and calls */
+	int z: 1;
+	/**
+	 * A certain section (offset from the start) inside memory
+	 * is occupied with the keys the user pressed.
+	 */
+	char memory[0xffff];
+	int settings[SET_MAX];
+} main_environment;
+
+void environment_call(call_t type);
+int environment_loadandexec(void *program, size_t szProgram);
+
+/***************
+ * Sorted list *
+ ***************/
 // sortedlist.c
 /**
  * This list is sorted at all times and can use that to
@@ -68,7 +217,9 @@ int sortedlist_add(struct sortedlist *s, const char *word, size_t nWord, void *p
 int sortedlist_remove(struct sortedlist *s, const char *word, size_t nWord);
 bool sortedlist_exists(struct sortedlist *s, const char *word, size_t nWord, void **pParam);
 
-/* UTF8 */
+/********
+ * UTF8 *
+ ********/
 // utf8.c
 
 /**
@@ -92,90 +243,10 @@ bool utf8_valid(const char *utf8, size_t nStr);
 /** Convert byte distance to char distance */
 ptrdiff_t utf8_cnvdist(const char *str, size_t nStr, size_t index, ptrdiff_t distance);
 
-/* Event */
-
-typedef enum {
-	EVENT_NULL,
-	// general events, these have a default behavior which cannot be overwritten but only extended
-	EVENT_STARTLOOP,
-	EVENT_ENDLOOP,
-	EVENT_REGISTER,
-	EVENT_SETMODE,
-	EVENT_VSPLIT,
-	EVENT_HSPLIT,
-	EVENT_COLORWINDOW,
-	EVENT_OPENWINDOW,
-	EVENT_CLOSEWINDOW,
-	EVENT_NEWWINDOW,
-	EVENT_MOVEWINDOW_RIGHT,
-	EVENT_MOVEWINDOW_BELOW,
-	EVENT_QUIT,
-	// these have no default behavior and it solely depends on the window type what the behavior is
-	EVENT_CREATE,
-	EVENT_DESTROY,
-	EVENT_RENDER,
-	EVENT_TYPE,
-	EVENT_ASSERT,
-	EVENT_ASSERTCHAR,
-	EVENT_MOVECURSOR,
-	EVENT_MOVEHORZ,
-	EVENT_MOVEVERT,
-	EVENT_INSERT,
-	EVENT_INSERTCHAR,
-	EVENT_DELETE,
-	EVENT_DELETELINE,
-	EVENT_DELETESELECTION,
-	EVENT_COPY,
-	EVENT_PASTE,
-	EVENT_UNDO,
-	EVENT_REDO,
-	EVENT_WRITEFILE,
-	EVENT_READFILE,
-	EVENT_FIND,
-
-	EVENT_CHOOSE,
-	EVENT_TOGGLEHIDDEN,
-	EVENT_TOGGLESORTTYPE,
-	EVENT_TOGGLESORTREVERSE,
-	EVENT_SORTMODIFICATIONTIME,
-	EVENT_SORTALPHABETICAL,
-	EVENT_SORTCHANGETIME,
-
-	EVENT_MAX,
-} event_type_t;
-
-struct event {
-	event_type_t type;
-	/* Input space */
-	union {
-		char input[64];
-		void *create;
-		// nothing for destroy
-		// nothing for render
-		const char *str;
-		void *ptr;
-		char name[64];
-		char c;
-		ptrdiff_t amount;
-	};
-	/* Output space */
-	union {
-		char output[64];
-		ptrdiff_t cached;
-	};
-};
-
-struct event_info {
-	const char *name;
-	unsigned paramType;
-};
-
-extern const struct event_info infoEvents[EVENT_MAX];
-
-/** Dispatches event, uses the focus window */
-bool event_dispatch(struct event *ev);
-
-/* Regex */
+/*********
+ * Regex *
+ *********/
+// regex.c
 
 typedef unsigned regex_nodeid_t;
 
@@ -196,7 +267,9 @@ struct regex_matcher {
 
 int regex_addpattern(struct regex_matcher *matcher, const char *pattern);
 
-/* Dialog */
+/**********
+ * Dialog *
+ **********/
 // dialog.c
 /**
  * Dialogs temporarily block all user input to show a message and wait for a user's reaction
@@ -208,7 +281,9 @@ int messagebox(const char *title, const char *msg, ...);
 void *dialog_alloc(size_t sz);
 void *dialog_realloc(void *ptr, size_t newSz);
 
-/* Clipboard */
+/*************
+ * Clipboard *
+ *************/
 // clip_x11.c
 // clip_none.c
 
@@ -239,7 +314,9 @@ typedef unsigned bufferid_t;
 #include "bind.h"
 #include "parse.h"
 
-/* Syntax highlighting */
+/***********************
+ * Syntax highlighting *
+ ***********************/
 // state.c
 // syntax_c/
 // syntax_cnergy/

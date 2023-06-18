@@ -102,225 +102,30 @@ parser_getkeylist(struct parser *parser)
 	return COMMIT;
 }
 
-static int
-parser_getintparam(struct parser *parser)
+int
+parser_getinstr(struct parser *parser)
 {
-	if(parser->c == '%') {
-		parser->calls[parser->nCalls].flags |= FBIND_CALL_USEKEY;
-		parser_getc(parser);
-	}
-	if(parser_getnumber(parser) == FAIL) {
-		if(parser->c == '[') {
-			parser->calls[parser->nCalls].flags |= FBIND_CALL_USECACHE;
-			parser_getc(parser);
-		} else {
-			if(parser_getword(parser) != SUCCESS) {
-				parser_pusherror(parser, ERR_EXPECTED_PARAM);
-				return FAIL;
-			}
-			if(!strcasecmp(parser->word, "home"))
-				parser->num = TYPE_MIN(parser->num);
-			else if(!strcasecmp(parser->word, "end"))
-				parser->num = TYPE_MAX(parser->num);
-			else if(!strcasecmp(parser->word, "N")) {
-				parser->num = 1;
-				parser->calls[parser->nCalls].flags |= FBIND_CALL_USENUMBER;
-			} else {
-				parser_pusherror(parser, ERR_INVALID_PARAM);
-				return FAIL;
-			}
-		}
-	} else if(parser->c == '[') {
-		parser->calls[parser->nCalls].flags |= FBIND_CALL_USECACHE;
-		parser_getc(parser);
-	} else if(parser_getword(parser) == SUCCESS) {
-		if(strcmp(parser->word, "N"))
-			return FAIL;
-		parser->calls[parser->nCalls].flags |= FBIND_CALL_USENUMBER;
-	}
-	parser->calls[parser->nCalls].param = parser->num;
-	return SUCCESS;
+	// TODO: implement this
+	return 0;
 }
 
 int
-parser_getcall(struct parser *parser)
-{
-	struct binding_call *newCalls;
-
-	newCalls = realloc(parser->calls, sizeof(*parser->calls) * (parser->nCalls + 1));
-	if(!newCalls)
-		return OUTOFMEMORY;
-	parser->calls = newCalls;
-	switch(parser->c) {
-	case '|':
-	case '&':
-	case '^':
-		parser->calls[parser->nCalls].flags =
-			parser->c == '|' ? FBIND_CALL_OR :
-			parser->c == '&' ? FBIND_CALL_AND : FBIND_CALL_XOR;
-		while(isblank(parser_getc(parser)));
-		break;
-	default:
-		parser->calls[parser->nCalls].flags = 0;
-	}
-	switch(parser->c) {
-	case '(':
-		if(parser_getc(parser) != '(') {
-			parser_pusherror(parser, ERR_INVALID_COMMAND);
-			break;
-		}
-		parser_getc(parser);
-		if(parser->nLoopStack == ARRLEN(parser->loopStack)) {
-			parser_pusherror(parser, ERR_LOOP_TOO_DEEP);
-			break;
-		}
-		if(parser->calls[parser->nCalls].flags & FBIND_CALL_XOR) {
-			parser_pusherror(parser, ERR_XOR_LOOP);
-			break;
-		}
-		parser->loopStack[parser->nLoopStack++] = parser->nCalls;
-		parser->calls[parser->nCalls].type = EVENT_STARTLOOP;
-		break;
-	case ')':
-		if(parser_getc(parser) != ')') {
-			parser_pusherror(parser, ERR_INVALID_COMMAND);
-			break;
-		}
-		parser_getc(parser);
-		if(!parser->nLoopStack) {
-			parser_pusherror(parser, ERR_END_OF_LOOP_WITHOUT_START);
-			break;
-		}
-		if(parser->calls[parser->nCalls].flags & FBIND_CALL_XOR) {
-			parser_pusherror(parser, ERR_XOR_LOOP);
-			break;
-		}
-		parser->calls[parser->nCalls].param = parser->nCalls - parser->loopStack[--parser->nLoopStack];
-		if(!parser->calls[parser->nCalls].param) {
-			parser_pusherror(parser, ERR_EMPTY_LOOP);
-			break;
-		}
-		parser->calls[parser->nCalls].type = EVENT_ENDLOOP;
-		break;
-	case '#':
-		parser_getc(parser);
-		parser->calls[parser->nCalls].type = EVENT_REGISTER;
-		parser_getintparam(parser);
-		break;
-	case '$':
-	case '`':
-	case '.':
-	case '<':
-	case '>': {
-		bool del = false;
-		bool window = false;
-		const ptrdiff_t sign = parser->c == '<' || parser->c == '`' ? -1 : 1;
-		const bool horz = parser->c == '<' || parser->c == '>';
-		const bool vert = parser->c == '.' || parser->c == '`';
-
-		parser_getc(parser);
-		if(parser->c == 'x') {
-			del = true;
-			parser_getc(parser);
-		}
-		if(parser->c == 'w') {
-			window = true;
-			parser_getc(parser);
-		}
-		parser_getintparam(parser);
-		if(window) {
-			if(del) {
-				parser_pusherror(parser, ERR_WINDOW_DEL);
-				break;
-			}
-			parser->calls[parser->nCalls].type = vert ? EVENT_MOVEWINDOW_BELOW : EVENT_MOVEWINDOW_RIGHT;
-		} else if(del) {
-			parser->calls[parser->nCalls].type = vert ? EVENT_DELETELINE : EVENT_DELETE;
-		} else {
-			parser->calls[parser->nCalls].type = vert ? EVENT_MOVEVERT : horz ? EVENT_MOVEHORZ : EVENT_MOVECURSOR;
-		}
-		parser->calls[parser->nCalls].param = SAFE_MUL(sign, parser->num);
-		break;
-	}
-	case '?':
-	case '+': {
-		int r;
-
-		parser->calls[parser->nCalls].type = parser->c == '+' ? EVENT_INSERT : EVENT_ASSERT;
-		parser_getc(parser);
-		if(parser->c != '\"') {
-			parser->calls[parser->nCalls].type = parser->calls[parser->nCalls].type == EVENT_INSERT ?
-				EVENT_INSERTCHAR : EVENT_ASSERTCHAR;
-			parser_getintparam(parser);
-			break;
-		}
-		if((r = parser_getstring(parser)) < 0)
-			return OUTOFMEMORY;
-		if(r != SUCCESS)
-			return FAIL;
-		char *const str = mode_allocstr(parser->str, parser->nStr);
-		if(!str)
-			return OUTOFMEMORY;
-		parser->calls[parser->nCalls].str = str;
-		break;
-	}
-	case '!':
-	case ':': {
-		const bool setMode = parser->c == ':';
-		parser_getc(parser);
-		if(parser_getword(parser) != SUCCESS) {
-			parser_pusherror(parser, ERR_EXPECTED_PARAM);
-			return FAIL;
-		}
-		if(setMode) {
-			parser->calls[parser->nCalls].type = EVENT_SETMODE;
-			parser->calls[parser->nCalls].str = mode_allocstr(parser->word, strlen(parser->word));
-		} else {
-			event_type_t type;
-
-			for(type = 0; type < EVENT_MAX; type++)
-				if(infoEvents[type].name &&
-						!strcasecmp(infoEvents[type].name, parser->word)) {
-					parser->calls[parser->nCalls].type = type;
-					if(infoEvents[type].paramType) {
-						while(isblank(parser->c))
-							parser_getc(parser);
-						parser_getintparam(parser);
-					}
-					break;
-				}
-			if(type == EVENT_MAX) {
-				parser_pusherror(parser, ERR_INVALID_COMMAND);
-				break;
-			}
-		}
-		break;
-	}
-	default:
-		parser_pusherror(parser, ERR_INVALID_COMMAND);
-		return FAIL;
-	}
-	parser->nCalls++;
-	return SUCCESS;
-}
-
-int
-parser_getcalllist(struct parser *parser)
+parser_getprogram(struct parser *parser)
 {
 	int r;
 
-	parser->nCalls = 0;
+	parser->szProgram = 0;
 	while(1) {
 		while(isblank(parser->c))
 			parser_getc(parser);
 		if(parser->c == EOF || parser->c == '\n')
 			break;
-		if((r = parser_getcall(parser)) < 0)
+		if((r = parser_getinstr(parser)) < 0)
 			return r;
 		if(r == FAIL)
 			return FAIL;
 	}
-	return parser->nCalls ? SUCCESS : FAIL;
+	return parser->szProgram ? SUCCESS : FAIL;
 }
 
 int
@@ -328,21 +133,21 @@ parser_addbind(struct parser *parser)
 {
 	struct binding *newBindings;
 	int *keys;
-	struct binding_call *calls;
+	void *prog;
 
 	newBindings = realloc(parser->curMode->bindings, sizeof(*parser->curMode->bindings) * (parser->curMode->nBindings + 1));
 	if(!newBindings)
 		return OUTOFMEMORY;
 	if(!(keys = mode_allockeys(parser->keys, parser->nKeys)))
 		return OUTOFMEMORY;
-	if(!(calls = mode_alloccalls(parser->calls, parser->nCalls)))
+	if(!(prog = malloc(parser->szProgram)))
 		return OUTOFMEMORY;
 	parser->curMode->bindings = newBindings;
 	parser->curMode->bindings[parser->curMode->nBindings++] = (struct binding) {
 		.nKeys = parser->nKeys,
-		.nCalls = parser->nCalls,
+		.szProgram = parser->szProgram,
 		.keys = keys,
-		.calls = calls,
+		.program = prog,
 	};
 	return FINISH;
 }

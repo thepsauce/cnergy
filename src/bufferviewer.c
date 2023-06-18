@@ -10,10 +10,10 @@ bufferviewer_render(windowid_t winid)
 {
 	bufferid_t bid = 0;
 	struct window *const win = all_windows + winid;
-	const int itemselectedColor = all_settings[SET_COLOR_ITEMSELECTED];
-	const int itemColor = all_settings[SET_COLOR_ITEM];
-	const int statusbar1Color = winid == focus_window ? all_settings[SET_COLOR_STATUSBAR1_FOCUS] : all_settings[SET_COLOR_STATUSBAR1];
-	const int statusbar2Color = winid == focus_window ? all_settings[SET_COLOR_STATUSBAR2_FOCUS] : all_settings[SET_COLOR_STATUSBAR2];
+	const int itemselectedColor = main_environment.settings[SET_COLOR_ITEMSELECTED];
+	const int itemColor = main_environment.settings[SET_COLOR_ITEM];
+	const int statusbar1Color = winid == focus_window ? main_environment.settings[SET_COLOR_STATUSBAR1_FOCUS] : main_environment.settings[SET_COLOR_STATUSBAR1];
+	const int statusbar2Color = winid == focus_window ? main_environment.settings[SET_COLOR_STATUSBAR2_FOCUS] : main_environment.settings[SET_COLOR_STATUSBAR2];
 	const int maxCol1 = win->cols * 2 / 3;
 	for(int y = win->line; bid < n_buffers && y < win->line + win->lines - 1; bid++, y++) {
 		struct filecache *fc;
@@ -44,37 +44,42 @@ bufferviewer_render(windowid_t winid)
 }
 
 bool
-bufferviewer_event(windowid_t winid, struct event *ev)
+bufferviewer_call(windowid_t winid, call_t call)
 {
 	(void) winid;
-	switch(ev->type) {
-	case EVENT_MOVEVERT:
-		if(!row && ev->amount < 0)
+	switch(call) {
+	case CALL_MOVEVERT: {
+		const ptrdiff_t amount = main_environment.A;
+		if(!row && amount < 0)
 			return false;
-		if(row + 1 >= (int) n_buffers && ev->amount> 0)
+		if(row + 1 >= (int) n_buffers && amount > 0)
 			return false;
-		row = SAFE_ADD(row, ev->amount);
+		row = SAFE_ADD(row, amount);
 		row = MIN(row, (int) n_buffers - 1);
 		row = MAX(row, 0);
 		break;
-	case EVENT_MOVEHORZ:
-		if(!column && ev->amount < 0)
+	}
+	case CALL_MOVEHORZ: {
+		const ptrdiff_t amount = main_environment.A;
+		if(!column && amount < 0)
 			return false;
-		if(column + 1 >= MAXCOLUMN && ev->amount > 0)
+		if(column + 1 >= MAXCOLUMN && amount > 0)
 			return false;
-		column = SAFE_ADD(column, ev->amount);
+		column = SAFE_ADD(column, amount);
 		column = MIN(column, MAXCOLUMN - 1);
 		column = MAX(column, 0);
 		break;
-	case EVENT_MOVECURSOR: {
+	}
+	case CALL_MOVECURSOR: {
+		const ptrdiff_t amount = main_environment.A;
 		int cursor;
 		const int maxCursor = n_buffers * MAXCOLUMN;
 		cursor = column + row * MAXCOLUMN;
-		if(!cursor && ev->amount < 0)
+		if(!cursor && amount < 0)
 			return false;
-		if(cursor >= maxCursor && ev->amount > 0)
+		if(cursor >= maxCursor && amount > 0)
 			return false;
-		cursor = SAFE_ADD(cursor, ev->amount);
+		cursor = SAFE_ADD(cursor, amount);
 		cursor = MIN(cursor, maxCursor - 1);
 		cursor = MAX(cursor, 0);
 		row = cursor / MAXCOLUMN;
