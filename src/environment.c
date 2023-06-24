@@ -12,34 +12,128 @@ bool (*window_types[])(windowid_t winid, call_t call) = {
 	[WINDOW_FILEVIEWER] = fileviewer_call,
 };
 
-// TODO: when this list is complete, add binary search or hashing (same goes for translate_key)
-// Note that this is used by the parser (parser_key_call.c)
-const struct call_info infoCalls[CALL_MAX] = {
-	[CALL_COLORWINDOW] = { "COLOR", 0 },
-	[CALL_CLOSEWINDOW] = { "CLOSE", 0 },
-	[CALL_NEWWINDOW] = { "NEW", 0 },
-	[CALL_OPENWINDOW] = { "OPEN", 0 },
-	[CALL_HSPLIT] = { "HSPLIT", 0 },
-	[CALL_VSPLIT] = { "VSPLIT", 0 },
-	[CALL_QUIT] = { "QUIT", 0 },
+// TODO: maybe when this list is complete, add binary search or hashing
+// Note that this is used by the parser (parser_bind.c)
+const char *callNames[CALL_MAX] = {
+	[CALL_SETMODE] = "SETMODE",
+	[CALL_VSPLIT] = "VSPLIT",
+	[CALL_HSPLIT] = "HSPLIT",
+	[CALL_COLORWINDOW] = "COLORWINDOW",
+	[CALL_OPENWINDOW] = "OPENWINDOW",
+	[CALL_CLOSEWINDOW] = "CLOSEWINDOW",
+	[CALL_NEWWINDOW] = "NEWWINDOW",
+	[CALL_MOVEWINDOW_RIGHT] = "MOVEWINDOW_RIGHT",
+	[CALL_MOVEWINDOW_BELOW] = "MOVEWINDOW_BELOW",
+	[CALL_QUIT] = "QUIT",
 
-	[CALL_DELETESELECTION] = { "DELETE", 0 },
-	[CALL_COPY] = { "COPY", 0 },
-	[CALL_PASTE] = { "PASTE", 0 },
-	[CALL_UNDO] = { "UNDO", 0 },
-	[CALL_REDO] = { "REDO", 0 },
-	[CALL_WRITEFILE] = { "WRITE", 0 },
-	[CALL_READFILE] = { "READ", 0 },
+	[CALL_CREATE] = "CREATE",
+	[CALL_DESTROY] = "DESTROY",
+	[CALL_RENDER] = "RENDER",
+	[CALL_TYPE] = "TYPE",
+	[CALL_ASSERT] = "ASSERT",
+	[CALL_ASSERTCHAR] = "ASSERTCHAR",
+	[CALL_MOVECURSOR] = "MOVECURSOR",
+	[CALL_MOVEHORZ] = "MOVEHORZ",
+	[CALL_MOVEVERT] = "MOVEVERT",
+	[CALL_INSERT] = "INSERT",
+	[CALL_INSERTCHAR] = "INSERTCHAR",
+	[CALL_DELETE] = "DELETE",
+	[CALL_DELETELINE] = "DELETELINE",
+	[CALL_DELETESELECTION] = "DELETESELECTION",
+	[CALL_COPY] = "COPY",
+	[CALL_PASTE] = "PASTE",
+	[CALL_UNDO] = "UNDO",
+	[CALL_REDO] = "REDO",
+	[CALL_WRITEFILE] = "WRITEFILE",
+	[CALL_READFILE] = "READFILE",
+	[CALL_FIND] = "FIND",
 
-	[CALL_FIND] = { "FIND", 1 },
+	[CALL_CHOOSE] = "CHOOSE",
+	[CALL_TOGGLEHIDDEN] = "TOGGLEHIDDEN",
+	[CALL_TOGGLESORTTYPE] = "TOGGLESORTTYPE",
+	[CALL_TOGGLESORTREVERSE] = "TOGGLESORTREVERSE",
+	[CALL_SORTMODIFICATIONTIME] = "SORTMODIFICATIONTIME",
+	[CALL_SORTALPHABETICAL] = "SORTALPHABETICAL",
+	[CALL_SORTCHANGETIME] = "SORTCHANGETIME",
+};
 
-	[CALL_CHOOSE] = { "CHOOSE", 0 },
-	[CALL_SORTALPHABETICAL] = { "SORT_ALPHABETICAL", 0 },
-	[CALL_SORTCHANGETIME] = { "SORT_CHANGETIME", 0 },
-	[CALL_SORTMODIFICATIONTIME] = { "SORT_MODIFICATIONTIME", 0 },
-	[CALL_TOGGLESORTTYPE] = { "TOGGLE_SORT_TYPE", 0 },
-	[CALL_TOGGLESORTREVERSE] = { "TOGGLE_SORT_REVERSE", 0 },
-	[CALL_TOGGLEHIDDEN] = { "TOGGLE_HIDDEN", 0 },
+const char *instrNames[INSTR_MAX] = {
+#define PRESTRING(s) #s
+#define REGISTER_LD(r) \
+	[INSTR_LD##r] = PRESTRING(LD##r)
+#define REGISTER_LDO(r) \
+	[INSTR_LD##r##O] = PRESTRING(LD##r##O)
+#define REGISTER_COMPATIBLELD(r1, r2) \
+	[INSTR_LD##r1##r2] = PRESTRING(LD##r1##r2)
+#define REGISTER_LDMEM(r) \
+	[INSTR_LD##r##BYTE] = PRESTRING(LD##r), \
+	[INSTR_LD##r##INT] = PRESTRING(LD##r), \
+	[INSTR_LD##r##PTR] = PRESTRING(LD##r)
+#define REGISTER_STACK(r) \
+	[INSTR_PSH##r] = PRESTRING(PSH##r), \
+	[INSTR_POP##r] = PRESTRING(POP##r)
+#define REGISTER_MATH(r) \
+	[INSTR_ADD##r] = PRESTRING(ADD##r), \
+	[INSTR_SUB##r] = PRESTRING(SUB##r), \
+	[INSTR_MUL##r] = PRESTRING(MUL##r), \
+	[INSTR_DIV##r] = PRESTRING(DIV##r), \
+	[INSTR_INC##r] = PRESTRING(INC##r), \
+	[INSTR_DEC##r] = PRESTRING(DEC##r)
+
+	/* ldr [val] */
+	REGISTER_LD(A),
+	REGISTER_LD(B),
+	REGISTER_LD(C),
+	REGISTER_LD(D),
+	/* ldor [val] */
+	REGISTER_LDO(A),
+	REGISTER_LDO(B),
+	REGISTER_LDO(C),
+	REGISTER_LDO(D),
+	/* ldr1 r2 */
+	REGISTER_COMPATIBLELD(A, B),
+	REGISTER_COMPATIBLELD(A, C),
+	REGISTER_COMPATIBLELD(A, D),
+
+	REGISTER_COMPATIBLELD(B, A),
+	REGISTER_COMPATIBLELD(B, C),
+	REGISTER_COMPATIBLELD(B, D),
+
+	REGISTER_COMPATIBLELD(C, B),
+	REGISTER_COMPATIBLELD(C, A),
+	REGISTER_COMPATIBLELD(C, D),
+
+	REGISTER_COMPATIBLELD(D, B),
+	REGISTER_COMPATIBLELD(D, A),
+	REGISTER_COMPATIBLELD(D, C),
+	/* ld[reg] [cast] [address] */
+	REGISTER_LDMEM(A),
+	REGISTER_LDMEM(B),
+	REGISTER_LDMEM(C),
+	REGISTER_LDMEM(D),
+	/* pushr */
+	/* popr */
+	REGISTER_STACK(A),
+	REGISTER_STACK(B),
+	REGISTER_STACK(C),
+	REGISTER_STACK(D),
+	/* [opr]r [val] */
+	/* [opr]r */
+	REGISTER_MATH(A),
+	REGISTER_MATH(B),
+	REGISTER_MATH(C),
+	REGISTER_MATH(D),
+	[INSTR_JMP] = "JMP",
+	[INSTR_JZ] = "JZ",
+	[INSTR_CALL] = "CALL",
+	[INSTR_EXIT] = "EXIT",
+
+#undef REGISTER_LD
+#undef REGISTER_LDO
+#undef REGISTER_COMPATIBLELD
+#undef REGISTER_LDMEM
+#undef REGISTER_STACK
+#undef REGISTER_MATH
 };
 
 static void
@@ -165,9 +259,9 @@ environment_loadandexec(void *program, size_t szProgram)
 #define REGISTER_COMPATIBLELD(r1, r2) \
 	case INSTR_LD##r1##r2: main_environment.r1 = main_environment.r2; break
 #define REGISTER_LDMEM(r) \
-	case INSTR_LD##rMEMB: main_environment.r = (ptrdiff_t) *(char*) (main_environment.memory + *(ptrdiff_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += sizeof(ptrdiff_t); break; \
-	case INSTR_LD##rMEMI: main_environment.r = (ptrdiff_t) *(int*) (main_environment.memory + *(ptrdiff_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += sizeof(ptrdiff_t); break; \
-	case INSTR_LD##rMEMP: main_environment.r = (ptrdiff_t) *(ptrdiff_t*) (main_environment.memory + *(ptrdiff_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += sizeof(ptrdiff_t); break
+	case INSTR_LD##r##BYTE: main_environment.r = (ptrdiff_t) *(char*) (main_environment.memory + *(ptrdiff_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += sizeof(ptrdiff_t); break; \
+	case INSTR_LD##r##INT: main_environment.r = (ptrdiff_t) *(int*) (main_environment.memory + *(ptrdiff_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += sizeof(ptrdiff_t); break; \
+	case INSTR_LD##r##PTR: main_environment.r = (ptrdiff_t) *(ptrdiff_t*) (main_environment.memory + *(ptrdiff_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += sizeof(ptrdiff_t); break
 #define REGISTER_STACK(r) \
 	case INSTR_PSH##r: main_environment.sp -= sizeof(ptrdiff_t); *(ptrdiff_t*) (main_environment.memory + main_environment.sp) = main_environment.r; break; \
 	case INSTR_POP##r: main_environment.r = *(ptrdiff_t*) (main_environment.memory + main_environment.sp); main_environment.sp += sizeof(ptrdiff_t); break
@@ -180,45 +274,52 @@ environment_loadandexec(void *program, size_t szProgram)
 	case INSTR_DEC##r: main_environment.r--; break
 
 	while(1) {
-		switch(*(uint8_t*) (main_environment.memory + main_environment.ip++)) {
+		const instr_t instr = *(instr_t*) (main_environment.memory + main_environment.ip);
+		main_environment.ip += sizeof(instr_t);
+		switch(instr) {
 		/* ldr [val] */
 		REGISTER_LD(A);
 		REGISTER_LD(B);
-		REGISTER_LD(M);
-		REGISTER_LD(N);
+		REGISTER_LD(C);
+		REGISTER_LD(D);
 		/* ldor [val] */
 		REGISTER_LDO(A);
 		REGISTER_LDO(B);
-		REGISTER_LDO(M);
-		REGISTER_LDO(N);
+		REGISTER_LDO(C);
+		REGISTER_LDO(D);
 		/* ldr1 r2 */
 		REGISTER_COMPATIBLELD(A, B);
-		REGISTER_COMPATIBLELD(A, M);
-		REGISTER_COMPATIBLELD(A, N);
+		REGISTER_COMPATIBLELD(A, C);
+		REGISTER_COMPATIBLELD(A, D);
 
 		REGISTER_COMPATIBLELD(B, A);
-		REGISTER_COMPATIBLELD(B, M);
-		REGISTER_COMPATIBLELD(B, N);
+		REGISTER_COMPATIBLELD(B, C);
+		REGISTER_COMPATIBLELD(B, D);
 
-		REGISTER_COMPATIBLELD(M, B);
-		REGISTER_COMPATIBLELD(M, A);
-		REGISTER_COMPATIBLELD(M, N);
+		REGISTER_COMPATIBLELD(C, B);
+		REGISTER_COMPATIBLELD(C, A);
+		REGISTER_COMPATIBLELD(C, D);
 
-		REGISTER_COMPATIBLELD(N, B);
-		REGISTER_COMPATIBLELD(N, A);
-		REGISTER_COMPATIBLELD(N, M);
+		REGISTER_COMPATIBLELD(D, B);
+		REGISTER_COMPATIBLELD(D, A);
+		REGISTER_COMPATIBLELD(D, C);
+		/* ld[reg] [cast] [address] */
+		REGISTER_LDMEM(A);
+		REGISTER_LDMEM(B);
+		REGISTER_LDMEM(C);
+		REGISTER_LDMEM(D);
 		/* pushr */
 		/* popr */
 		REGISTER_STACK(A);
 		REGISTER_STACK(B);
-		REGISTER_STACK(M);
-		REGISTER_STACK(N);
+		REGISTER_STACK(C);
+		REGISTER_STACK(D);
 		/* [opr]r [val] */
 		/* [opr]r */
 		REGISTER_MATH(A);
 		REGISTER_MATH(B);
-		REGISTER_MATH(M);
-		REGISTER_MATH(N);
+		REGISTER_MATH(C);
+		REGISTER_MATH(D);
 		case INSTR_JMP: main_environment.ip += *(size_t*) (main_environment.memory + main_environment.ip); break;
 		case INSTR_JZ:
 			main_environment.ip += main_environment.z ? *(ptrdiff_t*) (main_environment.memory + main_environment.ip) :
@@ -230,4 +331,98 @@ environment_loadandexec(void *program, size_t szProgram)
 			return -1;
 		}
 	}
+#undef REGISTER_LD
+#undef REGISTER_LDO
+#undef REGISTER_COMPATIBLELD
+#undef REGISTER_LDMEM
+#undef REGISTER_STACK
+#undef REGISTER_MATH
+}
+
+int
+environment_loadandprint(void *program, size_t szProgram)
+{
+	/* load program */
+	memcpy(main_environment.memory + main_environment.mp, program, szProgram);
+	main_environment.ip = main_environment.mp;
+	main_environment.mp += szProgram;
+	main_environment.sp = sizeof(main_environment.memory);
+#define REGISTER_LD(r) \
+	case INSTR_LD##r: printf("ld"#r" %zd", *(ptrdiff_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += sizeof(ptrdiff_t); break
+#define REGISTER_LDO(r) \
+	case INSTR_LD##r##O: printf("ldo"#r); break
+#define REGISTER_COMPATIBLELD(r1, r2) \
+	case INSTR_LD##r1##r2: printf("ld"#r1#r2); break
+#define REGISTER_LDMEM(r) \
+	case INSTR_LD##r##BYTE: printf("ld"#r" byte %zd", (ptrdiff_t) *(char*) (main_environment.memory + *(ptrdiff_t*) (main_environment.memory + main_environment.ip))); main_environment.ip += sizeof(ptrdiff_t); break; \
+	case INSTR_LD##r##INT: printf("ld"#r" byte %zd", (ptrdiff_t) *(int*) (main_environment.memory + *(ptrdiff_t*) (main_environment.memory + main_environment.ip))); main_environment.ip += sizeof(ptrdiff_t); break; \
+	case INSTR_LD##r##PTR: printf("ld"#r" ptr %zd", (ptrdiff_t) *(ptrdiff_t*) (main_environment.memory + *(ptrdiff_t*) (main_environment.memory + main_environment.ip))); main_environment.ip += sizeof(ptrdiff_t); break
+#define REGISTER_STACK(r) \
+	case INSTR_PSH##r: printf("psh"#r); break; \
+	case INSTR_POP##r: printf("pop"#r); break
+#define REGISTER_MATH(r) \
+	case INSTR_ADD##r: printf("add"#r" %zd", *(ptrdiff_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += sizeof(ptrdiff_t); break; \
+	case INSTR_SUB##r: printf("sub"#r" %zd", *(ptrdiff_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += sizeof(ptrdiff_t); break; \
+	case INSTR_MUL##r: printf("mul"#r" %zd", *(ptrdiff_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += sizeof(ptrdiff_t); break; \
+	case INSTR_DIV##r: printf("div"#r" %zd", *(ptrdiff_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += sizeof(ptrdiff_t); break; \
+	case INSTR_INC##r: printf("inc"#r); break; \
+	case INSTR_DEC##r: printf("dec"#r); break
+
+	while(main_environment.ip < main_environment.mp) {
+		const instr_t instr = *(instr_t*) (main_environment.memory + main_environment.ip);
+		main_environment.ip += sizeof(instr_t);
+		switch(instr) {
+		/* ldr [val] */
+		REGISTER_LD(A);
+		REGISTER_LD(B);
+		REGISTER_LD(C);
+		REGISTER_LD(D);
+		/* ldor [val] */
+		REGISTER_LDO(A);
+		REGISTER_LDO(B);
+		REGISTER_LDO(C);
+		REGISTER_LDO(D);
+		/* ldr1 r2 */
+		REGISTER_COMPATIBLELD(A, B);
+		REGISTER_COMPATIBLELD(A, C);
+		REGISTER_COMPATIBLELD(A, D);
+
+		REGISTER_COMPATIBLELD(B, A);
+		REGISTER_COMPATIBLELD(B, C);
+		REGISTER_COMPATIBLELD(B, D);
+
+		REGISTER_COMPATIBLELD(C, B);
+		REGISTER_COMPATIBLELD(C, A);
+		REGISTER_COMPATIBLELD(C, D);
+
+		REGISTER_COMPATIBLELD(D, B);
+		REGISTER_COMPATIBLELD(D, A);
+		REGISTER_COMPATIBLELD(D, C);
+		/* ld[reg] [cast] [address] */
+		REGISTER_LDMEM(A);
+		REGISTER_LDMEM(B);
+		REGISTER_LDMEM(C);
+		REGISTER_LDMEM(D);
+		/* pushr */
+		/* popr */
+		REGISTER_STACK(A);
+		REGISTER_STACK(B);
+		REGISTER_STACK(C);
+		REGISTER_STACK(D);
+		/* [opr]r [val] */
+		/* [opr]r */
+		REGISTER_MATH(A);
+		REGISTER_MATH(B);
+		REGISTER_MATH(C);
+		REGISTER_MATH(D);
+		case INSTR_JMP: printf("jmp %zd", *(size_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += (ptrdiff_t) sizeof(ptrdiff_t); break;
+		case INSTR_JZ: printf("jz %zd", *(size_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += (ptrdiff_t) sizeof(ptrdiff_t); break;
+		case INSTR_CALL: printf("call %s", callNames[*(call_t*) (main_environment.memory + main_environment.ip)]); main_environment.ip += sizeof(call_t); break;
+		case INSTR_EXIT: printf("exit %u", *(int*) (main_environment.memory + main_environment.ip)); break;
+		default:
+			return -1;
+		}
+		printf("\n");
+	}
+	return 0;
 }

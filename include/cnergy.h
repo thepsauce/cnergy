@@ -58,7 +58,7 @@ typedef enum {
 #define REGISTER_COMPATIBLELD(r1, r2) \
 	INSTR_LD##r1##r2
 #define REGISTER_LDMEM(r) \
-	INSTR_LD##r##MEMB, INSTR_LD##r##MEMI, INSTR_LD##r##MEMP
+	INSTR_LD##r##BYTE, INSTR_LD##r##INT, INSTR_LD##r##PTR
 #define REGISTER_STACK(r) \
 	INSTR_PSH##r, INSTR_POP##r
 #define REGISTER_MATH(r) \
@@ -66,44 +66,51 @@ typedef enum {
 	/* ldr [val] */
 	REGISTER_LD(A),
 	REGISTER_LD(B),
-	REGISTER_LD(M),
-	REGISTER_LD(N),
+	REGISTER_LD(C),
+	REGISTER_LD(D),
 	/* ldor [val] */
 	REGISTER_LDO(A),
 	REGISTER_LDO(B),
-	REGISTER_LDO(M),
-	REGISTER_LDO(N),
+	REGISTER_LDO(C),
+	REGISTER_LDO(D),
 	/* ldr1 r2 */
 	REGISTER_COMPATIBLELD(A, B),
-	REGISTER_COMPATIBLELD(A, M),
-	REGISTER_COMPATIBLELD(A, N),
+	REGISTER_COMPATIBLELD(A, C),
+	REGISTER_COMPATIBLELD(A, D),
 
 	REGISTER_COMPATIBLELD(B, A),
-	REGISTER_COMPATIBLELD(B, M),
-	REGISTER_COMPATIBLELD(B, N),
+	REGISTER_COMPATIBLELD(B, C),
+	REGISTER_COMPATIBLELD(B, D),
 
-	REGISTER_COMPATIBLELD(M, B),
-	REGISTER_COMPATIBLELD(M, A),
-	REGISTER_COMPATIBLELD(M, N),
+	REGISTER_COMPATIBLELD(C, B),
+	REGISTER_COMPATIBLELD(C, A),
+	REGISTER_COMPATIBLELD(C, D),
 
-	REGISTER_COMPATIBLELD(N, B),
-	REGISTER_COMPATIBLELD(N, A),
-	REGISTER_COMPATIBLELD(N, M),
+	REGISTER_COMPATIBLELD(D, B),
+	REGISTER_COMPATIBLELD(D, A),
+	REGISTER_COMPATIBLELD(D, C),
+	/* ldr byte|int|double [value] */
+	REGISTER_LDMEM(A),
+	REGISTER_LDMEM(B),
+	REGISTER_LDMEM(C),
+	REGISTER_LDMEM(D),
 	/* pushr */
 	/* popr */
 	REGISTER_STACK(A),
 	REGISTER_STACK(B),
-	REGISTER_STACK(M),
-	REGISTER_STACK(N),
+	REGISTER_STACK(C),
+	REGISTER_STACK(D),
 	/* [opr]r */
 	REGISTER_MATH(A),
 	REGISTER_MATH(B),
-	REGISTER_MATH(M),
-	REGISTER_MATH(N),
+	REGISTER_MATH(C),
+	REGISTER_MATH(D),
 	INSTR_JMP,
 	INSTR_JZ,
 	INSTR_CALL,
 	INSTR_EXIT,
+
+	INSTR_MAX,
 #undef REGISTER_LD
 #undef REGISTER_LDO
 #undef REGISTER_COMPATIBLELD
@@ -112,9 +119,11 @@ typedef enum {
 #undef REGISTER_MATH
 } instr_t;
 
+extern const char *instrNames[INSTR_MAX];
+
 typedef enum {
 	CALL_NULL,
-	// general callss, these have a default behavior which cannot be overwritten but only extended
+	// general calls, these have a default behavior which cannot be overwritten but only extended
 	CALL_SETMODE,
 	CALL_VSPLIT,
 	CALL_HSPLIT,
@@ -159,10 +168,7 @@ typedef enum {
 	CALL_MAX,
 } call_t;
 
-extern const struct call_info {
-	const char *name;
-	unsigned paramType;
-} infoCalls[CALL_MAX];
+extern const char *callNames[CALL_MAX];
 
 /**
  * Enviroment is like a mini computer that is
@@ -172,14 +178,14 @@ extern struct environment {
 	/* memory pointer, stack pointer, instruction pointer */
 	size_t mp, sp, ip;
 	/* general porpuse registers */
-	ptrdiff_t B, M;
+	ptrdiff_t B, D;
 	/**
 	 * A is mainly the first parameter to calls and
 	 * is als the return value.
 	 */
 	ptrdiff_t A;
-	/* N is the number the user types in front of a bind */
-	ptrdiff_t N;
+	/* C is the number the user types in front of a bind */
+	ptrdiff_t C;
 	/* z flag is set on mathematical operations and calls */
 	int z: 1;
 	/**
@@ -192,6 +198,7 @@ extern struct environment {
 
 void environment_call(call_t type);
 int environment_loadandexec(void *program, size_t szProgram);
+int environment_loadandprint(void *program, size_t szProgram);
 
 /***************
  * Sorted list *

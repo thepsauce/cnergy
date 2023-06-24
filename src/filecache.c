@@ -106,7 +106,7 @@ fc_init(void)
 struct filecache *
 fc_lock(fileid_t fileid)
 {
-	assert(fileid < n_file_caches && "file is invalid");
+	assert(fileid < n_file_caches && "fileid is invalid");
 	locks++;
 	return file_caches + fileid;
 }
@@ -148,8 +148,8 @@ inline bool fc_isread(struct filecache *fc)
 void
 fc_unlock(struct filecache *fc)
 {
-	const fileid_t id = fc - file_caches;
-	assert(id < n_file_caches && "file id is invalid");
+	const fileid_t fid = fc - file_caches;
+	assert(fid < n_file_caches && "file id is invalid");
 	assert(locks && "there are no locks to unlock (mismatch of lock and unlock)");
 	locks--;
 }
@@ -220,26 +220,26 @@ walk:
 }
 
 int
-fc_getrelativepath(fileid_t from, fileid_t file, char *dest, size_t maxDest)
+fc_getrelativepath(fileid_t from, fileid_t fileid, char *dest, size_t maxDest)
 {
 	struct filecache *fc;
 	unsigned n;
 
 	if(maxDest < 2)
 		return -1;
-	if(from == file) {
+	if(from == fileid) {
 		dest[0] = '.';
 		dest[1] = 0;
 		return 0;
 	}
 	const size_t sMaxDest = maxDest;
-	fc = file_caches + file;
+	fc = file_caches + fileid;
 	dest += --maxDest;
 	*dest = 0;
 	while(fc != file_caches + from) {
 		if(fc == file_caches) {
-			fprintf(stderr, "[%s:%u in fc_getrelativepath()] file '%s' is not relative to '%s'\n",
-					__FILE__, __LINE__, file_caches[from].name, file_caches[file].name);
+			fprintf(stderr, "[%s:%u in fc_getrelativepath()] fileid '%s' is not relative to '%s'\n",
+					__FILE__, __LINE__, file_caches[from].name, file_caches[fileid].name);
 			return -1;
 		}
 		n = strlen(fc->name);
@@ -261,19 +261,19 @@ fc_getrelativepath(fileid_t from, fileid_t file, char *dest, size_t maxDest)
 }
 
 int
-fc_getabsolutepath(fileid_t file, char *dest, size_t maxDest)
+fc_getabsolutepath(fileid_t fileid, char *dest, size_t maxDest)
 {
 	struct filecache *fc;
 	unsigned n;
 
-	assert(file < n_file_caches && "file id does not exist");
+	assert(fileid < n_file_caches && "file id does not exist");
 	assert(dest && "destination can not be null");
 	if(maxDest < 2)
 		goto err_path_too_long;
 	const size_t sMaxDest = maxDest;
 	dest += --maxDest;
 	*dest = 0;
-	fc = file_caches + file;
+	fc = file_caches + fileid;
 	while(1) {
 		if(!maxDest)
 			goto err_path_too_long;
@@ -296,39 +296,39 @@ fc_getabsolutepath(fileid_t file, char *dest, size_t maxDest)
 	memmove(dest - maxDest, dest, sMaxDest - maxDest);
 	return 0;
 err_path_too_long:
-	fprintf(stderr, "[%s:%u in fc_getabsolutepath()] path of file '%s' is too long (exceeding '%zu' bytes)\n", __FILE__, __LINE__, file_caches[file].name, sMaxDest);
+	fprintf(stderr, "[%s:%u in fc_getabsolutepath()] path of file '%s' is too long (exceeding '%zu' bytes)\n", __FILE__, __LINE__, file_caches[fileid].name, sMaxDest);
 	return -1;
 }
 
 FILE *
-fc_open(fileid_t file, const char *mode)
+fc_open(fileid_t fileid, const char *mode)
 {
 	char path[PATH_MAX];
 	FILE *fp;
 
-	assert(file < n_file_caches && "file id does not exist");
-	if(fc_getrelativepath(file_current, file, path, sizeof(path)) < 0)
+	assert(fileid < n_file_caches && "file id does not exist");
+	if(fc_getrelativepath(file_current, fileid, path, sizeof(path)) < 0)
 		return NULL;
 	fp = fopen(path, mode);
 	if(fp == NULL) {
-		fprintf(stderr, "[%s:%u in fc_open()] failed opening file '%s'\n", __FILE__, __LINE__, file_caches[file].name);
+		fprintf(stderr, "[%s:%u in fc_open()] failed opening fileid '%s'\n", __FILE__, __LINE__, file_caches[fileid].name);
 		return NULL;
 	}
 	return fp;
 }
 
 fileid_t
-fc_cache(fileid_t file, const char *path)
+fc_cache(fileid_t fileid, const char *path)
 {
 	struct filecache *fc, newfc;
 	const char *name;
 	unsigned nName;
 	char curPath[PATH_MAX];
 
-	assert(file < n_file_caches && "file id is invalid");
-	if(!fc_locate(file_caches + file, path, &path, &fc))
+	assert(fileid < n_file_caches && "file id is invalid");
+	if(!fc_locate(file_caches + fileid, path, &path, &fc))
 		return fc - file_caches; // already cached
-	// cache the file by creating a path from a valid node to the file
+	// cache the fileid by creating a path from a valid node to the file
 walk:
 	name = path;
 	nName = 0;
@@ -353,14 +353,14 @@ walk:
 }
 
 int
-fc_recache(fileid_t file)
+fc_recache(fileid_t fileid)
 {
 	char path[PATH_MAX];
 
-	assert(file < n_file_caches && "file id is invalid");
-	fc_getrelativepath(file_current, file, path, sizeof(path));
-	fc_getdata(file_caches + file, path);
-	if(file_caches[file].flags & FC_COLLAPSED) {
+	assert(fileid < n_file_caches && "file id is invalid");
+	fc_getrelativepath(file_current, fileid, path, sizeof(path));
+	fc_getdata(file_caches + fileid, path);
+	if(file_caches[fileid].flags & FC_COLLAPSED) {
 		DIR *dir;
 		struct dirent *ent;
 		struct filecache *f;
@@ -374,7 +374,7 @@ fc_recache(fileid_t file)
 				// check for . or ..
 				if(ent->d_name[0] == '.' && (n == 1 || (n == 2 && ent->d_name[1] == '.')))
 					continue;
-				if(!(f = fc_addcache(file, ent->d_name, n)))
+				if(!(f = fc_addcache(fileid, ent->d_name, n)))
 					return -1;
 				strcpy(path + len + 1, ent->d_name);
 				fc_getdata(f, path);
@@ -385,14 +385,21 @@ fc_recache(fileid_t file)
 }
 
 fileid_t
-fc_find(fileid_t file, const char *path)
+fc_find(fileid_t fileid, const char *path)
 {
 	struct filecache *fc;
 
-	assert(file < n_file_caches && "file id is invalid");
-	if(!fc_locate(file_caches + file, path, &path, &fc))
+	assert(fileid < n_file_caches && "fileid id is invalid");
+	if(!fc_locate(file_caches + fileid, path, &path, &fc))
 		return fc - file_caches;
 	return ID_NULL;
+}
+
+fileid_t
+fc_getparent(fileid_t fileid)
+{
+	assert(fileid < n_file_caches && "fileid id is invalid");
+	return file_caches[fileid].parent;
 }
 
 void

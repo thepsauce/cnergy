@@ -1,20 +1,20 @@
-## All these keybinds are available only inside of
-## the fileview window type
+# All these keybinds are available only inside of
+# the fileview window type
 bind fileviewer::normal:
 
-enter !choose
-tab :insert
-s a !sort_alphabetical
-s s !sort_changetime
-s d !sort_modificationtime
-s t !toggle_sort_type
-s r !toggle_sort_reverse
-h !toggle_hidden
+<enter>		call choose
+<tab>		:insert
+sa			call sort_alphabetical
+ss			call sort_changetime
+sm			call sort_modificationtime
+st			call toggle_sort_type
+sr			call toggle_sort_reverse
+h			call toggle_hidden
 
 bind $fileviewer::insert:
 
-enter !choose
-tab :normal
-BACK <x1
-DEL >x1
-escape :normal
+<enter>		call choose
+<tab>		:normal
+<back>		<x1
+<del>		>x1
+<esc>		:normal

@@ -1,44 +1,44 @@
 bind .lazy:
 
-HOME >home
-END >end
-LEFT <N
-RIGHT >N
-UP `N
-DOWN .N
+<home>		>home
+<end>		>end
+<left>		<C
+<right>		>C
+<up>		`C
+<down>		.C
 
 bind .normal_movement:
 
-0 >home
-$ >end
-g g .home .N & `1
-g G, G .end `N & .1
-BACK $-N
-SPACE $N
-^J .1 & >home
-h <N
-l >N
-k `N
-j .N
+0 			>home
+$ 			>end
+gg 			.home ; .C & ; `1
+gG, G 		.end ; `C & ; .1
+<back> 		$-C
+<space>		$C
+^J			.1 & ; >home
+h			<C
+l			>C
+k			`C
+j			.C
 
 bind normal: lazy, normal_movement
 
-^W h <wN
-^W j .wN
-^W k `wN
-^W l >wN
-^W SPACE $wN
-^W BACK $w-N
-^W n !new
-^W w !close
-^W v !vsplit
-^W s !hsplit
+^Wh			<wC
+^Wj			.wC
+^Wk			`wC
+^Wl			>wC
+^W<space>	$wC
+^W<back>	$w-C
+^Wn			call new
+^Ww			call close
+^Wv			call vsplit
+^Ws			call hsplit
 
 bind $insert: lazy
 
 bind visual*: lazy, normal_movement
 
-include "cng/edit.cng"
-include "cng/bufferviewer.cng"
-include "cng/fileviewer.cng"
+include "edit.cng"
+include "bufferviewer.cng"
+include "fileviewer.cng"
 

@@ -37,9 +37,8 @@ main(int argc, char **argv)
 	// all below here is pretty much test code beside the main loop
 	struct parser parser;
 	memset(&parser, 0, sizeof(parser));
-	if(!parser_open(&parser, fc_cache(fc_getbasefile(), "cng/draft.cng"))) {
-		while(!parser_next(&parser));
-		if(!parser.nErrors) {
+	if(parser_run(&parser, fc_cache(fc_getbasefile(), "cng/draft.cng")) == SUCCESS) {
+		if(parser.nErrors == 0) {
 			for(unsigned i = 0; i < parser.nAppendRequests; i++) {
 				struct binding_mode *m;
 
@@ -58,6 +57,44 @@ main(int argc, char **argv)
 						sizeof(*donor->bindings) * donor->nBindings);
 				receiver->nBindings += donor->nBindings;
 			}
+			for(window_type_t i = 0; i < WINDOW_MAX; i++) {
+				for(struct binding_mode *m = parser.firstModes[i]; m; m = m->next) {
+					printf("MODE: %s (%#x)(%u bindings)\n", m->name, m->flags, m->nBindings);
+					for(unsigned j = 0; j < m->nBindings; j++) {
+						const struct binding bind = m->bindings[j];
+						printf("  BIND([%p]%u): ", (void*) bind.keys, bind.nKeys);
+						fflush(stdout);
+						for(int *k = bind.keys, *e = k + bind.nKeys;;) {
+							for(;;) {
+								printf("%s", keyname(*k));
+								k++;
+								if(!*k)
+									break;
+							}
+							k++;
+							if(k == e)
+								break;
+							printf(", ");
+						}
+						putchar('\n');
+						printf("    ");
+						for(size_t sz = 0; sz < bind.szProgram; sz++) {
+							const uint8_t b = *(uint8_t*) (bind.program + sz); 
+							const uint8_t
+								l = b & 0xf,
+								h = b >> 4;
+							printf("0x");
+							putchar(h >= 0xa ? (h - 0xa + 'a') : h + '0');
+							putchar(l >= 0xa ? (l - 0xa + 'a') : l + '0');
+							putchar(' ');
+						}
+						printf("\n========\n");
+						environment_loadandprint(bind.program, bind.szProgram);
+						printf("========");
+						putchar('\n');
+					}
+				}
+			}
 			modes_add(parser.firstModes);
 		}
 		parser_cleanup(&parser);
@@ -65,12 +102,14 @@ main(int argc, char **argv)
 	int line, col;
 	for(unsigned j = 0; j < parser.nErrStack; j++) {
 		char path[PATH_MAX];
-		fc_getrelativepath(fc_getbasefile(), parser.errStack[j].file, path, sizeof(path));
-		getfilepos(parser.errStack[j].file, parser.errStack[j].pos, &line, &col);
-		printf("error in %s(%d:%d): %s\n", path, line, col, parser_strerror(parser.errStack[j].err));
+		struct parser_token tok = parser.errStack[j].token;
+		fc_getrelativepath(fc_getbasefile(), tok.file, path, sizeof(path));
+		getfilepos(tok.file, tok.pos, &line, &col);
+		printf("error in %s:%d:%d at token %c: %u\n", path, line, col, tok.type, parser.errStack[j].err);
 	}
-	if(parser.nErrors)
+	if(parser.nErrors != 0)
 		return -1;
+	return 0;
 
 	initscr();
 
@@ -203,8 +242,8 @@ main(int argc, char **argv)
 			// if we have anything already, discard it,
 			// meaning that escape cannot be repeated or be part of a bind
 			// it can only be the start of a bind
-			if(main_environment.N || main_environment.mp) {
-				main_environment.N = 0;
+			if(main_environment.C || main_environment.mp) {
+				main_environment.C = 0;
 				main_environment.mp = 0;
 				continue;
 			}
@@ -229,9 +268,9 @@ main(int argc, char **argv)
 		attrset(COLOR(3, 0));
 		move(LINES - 1, 0);
 		if(!(window_getbindmode(focus_window)->flags & FBIND_MODE_TYPE) &&
-				isdigit(c) && (c != '0' || main_environment.N)) {
-			main_environment.N = SAFE_MUL(main_environment.N, 10);
-			main_environment.N = SAFE_ADD(main_environment.N, c - '0');
+				isdigit(c) && (c != '0' || main_environment.C)) {
+			main_environment.C = SAFE_MUL(main_environment.C, 10);
+			main_environment.C = SAFE_ADD(main_environment.C, c - '0');
 		} else {
 			struct binding *bind;
 
@@ -244,15 +283,15 @@ main(int argc, char **argv)
 			/* fall through */
 			case 2:
 				main_environment.mp = 0;
-				main_environment.N = 0;
+				main_environment.C = 0;
 				break;
 			case 1:
 				break;
 			}
 		}
 		printw("%s ", window_getbindmode(focus_window)->name);
-		if(main_environment.N)
-			printw("%zd", main_environment.N);
+		if(main_environment.C)
+			printw("%zd", main_environment.C);
 		for(unsigned i = 0; i < main_environment.mp / sizeof(int); i++)
 			printw("%s", keyname(keys[i]));
 		ersline(COLS - getcurx(stdscr));

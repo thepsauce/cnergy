@@ -1,80 +1,94 @@
 #include "cnergy.h"
 
 int
-parser_checkbindword(struct parser *parser)
+parser_getbindmode(struct parser *parser)
 {
-	return !strcmp(parser->word, "bind") ? COMMIT : FAIL;
-}
+	/**
+	 * A bind mode takes up to 8 tokens in extreme cases, for instance:
+	 * .foo::bar*:
+	 * After that come the mode extensions which may look like:
+	 * ext1, ext2
+	 */
+	struct parser_token tokens[7];
+	unsigned i = 0;
+	struct binding_mode mode, *prevMode, *nextMode;
+	window_type_t type = WINDOW_ALL;
 
-int
-parser_getbindmodeprefix(struct parser *parser)
-{
-	memset(&parser->mode, 0, sizeof(parser->mode));
-	if(parser->c == '.' || parser->c == '$') {
-		parser->mode.flags = parser->c == '.' ? FBIND_MODE_SUPPLEMENTARY : FBIND_MODE_TYPE;
-		parser_getc(parser);
+	memset(&mode, 0, sizeof(mode));
+	parser_consumespace(parser);
+	parser_peektokens(parser, tokens, ARRLEN(tokens));
+	if(tokens[i].type == '.') {
+		i++;
+		mode.flags |= FBIND_MODE_SUPPLEMENTARY;
+	} else if(tokens[i].type == '$') {
+		i++;
+		mode.flags |= FBIND_MODE_TYPE;
 	}
-	return COMMIT;
-}
-
-int
-parser_getbindmodesuffix(struct parser *parser)
-{
-	if(parser->c == '*') {
-		parser->mode.flags |= FBIND_MODE_SELECTION;
-		parser_getc(parser);
+	if(tokens[i].type != 'w')
+		return -1;
+	if(tokens[i + 1].type == ':' &&
+			tokens[i + 2].type == ':' ) {
+		if(parser_windowtype(parser, tokens[i].value, &type))
+			parser_pusherror(parser, ERR_INVALID_WINDOWTYPE);
+		i += 3;
+		if(tokens[i].type != 'w') {
+			if(isspace(tokens[i].type) && tokens[i + 1].type == 'w')
+				return parser_pusherror(parser, ERRBM_NOSPACE);
+			return parser_pusherror(parser, ERRBM_WORD);
+		}
 	}
-	if(parser->c != ':') {
-		parser_pusherror(parser, ERR_EXPECTED_COLON_MODE);
-		return FAIL;
+	strcpy(mode.name, tokens[i].value);
+	i++;
+	if(tokens[i].type == '*') {
+		i++;
+		mode.flags |= FBIND_MODE_SELECTION;
 	}
-	parser_getc(parser);
-	return SUCCESS;
-}
+	if(tokens[i].type != ':') {
+		if(isspace(tokens[i].type) && tokens[i + 1].type == ':')
+			return parser_pusherror(parser, ERRBM_NOSPACE);
+		return parser_pusherror(parser, ERRBM_COLON);
+	}
+	parser_consumetokens(parser, i + 1);
+	/* get mode extensions */
+	while(parser_consumeblank(parser),
+			parser_peektokens(parser, tokens, 3) > 0) {
+		i = 0;
+		if(tokens[i].type == 'w') {
+			struct append_request req;
 
-int
-parser_getbindmodeextensions(struct parser *parser)
-{
-	struct append_request req;
-
-	req.mode = NULL;
-	while(parser_getword(parser) == SUCCESS) {
-		strcpy(req.donor, parser->word);
-		req.windowType = parser->windowType;
-		parser_addappendrequest(parser, &req);
-		while(isblank(parser->c))
-			parser_getc(parser);
-		if(parser->c != ',')
+			i++;
+			if(tokens[i].type == ' ')
+				i++;
+			if(tokens[i].type == ',') {
+				parser_consumetokens(parser, i + 1);
+				continue;
+			}
+			if(tokens[i].type != '\n')
+				return parser_pusherror(parser, ERRBM_INVALID);
+			req.mode = NULL;
+			strcpy(req.donor, tokens[0].value);
+			req.windowType = type;
+			parser_addappendrequest(parser, &req);
+		}
+		if(tokens[i].type == '\n') {
+			parser_consumetokens(parser, i + 1);
 			break;
-		while(isblank(parser_getc(parser)));
+		}
+		return parser_pusherror(parser, ERRBM_INVALID);
 	}
-	if(parser->c != '\n' && parser->c != EOF) {
-		parser_pusherror(parser, ERR_EXPECTED_LINE_BREAK_MODE);
-		return FAIL;
-	}
-	return SUCCESS;
-}
-
-int
-parser_addbindmode(struct parser *parser)
-{
-	struct binding_mode *nextMode;
-	struct binding_mode *mode;
-	window_type_t type;
 
 	nextMode = malloc(sizeof(*nextMode));
 	if(!nextMode)
-		return OUTOFMEMORY;
-	type = parser->windowType;
-	mode = parser->firstModes[type];
-	if(!mode)
+		return parser_pusherror(parser, ERR_OUTOFMEMORY);
+	prevMode = parser->firstModes[type];
+	if(!prevMode)
 		parser->firstModes[type] = nextMode;
 	else {
-		while(mode->next)
-			mode = mode->next;
-		mode->next = nextMode;
+		while(prevMode->next)
+			prevMode = prevMode->next;
+		prevMode->next = nextMode;
 	}
-	memcpy(nextMode, &parser->mode, sizeof(*nextMode));
+	memcpy(nextMode, &mode, sizeof(*nextMode));
 	for(unsigned i = parser->nAppendRequests; i; ) {
 		i--;
 		if(parser->appendRequests[i].mode)
@@ -83,6 +97,5 @@ parser_addbindmode(struct parser *parser)
 	}
 	parser->curMode = nextMode;
 	printf("added mode(%u): %s\n", type, nextMode->name);
-	return FINISH;
+	return SUCCESS;
 }
-

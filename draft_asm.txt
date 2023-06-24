@@ -84,7 +84,7 @@ l1:
 	lda		1
 	call	movehorz
 
-	lda		[4] ; [4] is the second pressed key
+	lda		int [4] ; [4] is the second pressed key
 	call	find
 	jz		l2
 
@@ -96,8 +96,14 @@ l2:
 	exit	0
 
 
+JMP ...
 
+str1: "A"
 
+lda		int [0]
+call	insert
+
+exit	0
 
 
 

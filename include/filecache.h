@@ -26,13 +26,13 @@ struct filecache {
 /** Similar to getting the current working directory */
 fileid_t fc_getbasefile(void);
 /** Get the relative file path of given file */
-int fc_getrelativepath(fileid_t from, fileid_t file, char *dest, size_t maxDest);
+int fc_getrelativepath(fileid_t fromid, fileid_t fileid, char *dest, size_t maxDest);
 /** Get the absolute file path of given file */
-int fc_getabsolutepath(fileid_t file, char *dest, size_t maxDest);
+int fc_getabsolutepath(fileid_t fileid, char *dest, size_t maxDest);
 /** Open the file at given fileid */
-FILE *fc_open(fileid_t file, const char *mode);
+FILE *fc_open(fileid_t fileid, const char *mode);
 /** Get the file cache data */
-struct filecache *fc_lock(fileid_t file);
+struct filecache *fc_lock(fileid_t fileid);
 /** Get a file type compute from the mode member of fc */
 enum {
 	FC_TYPE_DIR,
@@ -48,10 +48,12 @@ bool fc_iswrite(struct filecache *fc);
 bool fc_isread(struct filecache *fc);
 void fc_unlock(struct filecache *fc);
 /** Caches a path that starts from given file */
-fileid_t fc_cache(fileid_t file, const char *path);
+fileid_t fc_cache(fileid_t fileid, const char *path);
+/** Gets the parent of this file */
+fileid_t fc_getparent(fileid_t fileid);
 /** Compares cached file with real filesystem */
-int fc_recache(fileid_t file);
+int fc_recache(fileid_t fileid);
 /** Finds a cached file that starts from given path */
-fileid_t fc_find(fileid_t file, const char *path);
+fileid_t fc_find(fileid_t fileid, const char *path);
 
 #endif

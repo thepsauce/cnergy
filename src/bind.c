@@ -1,7 +1,11 @@
 #include "cnergy.h"
 
+static char str_space[65536];
+static size_t n_strings;
 static int mode_keys[262144];
-size_t n_keys;
+static size_t n_keys;
+static uint8_t program_space[0xffff];
+static size_t sz_programs;
 struct binding_mode *all_modes[WINDOW_MAX];
 
 int *
@@ -19,6 +23,40 @@ mode_allockeys(const int *keys, unsigned nKeys)
 	memcpy(k, keys, sizeof(*keys) * nKeys);
 	n_keys += nKeys;
 	return k;
+}
+
+char *
+mode_allocstring(const char *str, size_t nStr)
+{
+	char *s;
+
+	if(n_strings >= nStr)
+		for(s = str_space; s < str_space + n_strings - nStr; s += strlen(s) + 1)
+			if(!strncmp(s, str, nStr) && !s[nStr])
+				return s;
+	if(n_strings + nStr + 1 > sizeof(str_space))
+		return NULL;
+	s = str_space + n_strings;
+	memcpy(s, str, nStr);
+	s[nStr] = 0;
+	n_strings += nStr + 1;
+	return s;
+}
+
+void *
+mode_allocprogram(const void *program, size_t szProgram)
+{
+	void *p;
+	if(sz_programs >= szProgram)
+		for(p = program_space; p < (void*) program_space + sz_programs - szProgram; p++)
+			if(!memcmp(p, program, szProgram))
+				return p;
+	if(sz_programs + szProgram > sizeof(program_space))
+		return NULL;
+	p = program_space + sz_programs;
+	memcpy(p, program, szProgram);
+	sz_programs += szProgram;
+	return p;
 }
 
 struct binding_mode *

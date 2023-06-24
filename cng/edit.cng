@@ -1,60 +1,74 @@
-## All these keybinds are available only inside of
-## the edit window type
+# All these keybinds are available only inside of
+# the edit window type
 bind edit::normal:
 
-O >home +"\n" $-1 :insert
-O >home +"\n" :insert
-o >end +"\n" :insert
-I >home :insert
-A >end :insert
-i :insert
-a $1 :insert
-d l, x, DEL >xN
-d h, X <xN
-d D `xN
-d d .xN
-d k `x1 `xN
-d j .x1 .xN
-## .1 & `1 checks if there is a line below
-J .1 & `1 >end +" " >x1 (( ?"\t" | ?" " & >x1 ))
-p !paste
-u !undo
-^R !redo
-v :visual
-## ** means that any key can be pressed here
-## %0 will get the first key pressed (f in this case)
-## %1 will get the second key pressed
-## The find command stores its return value in a special place
-## that can be accessed using "["
-f ** (( #N-- & >1 & !find %1 & $A ))
-r ** >x1 & +%1
-: e !open
-: w !write
-: r !read
-H ** +%0 +%1 <1 ?"A" ^ +"A" >x1
+O			>home ; +"\n" ; :insert
+o			>end ; +"\n" ; :insert
+I			>home ; :insert
+A			>end ; :insert
+i			:insert
+a			$1 ; :insert
+dl, x, DEL	>xC
+dh, X		<xC
+dD			`xC
+dd			.xC
+dk			incc ; `xC
+dj			incc ; .xC
+## .1 & ; `1 checks if there is a line below
+J {
+	.1 & ; `1
+	>end
+	+" "
+	>x1
+loop:
+	?"[\t ]" &
+	>x1
+	jmp loop
+}
+p			call paste
+u			call undo
+^R			call redo
+v			:visual
+# ** means that any key can be pressed here
+# key#0 will get the first key pressed (f in this case)
+# key#1 will get the second key pressed
+# The find command stores its return value in a special place
+# that can be accessed using "["
+f** {
+loop: 
+	decc &
+	>1
+	!find key#1 &
+	$A
+jmp loop
+}
+r**			>x1 & ; +key#1
+:e			call open
+:w			call write
+:r			call read
 
-## Testing
-T (( #N-- & +"T" ))
-M ?"int" ^ +"int" ^ +"u" ^ <3 ^ <1
+# Testing
+T			loop: decc & ; +"T" ; jmp loop
+#M			?"int" ^ +"int" ^ +"u" ^ <3 ^ <1
 
 bind $edit::insert:
 
-BACK <x1
-DEL >x1
-##^A $home :visual $end
-ESC :normal
+<back>		<x1
+<del>		>x1
+#^A		$home ; :visual ; $end
+<esc>		:normal
 
-## some tests for interactive coding
-i f ( +")\n\t" $-1
-i f { <x1 +"() {\n}" $-5
-m a i n <x4 +"int\nmain(int argc, char **argv)\n{\n\treturn 0;\n}" $-13
-w h i l e ( 1 ) <x8 +"for(;;)"
-^W b e g <x3 $home
-^W e n d <x3 $end
+# Some tests for interactive coding
+if(			+")\n\t" $-1
+if{			<x1 ; +"() {\n}" $-5
+main		<x4 ; +"int\nmain(int argc, char **argv)\n{\n\treturn 0;\n}" ; $-13
+while(1)	<x8 ; +"for(;;)"
+^Wbeg		<x3 ; $home
+^Wend		<x3 ; $end
 
 bind edit::visual*:
 
-ESC, v :normal
-x, X, d, D !delete :normal
-y !copy :normal
+<esc>, v 	:normal
+x, X, d, D 	call delete ; :normal
+y			call copy ; :normal
 
