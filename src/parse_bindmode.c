@@ -28,7 +28,7 @@ parser_getbindmode(struct parser *parser)
 		return -1;
 	if(tokens[i + 1].type == ':' &&
 			tokens[i + 2].type == ':' ) {
-		if(parser_windowtype(parser, tokens[i].value, &type))
+		if(parsewindowtype(tokens[i].value, &type))
 			parser_pusherror(parser, ERR_INVALID_WINDOWTYPE);
 		i += 3;
 		if(tokens[i].type != 'w') {

@@ -38,11 +38,11 @@ f** {
 loop: 
 	decc &
 	>1
-	!find key#1 &
+#	!find key#1 &
 	$A
-jmp loop
+#jmp loop
 }
-r**			>x1 & ; +key#1
+#r**			>x1 & ; +key#1
 :e			call open
 :w			call write
 :r			call read

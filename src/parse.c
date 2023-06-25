@@ -1,6 +1,6 @@
 #include "cnergy.h"
 
-static int
+int
 parser_getc(struct parser *parser)
 {
 	if(!parser->nStreams)
@@ -15,14 +15,14 @@ parser_getc(struct parser *parser)
 	return parser->c = fgetc(parser->streams[parser->nStreams - 1].fp);
 }
 
-static int
+int
 parser_ungetc(struct parser *parser)
 {
 	ungetc(parser->c, parser->streams[parser->nStreams - 1].fp);
 	return parser->c = parser->prev_c;
 }
 
-static long
+long
 parser_tell(struct parser *parser)
 {
 	return ftell(parser->streams[parser->nStreams - 1].fp);
@@ -31,13 +31,16 @@ parser_tell(struct parser *parser)
 static int
 parser_gettoken(struct parser *parser)
 {
-	unsigned nValue = 0;
-	struct parser_token *const tok = parser->tokens + parser->nTokens;
+	struct parser_token *const tok = parser->tokens + parser->nTokens++;
 again:
-	if(!parser->nStreams)
+	if(!parser->nStreams) {
+		parser->nTokens--;
 		return 1;
+	}
 	tok->pos = parser_tell(parser) - 1;
 	tok->file = parser->streams[parser->nStreams - 1].file;
+	if((*parser->tokengetter)(parser, tok) == SUCCESS)
+		return SUCCESS;
 	switch(parser->c) {
 	case EOF:
 		parser_getc(parser);
@@ -64,10 +67,28 @@ again:
 			tok->type = ' ';
 		}
 		break;
+	case '\\':
+		tok->type = '\\';
+		if((tok->value[0] = parser_getc(parser)) != EOF)
+			parser_getc(parser);
+		break;
+	default:
+		tok->type = parser->c;
+		parser_getc(parser);
+		break;
+	}
+	return SUCCESS;
+}
+
+static int
+parser_getglobaltoken(struct parser *parser, struct parser_token *tok)
+{
+	unsigned nValue = 0;
+
+	switch(parser->c) {
 	case 'a' ... 'z':
 	case 'A' ... 'Z':
 	case '_':
-	tok_word:
 		tok->value[nValue++] = parser->c;
 		while(isalnum(parser_getc(parser)) || parser->c == '_')
 			tok->value[nValue++] = parser->c;
@@ -87,26 +108,9 @@ again:
 		tok->value[nValue] = 0;
 		tok->type = '\"';
 		break;
-	case '0' ... '9':
-		tok->value[nValue++] = parser->c;
-		while(isdigit(parser_getc(parser)))
-			tok->value[nValue++] = parser->c;
-		if(isalpha(parser->c) || parser->c == '_')
-			goto tok_word;
-		tok->value[nValue] = 0;
-		tok->type = 'd';
-		break;
-	case '\\':
-		tok->type = '\\';
-		if((tok->value[0] = parser_getc(parser)) != EOF)
-			parser_getc(parser);
-		break;
 	default:
-		tok->type = parser->c;
-		parser_getc(parser);
-		break;
+		return 1;
 	}
-	parser->nTokens++;
 	return 0;
 }
 
@@ -127,6 +131,20 @@ parser_peektokens(struct parser *parser, struct parser_token *toks, unsigned nTo
 	memcpy(toks, parser->tokens, sizeof(*toks) * parser->nPeekedTokens);
 	memset(toks + parser->nPeekedTokens, 0, sizeof(*toks) * (nToks - parser->nPeekedTokens));
 	return parser->nPeekedTokens;
+}
+
+void
+parser_setcontext(struct parser *parser, int (*tokengetter)(struct parser *parser, struct parser_token *tok))
+{
+	if(parser->tokengetter == tokengetter)
+		return;
+	if(parser->nTokens) {
+		parser->nTokens = 0;
+		parser->nPeekedTokens = 0;
+		fseek(parser->streams[parser->nStreams - 1].fp, parser->tokens[0].pos, SEEK_SET);
+		parser_getc(parser);
+	}
+	parser->tokengetter = tokengetter;
 }
 
 void
@@ -213,7 +231,7 @@ parser_addappendrequest(struct parser *parser, struct append_request *request)
 }
 
 int
-parser_windowtype(struct parser *parser, const char *name, window_type_t *pType)
+parsewindowtype(const char *name, window_type_t *pType)
 {
 	static const char *windowTypes[] = {
 		[WINDOW_ALL] = "all",
@@ -227,6 +245,31 @@ parser_windowtype(struct parser *parser, const char *name, window_type_t *pType)
 			return SUCCESS;
 		}
 	return FAIL;
+}
+
+int
+parseint(const char *str, ptrdiff_t *pInt)
+{
+	ptrdiff_t sgn = 1;
+	ptrdiff_t i;
+
+	if(*str == '+') {
+		str++;
+	} else if(*str == '-') {
+		sgn = -1;
+		str++;
+	} else if(!isdigit(*str))
+		return -1;
+	if(!isdigit(*str)) {
+		*pInt = sgn;
+		return 0;
+	}
+	while(isdigit(*str)) {
+		i *= 10;
+		i += *str - '0';
+	}
+	*pInt = SAFE_MUL(i, sgn);
+	return 0;
 }
 
 int
@@ -246,6 +289,7 @@ parser_run(struct parser *parser, fileid_t file)
 	parser->c = fgetc(parser->streams[0].fp);
 	while(1) {
 		parser_consumespace(parser);
+		parser_setcontext(parser, parser_getglobaltoken);
 		if(parser_peektoken(parser, &tok) == 0)
 			return SUCCESS;
 		if(tok.type == 'w') {
@@ -278,6 +322,7 @@ parser_run(struct parser *parser, fileid_t file)
 					.fp = fp,
 					.file = file,
 				};
+				parser_getc(parser);
 				continue;
 			}
 		}
