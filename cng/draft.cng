@@ -1,5 +1,9 @@
 bind .lazy:
 
+a >1
+b `1
+c .1
+
 <home>		>home
 <end>		>end
 <left>		<C
@@ -9,36 +13,37 @@ bind .lazy:
 
 bind .normal_movement:
 
-0 			>home
-$ 			>end
-gg 			.home ; .C & ; `1
+0 		>home
+$ 		>end
+gg 		.home ; .C & ; `1
 gG, G 		.end ; `C & ; .1
 <back> 		$-C
 <space>		$C
-^J			.1 & ; >home
-h			<C
-l			>C
-k			`C
-j			.C
+^J		.1 & ; >home
+h		<C
+l		>C
+k		`C
+j		.C
 
 bind normal: lazy, normal_movement
 
-^Wh			<wC
-^Wj			.wC
-^Wk			`wC
-^Wl			>wC
+^Wh		<wC
+^Wj		.wC
+^Wk		`wC
+^Wl		>wC
 ^W<space>	$wC
 ^W<back>	$w-C
-^Wn			call new
-^Ww			call close
-^Wv			call vsplit
-^Ws			call hsplit
+^Wn		call new
+^Ww		call close
+^Wv		call vsplit
+^Ws		call hsplit
 
 bind $insert: lazy
 
 bind visual*: lazy, normal_movement
 
 include "edit.cng"
-include "bufferviewer.cng"
 include "fileviewer.cng"
+include "bufferviewer.cng"
 
+bind i_have_the_porpuse_to_prevent_a_bug:

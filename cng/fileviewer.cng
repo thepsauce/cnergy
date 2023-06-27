@@ -4,12 +4,12 @@ bind fileviewer::normal:
 
 <enter>		call choose
 <tab>		:insert
-sa			call sort_alphabetical
-ss			call sort_changetime
-sm			call sort_modificationtime
-st			call toggle_sort_type
-sr			call toggle_sort_reverse
-h			call toggle_hidden
+sa		call sort_alphabetical
+ss		call sort_changetime
+sm		call sort_modificationtime
+st		call toggle_sort_type
+sr		call toggle_sort_reverse
+h		call toggle_hidden
 
 bind $fileviewer::insert:
 

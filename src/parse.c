@@ -32,19 +32,20 @@ static int
 parser_gettoken(struct parser *parser)
 {
 	struct parser_token *const tok = parser->tokens + parser->nTokens++;
-again:
-	if(!parser->nStreams) {
-		parser->nTokens--;
-		return 1;
+	while(1) {
+		if(!parser->nStreams) {
+			parser->nTokens--;
+			return 1;
+		}
+		if(parser->c != EOF)
+			break;
+		parser_getc(parser);
 	}
 	tok->pos = parser_tell(parser) - 1;
 	tok->file = parser->streams[parser->nStreams - 1].file;
 	if((*parser->tokengetter)(parser, tok) == SUCCESS)
 		return SUCCESS;
 	switch(parser->c) {
-	case EOF:
-		parser_getc(parser);
-		goto again;
 	case ' ': case '\t':
 		while(isblank(parser_getc(parser)));
 		if(parser->c == '\n' || parser->c == '\r') {
@@ -218,19 +219,6 @@ parser_pusherror(struct parser *parser, parser_error_t err)
 }
 
 int
-parser_addappendrequest(struct parser *parser, struct append_request *request)
-{
-	struct append_request *newRequests;
-
-	newRequests = realloc(parser->appendRequests, sizeof(*parser->appendRequests) * (parser->nAppendRequests + 1));
-	if(!newRequests)
-		return ERR_OUTOFMEMORY;
-	parser->appendRequests = newRequests;
-	parser->appendRequests[parser->nAppendRequests++] = *request;
-	return SUCCESS;
-}
-
-int
 parsewindowtype(const char *name, window_type_t *pType)
 {
 	static const char *windowTypes[] = {
@@ -264,9 +252,11 @@ parseint(const char *str, ptrdiff_t *pInt)
 		*pInt = sgn;
 		return 0;
 	}
+	i = 0;
 	while(isdigit(*str)) {
 		i *= 10;
 		i += *str - '0';
+		str++;
 	}
 	*pInt = SAFE_MUL(i, sgn);
 	return 0;
@@ -278,7 +268,7 @@ parser_run(struct parser *parser, fileid_t file)
 	FILE *fp;
 	struct parser_token tok;
 
-	fp = fc_open(file, "r");
+	fp = fc_open(file, "rb");
 	if(!fp)
 		return -1;
 	parser->streams[0] = (struct parser_file) {
@@ -298,8 +288,6 @@ parser_run(struct parser *parser, fileid_t file)
 				parser_getbindmode(parser);
 				continue;
 			}
-			if(!strcmp(tok.value, "syntax"))
-				return FAIL;
 			if(!strcmp(tok.value, "include")) {
 				parser_consumetoken(parser);
 				parser_consumespace(parser);
@@ -309,14 +297,18 @@ parser_run(struct parser *parser, fileid_t file)
 				parser_consumetoken(parser);
 				if(parser->nStreams == ARRLEN(parser->streams))
 					return parser_pusherror(parser, ERRFILE_TOOMANY);
-				fp = fc_open(fc_cache(fc_getparent(file), tok.value), "r");
+				fp = fc_open(fc_cache(fc_getparent(file), tok.value), "rb");
 				if(!fp)
 					return parser_pusherror(parser, ERRFILE_IO);
-				printf("entering file %s\n", tok.value);
+				while(parser_peektoken(parser, &tok) > 0 && tok.type != '\n')
+					parser_consumetoken(parser);
+				parser_consumetoken(parser);
+				parser_peektoken(parser, &tok);
 				if(parser->nStreams && parser->nTokens) {
 					parser->nTokens = 0;
 					parser->nPeekedTokens = 0;
-					fseek(parser->streams[parser->nStreams - 1].fp, parser->tokens[0].pos, SEEK_SET);
+					fseek(parser->streams[parser->nStreams - 1].fp,
+							parser->tokens[0].pos, SEEK_SET);
 				}
 				parser->streams[parser->nStreams++] = (struct parser_file) {
 					.fp = fp,

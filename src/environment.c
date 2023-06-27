@@ -13,15 +13,16 @@ bool (*window_types[])(windowid_t winid, call_t call) = {
 };
 
 // TODO: maybe when this list is complete, add binary search or hashing
-// Note that this is used by the parser (parser_bind.c)
+// Note that this is used by the parser (parse_instruction.c)
 const char *callNames[CALL_MAX] = {
+	[CALL_NULL] = "",
 	[CALL_SETMODE] = "SETMODE",
 	[CALL_VSPLIT] = "VSPLIT",
 	[CALL_HSPLIT] = "HSPLIT",
-	[CALL_COLORWINDOW] = "COLORWINDOW",
-	[CALL_OPENWINDOW] = "OPENWINDOW",
-	[CALL_CLOSEWINDOW] = "CLOSEWINDOW",
-	[CALL_NEWWINDOW] = "NEWWINDOW",
+	[CALL_COLORWINDOW] = "COLOR",
+	[CALL_OPENWINDOW] = "OPEN",
+	[CALL_CLOSEWINDOW] = "CLOSE",
+	[CALL_NEWWINDOW] = "NEW",
 	[CALL_MOVEWINDOW_RIGHT] = "MOVEWINDOW_RIGHT",
 	[CALL_MOVEWINDOW_BELOW] = "MOVEWINDOW_BELOW",
 	[CALL_QUIT] = "QUIT",
@@ -44,8 +45,8 @@ const char *callNames[CALL_MAX] = {
 	[CALL_PASTE] = "PASTE",
 	[CALL_UNDO] = "UNDO",
 	[CALL_REDO] = "REDO",
-	[CALL_WRITEFILE] = "WRITEFILE",
-	[CALL_READFILE] = "READFILE",
+	[CALL_WRITEFILE] = "WRITE",
+	[CALL_READFILE] = "READ",
 	[CALL_FIND] = "FIND",
 
 	[CALL_CHOOSE] = "CHOOSE",
@@ -82,6 +83,7 @@ const char *instrNames[INSTR_MAX] = {
 #define REGISTER_MISC \
 	[INSTR_JMP] = "JMP", \
 	[INSTR_JZ] = "JZ", \
+	[INSTR_JNZ] = "JNZ", \
 	[INSTR_CALL] = "CALL", \
 	[INSTR_EXIT] = "EXIT",
 	ALLINSTRUCTIONS
@@ -97,7 +99,7 @@ const char *instrNames[INSTR_MAX] = {
 static void
 environment_recursiverender(windowid_t winid)
 {
-	/* Do not need to render empty windows */
+	/* do not need to render empty windows */
 	if(window_getarea(winid) != 0)
 		(*window_types[window_gettype(winid)])(winid, CALL_RENDER);
 	if(window_getbelow(winid) != ID_NULL)
@@ -131,7 +133,7 @@ environment_call(call_t call)
 	case CALL_MOVEWINDOW_BELOW: {
 		const ptrdiff_t amount = main_environment.A;
 		ptrdiff_t i = 0;
-		// get the right directional function
+		/* get the right directional function */
 		windowid_t (*const next)(windowid_t) =
 			call == CALL_MOVEWINDOW_RIGHT ?
 				(amount > 0 ? window_right : window_left) :
@@ -169,7 +171,7 @@ environment_call(call_t call)
 			break;
 		}
 		window_delete(focus_window);
-		// it is safe to use a deleted window as only a flag gets set
+		/* it is safe to use a deleted window as only a flag gets set */
 		window_copylayout(winid, focus_window);
 		break;
 	}
@@ -196,10 +198,9 @@ environment_call(call_t call)
 		// TODO: open a color window or focus an existing one
 		break;
 	default:
-		// not a general bind call
+		main_environment.z = (*window_types[window_gettype(focus_window)])(focus_window, call);
 		break;
 	}
-	(*window_types[window_gettype(focus_window)])(focus_window, call);
 };
 
 int
@@ -236,6 +237,10 @@ environment_loadandexec(void *program, size_t szProgram)
 		main_environment.ip += main_environment.z ? *(ptrdiff_t*) (main_environment.memory + main_environment.ip) : \
 			(ptrdiff_t) sizeof(ptrdiff_t); \
 		break; \
+	case INSTR_JNZ: \
+		main_environment.ip += !main_environment.z ? *(ptrdiff_t*) (main_environment.memory + main_environment.ip) : \
+			(ptrdiff_t) sizeof(ptrdiff_t); \
+		break; \
 	case INSTR_CALL: environment_call(*(call_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += sizeof(call_t); break; \
 	case INSTR_EXIT: return *(int*) (main_environment.memory + main_environment.ip); \
 
@@ -260,6 +265,7 @@ environment_loadandexec(void *program, size_t szProgram)
 int
 environment_loadandprint(void *program, size_t szProgram)
 {
+	const size_t oldmp = main_environment.mp;
 	/* load program */
 	memcpy(main_environment.memory + main_environment.mp, program, szProgram);
 	main_environment.ip = main_environment.mp;
@@ -288,8 +294,9 @@ environment_loadandprint(void *program, size_t szProgram)
 #define REGISTER_MISC \
 	case INSTR_JMP: printf("jmp %zd", *(size_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += (ptrdiff_t) sizeof(ptrdiff_t); break; \
 	case INSTR_JZ: printf("jz %zd", *(size_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += (ptrdiff_t) sizeof(ptrdiff_t); break; \
+	case INSTR_JNZ: printf("jnz %zd", *(size_t*) (main_environment.memory + main_environment.ip)); main_environment.ip += (ptrdiff_t) sizeof(ptrdiff_t); break; \
 	case INSTR_CALL: printf("call %s", callNames[*(call_t*) (main_environment.memory + main_environment.ip)]); main_environment.ip += sizeof(call_t); break; \
-	case INSTR_EXIT: printf("exit %u", *(int*) (main_environment.memory + main_environment.ip)); break;
+	case INSTR_EXIT: printf("exit %u", *(int*) (main_environment.memory + main_environment.ip)); main_environment.ip += sizeof(int); break;
 
 	while(main_environment.ip < main_environment.mp) {
 		const instr_t instr = *(instr_t*) (main_environment.memory + main_environment.ip);
@@ -301,5 +308,6 @@ environment_loadandprint(void *program, size_t szProgram)
 		}
 		printf("\n");
 	}
+	main_environment.mp = oldmp;
 	return 0;
 }

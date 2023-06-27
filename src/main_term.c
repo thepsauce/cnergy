@@ -7,7 +7,7 @@ void print_modes(struct binding_mode *mode);
 
 void getfilepos(fileid_t file, long pos, int *line, int *col)
 {
-	FILE *const fp = fc_open(file, "r");
+	FILE *const fp = fc_open(file, "rb");
 	if(!fp)
 		return;
 	int ln = 1, cl = 1;
@@ -79,7 +79,7 @@ main(int argc, char **argv)
 						putchar('\n');
 						printf("    ");
 						for(size_t sz = 0; sz < bind.szProgram; sz++) {
-							const uint8_t b = *(uint8_t*) (bind.program + sz); 
+							const uint8_t b = *(uint8_t*) (bind.program + sz);
 							const uint8_t
 								l = b & 0xf,
 								h = b >> 4;
@@ -109,7 +109,6 @@ main(int argc, char **argv)
 	}
 	if(parser.nErrors != 0)
 		return -1;
-	return 0;
 
 	initscr();
 
@@ -176,7 +175,7 @@ main(int argc, char **argv)
 
 	// setup some windows for testing
 	const char *files[] = {
-		"src/main.c",
+		"src/main_term.c",
 		"src/window.c",
 		//"include/cnergy.h",
 		//"src/bind.c",
@@ -279,6 +278,8 @@ main(int argc, char **argv)
 			*(int*) (main_environment.memory + main_environment.mp) = 0;
 			switch(bind_find(keys, &bind)) {
 			case 0:
+				if(main_environment.C == 0)
+					main_environment.C = 1;
 				environment_loadandexec(bind->program, bind->szProgram);
 			/* fall through */
 			case 2:

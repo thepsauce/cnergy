@@ -108,6 +108,7 @@ typedef enum {
 #define REGISTER_MISC \
 	INSTR_JMP, \
 	INSTR_JZ, \
+	INSTR_JNZ, \
 	INSTR_CALL, \
 	INSTR_EXIT, \
 	INSTR_MAX,

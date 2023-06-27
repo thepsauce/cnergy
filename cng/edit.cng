@@ -2,18 +2,18 @@
 # the edit window type
 bind edit::normal:
 
-O			>home ; +"\n" ; :insert
-o			>end ; +"\n" ; :insert
-I			>home ; :insert
-A			>end ; :insert
-i			:insert
-a			$1 ; :insert
+O		>home ; +"\n" ; :insert
+o		>end ; +"\n" ; :insert
+I		>home ; :insert
+A		>end ; :insert
+i		:insert
+a		$1 ; :insert
 dl, x, DEL	>xC
 dh, X		<xC
-dD			`xC
-dd			.xC
-dk			incc ; `xC
-dj			incc ; .xC
+dD		`xC
+dd		.xC
+dk		incc ; `xC
+dj		incc ; .xC
 ## .1 & ; `1 checks if there is a line below
 J {
 	.1 & ; `1
@@ -25,10 +25,10 @@ loop:
 	>x1
 	jmp loop
 }
-p			call paste
-u			call undo
-^R			call redo
-v			:visual
+p		call paste
+u		call undo
+^R		call redo
+v		:visual
 # ** means that any key can be pressed here
 # key#0 will get the first key pressed (f in this case)
 # key#1 will get the second key pressed
@@ -42,14 +42,14 @@ loop:
 	$A
 #jmp loop
 }
-#r**			>x1 & ; +key#1
-:e			call open
-:w			call write
-:r			call read
+#r**		>x1 & ; +key#1
+:e		call open
+:w		call write
+:r		call read
 
 # Testing
-T			loop: decc & ; +"T" ; jmp loop
-#M			?"int" ^ +"int" ^ +"u" ^ <3 ^ <1
+T		loop: decc & ; +"T" ; jmp loop
+#M		?"int" ^ +"int" ^ +"u" ^ <3 ^ <1
 
 bind $edit::insert:
 
@@ -59,16 +59,18 @@ bind $edit::insert:
 <esc>		:normal
 
 # Some tests for interactive coding
-if(			+")\n\t" $-1
-if{			<x1 ; +"() {\n}" $-5
+if(		+")\n\t" $-1
+if{		<x1 ; +"() {\n}" $-5
 main		<x4 ; +"int\nmain(int argc, char **argv)\n{\n\treturn 0;\n}" ; $-13
 while(1)	<x8 ; +"for(;;)"
 ^Wbeg		<x3 ; $home
 ^Wend		<x3 ; $end
+<esc>, v 	:normal
+
+A <home
 
 bind edit::visual*:
 
-<esc>, v 	:normal
 x, X, d, D 	call delete ; :normal
-y			call copy ; :normal
+y		call copy ; :normal
 

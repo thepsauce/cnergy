@@ -51,7 +51,7 @@ typedef enum {
 	// ERRK - error for key binds
 	// ERRIP - error for instruction integer parameter
 	// ERRINSTR - error for instruction
-	// ERRBIND - error for bind 
+	// ERRBIND - error for bind
 	// ERRBM - error for bindmode
 	SUCCESS,
 	FAIL,
@@ -72,18 +72,19 @@ typedef enum {
 	ERRK_NON_EXISTENT_NAME,
 	ERRK_EXPECTED_WORD,
 	ERRK_INVALID,
-	ERRINSTR_INVALID,
 	ERRBM_COLON,
 	ERRBM_LINEBREAK,
 	ERRBM_NOSPACE,
 	ERRBM_NEWLINE,
 	ERRBM_WORD,
 	ERRBM_INVALID,
-	ERRINSTR_INVALIDIP,
 	ERRINSTR_COLONWORD,
 	ERRINSTR_INVALIDNAME,
 	ERRINSTR_JMPWORD,
 	ERRINSTR_INVALIDWORD,
+	ERRINSTR_EXITNUMBER,
+	ERRINSTR_INVALID,
+	ERRINSTR_STRING,
 	ERRIP_WORD,
 	ERRIP_REGISTER,
 	ERRIP_HASH,
@@ -134,8 +135,6 @@ struct parser {
 	unsigned nKeys;
 	void *program;
 	size_t szProgram;
-	void *data;
-	size_t szData;
 	struct parser_label {
 		char name[64];
 		uintptr_t address;
@@ -210,5 +209,24 @@ int parser_getbind(struct parser *parser);
 int parser_getkeys(struct parser *parser);
 
 int parser_getprogram(struct parser *parser);
+int parser_addlabelrequest(struct parser *parser, struct parser_label_request *lrq);
+int parser_addlabel(struct parser *parser, struct parser_label *lbl);
+size_t parser_getlabeladdress(struct parser *parser, const char *name);
+int parser_writeprogram(struct parser *parser, void *program, size_t szProgram);
+/* shorthands */
+int parser_getendjmp(struct parser *parser);
+int parser_getmotion(struct parser *parser);
+int parser_getinsert(struct parser *parser);
+int parser_getassert(struct parser *parser);
+int parser_getsetmode(struct parser *parser);
+/* instructions */
+int parser_getld(struct parser *parser);
+int parser_getpsh(struct parser *parser);
+int parser_getpop(struct parser *parser);
+int parser_getinc(struct parser *parser);
+int parser_getdec(struct parser *parser);
+int parser_getjmp(struct parser *parser);
+int parser_getcall(struct parser *parser);
+int parser_getexit(struct parser *parser);
 
 #endif

@@ -16,6 +16,11 @@ parser_getkeystoken(struct parser *parser, struct parser_token *tok)
 		case 'r': tok->value[0] = '\r'; break;
 		case 't': tok->value[0] = '\t'; break;
 		case 'v': tok->value[0] = '\v'; break;
+		case ' ': case '\n': case '\r':
+		case '\v': case '\f':
+			tok->value[0] = '\\';
+			parser_ungetc(parser);
+			break;
 		default:
 			tok->value[0] = parser->c;
 		}
@@ -74,23 +79,23 @@ parser_getkeys(struct parser *parser)
 	};
 	int key;
 	int *newKeys;
-	struct parser_token toks[2];
+	struct parser_token tok;
 
 	parser_setcontext(parser, parser_getkeystoken);
 	parser->nKeys = 0;
-	while(parser_peektokens(parser, toks, ARRLEN(toks)) > 0) {
-		switch(toks[0].type) {
+	while(parser_peektoken(parser, &tok) > 0 && !isspace(tok.type)) {
+		switch(tok.type) {
 		case '\\':
 		case '^':
 			parser_consumetoken(parser);
-			key = toks[0].value[0];
+			key = tok.value[0];
 			break;
 		case '<': {
 			unsigned i;
 
 			parser_consumetoken(parser);
 			for(i = 0; i < ARRLEN(keyTranslations); i++) {
-				if(!strcasecmp(keyTranslations[i].word, toks[0].value)) {
+				if(!strcasecmp(keyTranslations[i].word, tok.value)) {
 					key = keyTranslations[i].key;
 					break;
 				}
@@ -101,7 +106,8 @@ parser_getkeys(struct parser *parser)
 		}
 		case '*':
 			parser_consumetoken(parser);
-			if(toks[1].type == '*') {
+			parser_peektoken(parser, &tok);
+			if(tok.type == '*') {
 				parser_consumetoken(parser);
 				key = -1;
 			} else {
@@ -110,19 +116,17 @@ parser_getkeys(struct parser *parser)
 			break;
 		case ',':
 			parser_consumetoken(parser);
-			if(isspace(toks[1].type)) {
+			parser_peektoken(parser, &tok);
+			if(isspace(tok.type)) {
 				parser_consumetoken(parser);
 				key = 0;
 				break;
 			}
 			key = ',';
 			break;
-		case ' ':
-		case '\n':
-			goto end;
 		default:
 			parser_consumetoken(parser);
-			key = toks[0].type;
+			key = tok.type;
 		}
 		newKeys = realloc(parser->keys, sizeof(*parser->keys) * (parser->nKeys + 1));
 		if(!newKeys)
@@ -130,7 +134,6 @@ parser_getkeys(struct parser *parser)
 		parser->keys = newKeys;
 		parser->keys[parser->nKeys++] = key;
 	}
-end:
 	newKeys = realloc(parser->keys, sizeof(*parser->keys) * (parser->nKeys + 1));
 	if(!newKeys)
 		return parser_pusherror(parser, ERRK_ALLOCATING);

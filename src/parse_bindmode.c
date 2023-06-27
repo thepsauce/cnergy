@@ -1,6 +1,19 @@
 #include "cnergy.h"
 
 int
+parser_addappendrequest(struct parser *parser, struct append_request *request)
+{
+	struct append_request *newRequests;
+
+	newRequests = realloc(parser->appendRequests, sizeof(*parser->appendRequests) * (parser->nAppendRequests + 1));
+	if(!newRequests)
+		return parser_pusherror(parser, ERR_OUTOFMEMORY);
+	parser->appendRequests = newRequests;
+	parser->appendRequests[parser->nAppendRequests++] = *request;
+	return SUCCESS;
+}
+
+int
 parser_getbindmode(struct parser *parser)
 {
 	/**
@@ -56,6 +69,10 @@ parser_getbindmode(struct parser *parser)
 		if(tokens[i].type == 'w') {
 			struct append_request req;
 
+			req.mode = NULL;
+			strcpy(req.donor, tokens[0].value);
+			req.windowType = type;
+			parser_addappendrequest(parser, &req);
 			i++;
 			if(tokens[i].type == ' ')
 				i++;
@@ -65,10 +82,6 @@ parser_getbindmode(struct parser *parser)
 			}
 			if(tokens[i].type != '\n')
 				return parser_pusherror(parser, ERRBM_INVALID);
-			req.mode = NULL;
-			strcpy(req.donor, tokens[0].value);
-			req.windowType = type;
-			parser_addappendrequest(parser, &req);
 		}
 		if(tokens[i].type == '\n') {
 			parser_consumetokens(parser, i + 1);
