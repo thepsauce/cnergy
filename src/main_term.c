@@ -59,15 +59,25 @@ main(int argc, char **argv)
 			}
 			for(window_type_t i = 0; i < WINDOW_MAX; i++) {
 				for(struct binding_mode *m = parser.firstModes[i]; m; m = m->next) {
-					printf("MODE: %s (%#x)(%u bindings)\n", m->name, m->flags, m->nBindings);
+					const char *strs[] = { "all", "edit", "bufferviewer", "fileviewer" };
+					printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+					printf("MODE: %s::%s (%#x)(%u bindings)\n", strs[i], m->name, m->flags, m->nBindings);
+					printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
 					for(unsigned j = 0; j < m->nBindings; j++) {
 						const struct binding bind = m->bindings[j];
-						printf("  BIND([%p]%u): ", (void*) bind.keys, bind.nKeys);
+							printf("  BIND([%p]%zu): ", (void*) bind.keys, bind.nKeys);
 						fflush(stdout);
-						for(int *k = bind.keys, *e = k + bind.nKeys;;) {
+						for(char *k = bind.keys, *e = k + bind.nKeys;;) {
 							for(;;) {
-								printf("%s", keyname(*k));
-								k++;
+								const unsigned l = utf8_len(k, e - k);
+								const int uc = utf8_tounicode(k, e - k);
+								if(uc >= 0xf6b1 && uc <= 0xf6b1 + 0xff)
+									printf("<%s>", keyname(uc - 0xf6b1 + 0xff) + 4);
+								else if(uc <= 0x7f)
+									printf("%s", keyname(uc));
+								else
+									printf("%.*s", l, k);
+								k += l;
 								if(!*k)
 									break;
 							}
@@ -171,19 +181,20 @@ main(int argc, char **argv)
 	main_environment.settings[SET_CHAR_DIR] = '/';
 	main_environment.settings[SET_CHAR_EXEC] = '*';
 
-	int *const keys = (int*) main_environment.memory;
+	char *const keys = (char*) main_environment.memory;
 
 	// setup some windows for testing
 	const char *files[] = {
 		"src/main_term.c",
-		"src/window.c",
+		"cng/edit.cng",
 		//"include/cnergy.h",
 		//"src/bind.c",
 	};
 	for(unsigned i = 0; i < ARRLEN(files); i++) {
 		const char *file = files[i % ARRLEN(files)];
-		bufferid_t bid = buffer_new(fc_cache(fc_getbasefile(), file));
-		edit_new(bid, c_states);
+		const fileid_t fileid = fc_cache(fc_getbasefile(), file);
+		const bufferid_t bid = buffer_new(fileid);
+		edit_new(bid);
 	}
 	all_windows[0].right = 1;
 	all_windows[1].left = 0;
@@ -198,13 +209,14 @@ main(int argc, char **argv)
 	while(1) {
 		int c;
 		int nextLine, nextCol, nextLines, nextCols;
+		bool isPreDigit;
 
-		// -1 to reserve a line to show the global status bar
+		/* -1 to reserve a line to show the global status bar */
 		nextLine = 0;
 		nextCol = 0;
 		nextLines = LINES - 1;
 		nextCols = COLS;
-		// find all windows that are layout origins and render them
+		/* find all windows that are layout origins and render them */
 		for(windowid_t i = 0; i < n_windows; i++) {
 			struct window *const w = all_windows + i;
 			if(w->flags.dead)
@@ -231,16 +243,17 @@ main(int argc, char **argv)
 			move(focus_y, focus_x);
 		}
 		c = getch();
-		if(c == 0x03) // ^C
+		if(c == 0x03) /* ^C */
 			break;
 		switch(c) {
-		case 0x7f: // delete
+		case 0x7f: /* delete */
 			c = KEY_BACKSPACE;
 			break;
-		case 0x1b: // escape
-			// if we have anything already, discard it,
-			// meaning that escape cannot be repeated or be part of a bind
-			// it can only be the start of a bind
+		case 0x1b: /* escape */
+			/* if we have anything already, discard it,
+			 * meaning that escape cannot be repeated or be part of a bind
+			 * it can only be the start of a bind
+			 */
 			if(main_environment.C || main_environment.mp) {
 				main_environment.C = 0;
 				main_environment.mp = 0;
@@ -248,34 +261,36 @@ main(int argc, char **argv)
 			}
 			break;
 		}
-		if((window_getbindmode(focus_window)->flags & FBIND_MODE_TYPE) &&
-				(isprint(c) || isspace(c))) {
-			main_environment.memory[main_environment.mp] = c;
-			// get length of the following utf8 character and fully read it
-			for(unsigned
-					i = 1,
-					l = (c & 0xe0) == 0xc0 ? 2 :
-						(c & 0xf0) == 0xe0 ? 3 :
-						(c & 0xf8) == 0xf0 ? 4 : 1;
-					i < l; i++)
-				main_environment.memory[main_environment.mp + i] = getch();
-			main_environment.A = (ptrdiff_t) (main_environment.memory + main_environment.mp);
-			environment_call(CALL_TYPE);
+		isPreDigit = !(window_getbindmode(focus_window)->flags & FBIND_MODE_TYPE) &&
+				isdigit(c) && (c != '0' || main_environment.C);
+		main_environment.A = (ptrdiff_t) (main_environment.memory + main_environment.mp);
+		if(c > 0xff) {
+			c = SPECIAL_KEY(c);
+			main_environment.mp += utf8_convunicode(c,
+					main_environment.memory + main_environment.mp);
+		} else if(!isPreDigit) {
+			keys[main_environment.mp++] = c;
+			while(c & 0x80) {
+				c = getch();
+				keys[main_environment.mp++] = c;
+			}
 		}
-		// either append the digit to the number or try to execute a bind
-		// render status bar
+		keys[main_environment.mp] = 0;
+		if((window_getbindmode(focus_window)->flags & FBIND_MODE_TYPE) &&
+				(isprint(c) || isspace(c)))
+			environment_call(CALL_TYPE);
+		/* either append the digit to the number or try to execute a bind
+		 * render status bar
+		 */
 		attrset(COLOR(3, 0));
 		move(LINES - 1, 0);
-		if(!(window_getbindmode(focus_window)->flags & FBIND_MODE_TYPE) &&
-				isdigit(c) && (c != '0' || main_environment.C)) {
+		if(isPreDigit) {
 			main_environment.C = SAFE_MUL(main_environment.C, 10);
 			main_environment.C = SAFE_ADD(main_environment.C, c - '0');
 		} else {
 			struct binding *bind;
 
-			*(int*) (main_environment.memory + main_environment.mp) = c;
-			main_environment.mp += sizeof(int);
-			*(int*) (main_environment.memory + main_environment.mp) = 0;
+			main_environment.mp++;
 			switch(bind_find(keys, &bind)) {
 			case 0:
 				if(main_environment.C == 0)
@@ -287,14 +302,25 @@ main(int argc, char **argv)
 				main_environment.C = 0;
 				break;
 			case 1:
+				main_environment.mp--;
 				break;
 			}
 		}
 		printw("%s ", window_getbindmode(focus_window)->name);
 		if(main_environment.C)
 			printw("%zd", main_environment.C);
-		for(unsigned i = 0; i < main_environment.mp / sizeof(int); i++)
-			printw("%s", keyname(keys[i]));
+		for(unsigned i = 0; i < main_environment.mp; i++) {
+			const char *const utf8 = (char*) main_environment.memory + i;
+			const unsigned l = utf8_len(utf8, main_environment.mp);
+			const int uc = utf8_tounicode(utf8, main_environment.mp - i);
+			if(uc >= 0xf6b1 && uc <= 0xf6b1 + 0xff)
+				printw("<%s>", keyname(uc - 0xf6b1 + 0xff) + 4);
+			else if(uc <= 0x7f)
+				printw("%s", keyname(uc));
+			else
+				addnstr((char*) main_environment.memory + i, l);
+			i += l - 1;
+		}
 		ersline(COLS - getcurx(stdscr));
 	}
 	endwin();

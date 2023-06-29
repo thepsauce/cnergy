@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 int main() {
-    unsigned int codePoint = 0x2260;
+    unsigned int codePoint = 0xf6b1;
 
     // Convert the code point to UTF-8
     unsigned char utf8Bytes[4];

@@ -145,9 +145,7 @@ environment_call(call_t call)
 		break;
 	}
 	case CALL_VSPLIT: {
-		windowid_t winid;
-
-		winid = window_dup(focus_window);
+		const windowid_t winid = window_dup(focus_window);
 		if(winid == ID_NULL) {
 			main_environment.z = false;
 			break;
@@ -184,7 +182,7 @@ environment_call(call_t call)
 			main_environment.z = false;
 			break;
 		}
-		winid = edit_new(bufid, NULL);
+		winid = edit_new(bufid);
 		if(winid != ID_NULL) {
 			window_attach(focus_window, winid, ATT_WINDOW_UNSPECIFIED);
 			focus_window = winid;
@@ -198,14 +196,15 @@ environment_call(call_t call)
 		// TODO: open a color window or focus an existing one
 		break;
 	default:
-		main_environment.z = (*window_types[window_gettype(focus_window)])(focus_window, call);
 		break;
 	}
+	main_environment.z = (*window_types[window_gettype(focus_window)])(focus_window, call);
 };
 
 int
 environment_loadandexec(void *program, size_t szProgram)
 {
+	const size_t oldmp = main_environment.mp;
 	/* load program */
 	memcpy(main_environment.memory + main_environment.mp, program, szProgram);
 	main_environment.ip = main_environment.mp;
@@ -250,9 +249,11 @@ environment_loadandexec(void *program, size_t szProgram)
 		switch(instr) {
 		ALLINSTRUCTIONS
 		default:
+			main_environment.mp = oldmp;
 			return -1;
 		}
 	}
+	main_environment.mp = oldmp;
 #undef REGISTER_LD
 #undef REGISTER_LDO
 #undef REGISTER_COMPATIBLELD
@@ -304,6 +305,7 @@ environment_loadandprint(void *program, size_t szProgram)
 		switch(instr) {
 		ALLINSTRUCTIONS
 		default:
+			main_environment.mp = oldmp;
 			return -1;
 		}
 		printf("\n");

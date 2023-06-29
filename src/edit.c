@@ -1,41 +1,7 @@
 #include "cnergy.h"
 
-int (**edit_statesfromfiletype(fileid_t file))(struct state *s)
-{
-	struct {
-		const char *fileExt;
-		int (**states)(struct state *s);
-	} sfft[] = {
-		{ "c", c_states },
-		{ "h", c_states },
-		{ "c++", c_states },
-		{ "cpp", c_states },
-		{ "cxx", c_states },
-		{ "hpp", c_states },
-		{ "cng", cnergy_states },
-		{ "cnergy", cnergy_states },
-	};
-	int (**states)(struct state *s) = NULL;
-	const char *ext;
-	struct filecache *fc;
-
-	fc = fc_lock(file);
-	// just check file ending for now, maybe also use libmagic further down the road
-	ext = strrchr(fc->name, '.');
-	if(ext) {
-		ext++;
-		for(unsigned i = 0; i < ARRLEN(sfft); i++)
-			if(!strcmp(ext, sfft[i].fileExt)) {
-				states = sfft[i].states;
-				break;
-			}
-	}
-	fc_unlock(fc);
-	return states;
-}
-
 windowid_t
-edit_new(bufferid_t bufid, int (**states)(struct state *s))
+edit_new(bufferid_t bufid)
 {
 	windowid_t winid;
 	struct window *win;
@@ -45,7 +11,6 @@ edit_new(bufferid_t bufid, int (**states)(struct state *s))
 		return ID_NULL;
 	win = all_windows + winid;
 	win->buffer = bufid;
-	win->states = states;
 	return winid;
 }
 
@@ -57,8 +22,8 @@ edit_render(windowid_t winid)
 	int curLine, curCol;
 	size_t saveiGap;
 	int nLineNumbers;
-	struct state state;
 	size_t minSel, maxSel;
+	int line, col, minLine, minCol, maxLine, maxCol;
 
 	struct window *const win = all_windows + winid;
 	// get buffer and cursor position
@@ -69,18 +34,6 @@ edit_render(windowid_t winid)
 	// move gap out of the way
 	saveiGap = buf->iGap;
 	unsafe_buffer_movecursor(buf, buf->nData - buf->iGap);
-	// make sure there is an EOF at the end of the data (this is for convenience)
-	if(!buf->nGap) {
-		char *const newData = dialog_realloc(buf->data, buf->nData + BUFFER_GAP_SIZE);
-		if(!newData)
-			return -1;
-		buf->data = newData;
-		buf->nGap = BUFFER_GAP_SIZE;
-	}
-	buf->data[buf->nData] = EOF;
-
-	// prepare state
-	memset(&state, 0, sizeof(state));
 
 	// scroll the text if the caret is out of view
 	if(curLine < win->vScroll)
@@ -88,14 +41,14 @@ edit_render(windowid_t winid)
 	if(curLine >= win->lines - 1 + win->vScroll)
 		win->vScroll = curLine - (win->lines - 2);
 
-	state.minLine = win->vScroll;
-	state.maxLine = win->vScroll + win->lines - 1;
+	minLine = win->vScroll;
+	maxLine = win->vScroll + win->lines - 1;
 
 	// get width of line numbers
 	nLineNumbers = 1; // initial padding to the right side
 	if(window_left(winid) == ID_NULL)
 		nLineNumbers++; // add some padding
-	for(int i = state.maxLine; i; i /= 10)
+	for(int i = maxLine; i; i /= 10)
 		nLineNumbers++;
 
 	// note that we scroll a little extra horizontally
@@ -105,8 +58,8 @@ edit_render(windowid_t winid)
 	if(curCol >= win->cols - nLineNumbers + win->hScroll)
 		win->hScroll = curCol - (win->cols - nLineNumbers - 2) + win->cols / 4;
 
-	state.minCol = win->hScroll;
-	state.maxCol = win->hScroll - nLineNumbers + win->cols;
+	minCol = win->hScroll;
+	maxCol = win->hScroll - nLineNumbers + win->cols;
 
 	// get bounds of selection
 	if(winid == focus_window && (win->bindMode->flags & FBIND_MODE_SELECTION)) {
@@ -140,121 +93,91 @@ edit_render(windowid_t winid)
 		attrset(lnrColor);
 		printw("%*d ", nLineNumbers - 1, 1);
 	}
-	state.win = win;
-	state.data = buf->data;
-	state.nData = buf->nData;
-	state.cursor = saveiGap;
-	state.line = 0;
-	state.col = 0;
+	line = 0;
+	col = 0;
 
 	// draw all data
-	for(size_t i = 0; i < buf->nData; state.index = i) {
-		if(win->states)
-			state_continue(&state);
-		if(state.conceal) {
-			const char *conceal;
-
-			conceal = state.conceal;
-			state.conceal = NULL;
-			if(state.line != curLine) {
-				i = state.index + 1;
-				if(state.line >= state.minLine && state.line < state.maxLine) {
-					attrset(state.attr);
-					for(size_t len = strlen(conceal), utf8Len; len; len -= utf8Len) {
-						utf8Len = utf8_len(conceal, len);
-						if(state.col >= state.minCol && state.col < state.maxCol)
-							addnstr(conceal, utf8Len);
-						state.col += utf8_width(conceal, strlen(conceal), state.col);
-						conceal += utf8Len;
-					}
-				}
-				continue;
-			}
-		}
-		// check if the state interpreted the utf8 encoded character correctly (if not we handle it here)
-		if((buf->data[i] & 0x80) && state.index == i) {
-			attrset(state.attr);
+	for(size_t i = 0; i < buf->nData;) {
+		const char ch = buf->data[i];
+		attrset(0);
+		if(ch & 0x80) {
 			const size_t len = utf8_len(buf->data + i, buf->nData - i);
-			if(state.col >= state.minCol && state.col < state.maxCol) {
+			if(col >= minCol && col < maxCol) {
 				if(i >= minSel && i <= maxSel)
 					attron(A_REVERSE);
 				if(!utf8_valid(buf->data + i, buf->nData - i)) {
 					attrset(cntrlColor);
-					if(state.col >= state.minCol && state.col < state.maxCol)
+					if(col >= minCol && col < maxCol)
 						addch('^');
-					if(state.col + 1 >= state.minCol && state.col + 1 < state.maxCol)
+					if(col + 1 >= minCol && col + 1 < maxCol)
 						addch('?');
 				} else {
 					addnstr(buf->data + i, len);
 				}
 			}
-			state.col += utf8_width(buf->data + i, buf->nData - i, state.col);
+			col += utf8_width(buf->data + i, buf->nData - i, col);
 			i += len;
 			continue;
 		}
-		for(; i <= state.index; i++) {
-			const char ch = buf->data[i];
-			attrset(state.attr);
-			if(i >= minSel && i <= maxSel)
-				attron(A_REVERSE);
-			if(ch == '\t') {
-				do {
-					if(state.line >= state.minLine && state.line < state.maxLine &&
-							state.col >= state.minCol && state.col < state.maxCol)
+		if(i >= minSel && i <= maxSel)
+			attron(A_REVERSE);
+		if(ch == '\t') {
+			do {
+				if(line >= minLine && line < maxLine &&
+						col >= minCol && col < maxCol)
+					addch(' ');
+			} while((++col) % tabsize);
+		} else if(ch == '\n') {
+			if(line >= minLine && line < maxLine) {
+				if(i >= minSel && i <= maxSel) {
+					if(col >= minCol && col < maxCol) {
+						// draw extra space for selection at end of line
+						attrset(A_REVERSE);
 						addch(' ');
-				} while((++state.col) % tabsize);
-			} else if(ch == '\n') {
-				if(state.line >= state.minLine && state.line < state.maxLine) {
-					if(i >= minSel && i <= maxSel) {
-						if(state.col >= state.minCol && state.col < state.maxCol) {
-							// draw extra space for selection at end of line
-							attrset(A_REVERSE);
-							addch(' ');
-						}
-						state.col++;
 					}
-					// erase rest of line
-					attrset(0);
-					state.col = MAX(state.col, state.minCol);
-					if(state.col < state.maxCol)
-						printw("%*s", state.maxCol - state.col, "");
+					col++;
 				}
-				state.line++;
-				if(state.line >= state.minLine && state.line < state.maxLine) {
-					// draw line prefix
-					attrset(lnrColor);
-					mvprintw(win->line + state.line - state.minLine, win->col, "%*d ", nLineNumbers - 1, state.line + 1);
-				}
-				state.col = 0;
-			} else if(iscntrl(ch)) {
-				if(state.line >= state.minLine && state.line < state.maxLine) {
-					attron(cntrlColor);
-					if(state.col >= state.minCol && state.col < state.maxCol)
-						addch('^');
-					if(state.col + 1 >= state.minCol && state.col + 1 < state.maxCol)
-						addch(ch == 0x7f ? '?' : ch + 'A' - 1);
-				}
-				state.col += 2;
-			} else {
-				if(state.line >= state.minLine && state.line < state.maxLine && state.col >= state.minCol && state.col < state.maxCol)
-					addch(ch);
-				state.col++;
+				// erase rest of line
+				attrset(0);
+				col = MAX(col, minCol);
+				if(col < maxCol)
+					printw("%*s", maxCol - col, "");
 			}
+			line++;
+			if(line >= minLine && line < maxLine) {
+				// draw line prefix
+				attrset(lnrColor);
+				mvprintw(win->line + line - minLine, win->col, "%*d ", nLineNumbers - 1, line + 1);
+			}
+			col = 0;
+		} else if(iscntrl(ch)) {
+			if(line >= minLine && line < maxLine) {
+				attron(cntrlColor);
+				if(col >= minCol && col < maxCol)
+					addch('^');
+				if(col + 1 >= minCol && col + 1 < maxCol)
+					addch(ch == 0x7f ? '?' : ch + 'A' - 1);
+			}
+			col += 2;
+		} else {
+			if(line >= minLine && line < maxLine && col >= minCol && col < maxCol)
+				addch(ch);
+			col++;
 		}
+		i++;
 	}
 	// erase rest of line and draw little waves until we hit the status bar
 	attrset(endofbufferColor);
-	while(state.line < state.maxLine) {
-		state.col = MAX(state.col, state.minCol);
-		if(state.col < state.maxCol)
-			printw("%*s", state.maxCol - state.col, "");
-		state.line++;
-		if(state.line >= state.maxLine)
+	while(line < maxLine) {
+		col = MAX(col, minCol);
+		if(col < maxCol)
+			printw("%*s", maxCol - col, "");
+		line++;
+		if(line >= maxLine)
 			break;
-		mvprintw(state.line + win->line - state.minLine, win->col, "%*s~ ", nLineNumbers - 2, "");
-		state.col = 0;
+		mvprintw(line + win->line - minLine, win->col, "%*s~ ", nLineNumbers - 2, "");
+		col = 0;
 	}
-	state_cleanup(&state);
 	// draw status bar (TODO: what if the status bar doesn't fit?)
 	attrset(statusbar1Color);
 	mvaddstr(win->line + win->lines - 1, win->col, " Buffer");
@@ -271,8 +194,8 @@ edit_render(windowid_t winid)
 	printw("%*s", MAX(win->col + win->cols - getcurx(stdscr), 0), "");
 	// set the global end caret position
 	if(winid == focus_window) {
-		focus_y = win->line + curLine - state.minLine;
-		focus_x = win->col + curCol + nLineNumbers - state.minCol;
+		focus_y = win->line + curLine - minLine;
+		focus_x = win->col + curCol + nLineNumbers - minCol;
 	}
 	// move back the gap before we leave
 	unsafe_buffer_movecursor(buf, saveiGap - buf->iGap);

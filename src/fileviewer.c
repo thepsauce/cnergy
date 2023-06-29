@@ -173,7 +173,7 @@ fileviewer_call(windowid_t winid, call_t call)
 			bid = buffer_new(file);
 			if(bid == ID_NULL)
 				break;
-			wid = edit_new(bid, edit_statesfromfiletype(file));
+			wid = edit_new(bid);
 			if(wid != ID_NULL) {
 				window_copylayout(wid, winid);
 				window_delete(winid);

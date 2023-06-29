@@ -17,9 +17,23 @@ parser_getprogramtoken(struct parser *parser, struct parser_token *tok)
 		break;
 	case '\"':
 		while(parser_getc(parser) != '\"' && parser->c != '\n' && parser->c != '\r') {
-			tok->value[nValue++] = parser->c;
-			if(parser->c == '\\')
-				tok->value[nValue++] = parser_getc(parser);
+			if(parser->c == '\\') {
+				switch(parser_getc(parser)) {
+				case 'a': tok->value[nValue] = '\a'; break;
+				case 'b': tok->value[nValue] = '\b'; break;
+				case 'e': tok->value[nValue] = 0x1b; break;
+				case 'f': tok->value[nValue] = '\f'; break;
+				case 'n': tok->value[nValue] = '\n'; break;
+				case 'r': tok->value[nValue] = '\r'; break;
+				case 't': tok->value[nValue] = '\t'; break;
+				case 'v': tok->value[nValue] = '\v'; break;
+				default:
+					  tok->value[nValue] = parser->c;
+				}
+			} else {
+				tok->value[nValue] = parser->c;
+			}
+			nValue++;
 			if(parser->c == EOF)
 				break;
 		}

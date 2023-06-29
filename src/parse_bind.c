@@ -3,7 +3,7 @@
 int
 parser_getbind(struct parser *parser)
 {
-	int *keys;
+	char *keys;
 	void *program;
 	struct binding *newBindings;
 

@@ -5,6 +5,12 @@
 #include "base.h"
 #include <curses.h>
 
+/* there is a big private use area after U+f6b1 (technically from U+e000 to U+f8ff),
+ * we use this for special keys whose value depend on the terminfo entry
+ * that are larger than 0xff
+ */
+#define SPECIAL_KEY(key) ((key) + (0xf6b1 - 0xff))
+
 #define ersline(max) ({ \
 	const int _m = (max); \
 	printw("%*s", MAX(_m - getcurx(stdscr), 0), ""); \
@@ -203,55 +209,42 @@ void environment_call(call_t type);
 int environment_loadandexec(void *program, size_t szProgram);
 int environment_loadandprint(void *program, size_t szProgram);
 
-/***************
- * Sorted list *
- ***************/
-// sortedlist.c
-/**
- * This list is sorted at all times and can use that to
- * allow for faster access times using binary search at the price
- * of slightly slower insertion times.
- */
-
-struct sortedlist {
-	struct sortedlist_entry {
-		char *word;
-		/* The parameter can be anything you want */
-		void *param;
-	} *entries;
-	size_t nEntries;
-};
-
-/** Adds and entry to the sorted list, it will not add the element if it already exists (no duplicates) */
-int sortedlist_add(struct sortedlist *s, const char *word, size_t nWord, void *param);
-int sortedlist_remove(struct sortedlist *s, const char *word, size_t nWord);
-bool sortedlist_exists(struct sortedlist *s, const char *word, size_t nWord, void **pParam);
-
 /********
  * UTF8 *
  ********/
 // utf8.c
 
 /**
+ * Converts given unicode character to utf8 and
+ * returns the length of the utf8 sequence or
+ * 0 if the uc is invalid
+ */
+unsigned utf8_convunicode(int uc, char *utf8);
+/**
+ * Converts given utf8 sequence to a unicode character and
+ * returns that uc or -1 if the utf8 sequence is invalid
+ */
+int utf8_tounicode(const char *utf, size_t n);
+/**
  * Returns the width this would visually take up
  * Note: Newlines are interpreted as ^J
  */
-int utf8_widthnstr(const char *str, size_t nStr);
-int utf8_widthstr(const char *str);
+int utf8_widthnstr(const char *utf8, size_t n);
+int utf8_widthstr(const char *utf8);
 /**
  * Returns the number of columns this character takes up
  * Note: nStr is not allowed to be 0, it's undefined behavior
  */
-int utf8_width(const char *utf8, size_t nStr, int tabRef);
+int utf8_width(const char *utf8, size_t n, int tabRef);
 /** Returns the length of bytes of a single character */
-unsigned utf8_len(const char *str, size_t nStr);
+unsigned utf8_len(const char *utf8, size_t n);
 /**
  * Checks if the given character is valid utf8
  * Note: nStr is not allowed to be 0, might cause segfault
  */
-bool utf8_valid(const char *utf8, size_t nStr);
+bool utf8_valid(const char *utf8, size_t n);
 /** Convert byte distance to char distance */
-ptrdiff_t utf8_cnvdist(const char *str, size_t nStr, size_t index, ptrdiff_t distance);
+ptrdiff_t utf8_cnvdist(const char *utf8, size_t n, size_t index, ptrdiff_t distance);
 
 /*********
  * Regex *
@@ -323,78 +316,5 @@ typedef unsigned bufferid_t;
 #include "window.h"
 #include "bind.h"
 #include "parse.h"
-
-/***********************
- * Syntax highlighting *
- ***********************/
-// state.c
-// syntax_c/
-// syntax_cnergy/
-/** TODO:
- * All this is just a temporary solution to the quite complex problem of fast, efficient and rich syntax highlighting.
- * The syntax will in the future not be defined in c files but rather in .cng files where the user can also add custom syntax
- */
-
-struct state {
-	// the window we draw inside of
-	struct window *win;
-	// the stack can be used to repurpose states (states within states)
-	unsigned stateStack[32];
-	unsigned iStack;
-	// current active state
-	unsigned state;
-	// words to highlight, the word data is placed into the const_alloc space
-	// this list is alphabetically sorted
-	// the words array should be freed when finished
-	struct sortedlist words;
-	// paranthesis matching
-	struct state_paran {
-		int line, col;
-		int ch;
-	} *parans, *misparans;
-	unsigned nParans, nMisparans;
-	// set if the caret is on an opening paran
-	struct state_paran highlightparan;
-	// conceal can be set to non null to replace characters visually with other characters
-	// conceal is only used when the caret is not on the same line as the concealment
-	// conceal is not allowed to replace new lines, nor contain new lines (undefined behavior)
-	const char *conceal;
-	// attr is used when a state returns to print the character between the start and end of the state
-	int attr;
-	// this is the raw buffer data, index specifies the current index within the data
-	char *data;
-	size_t nData;
-	size_t index;
-	// cursor index for cursor assertions
-	size_t cursor;
-	// visual position of the cursor (relative to the scrolled window origin) (can be used to highlight something later and not instantly)
-	int line, col;
-	int minLine, maxLine, minCol, maxCol;
-};
-
-// Skip spaces and tabs
-// Note: Put this at the beginning of a state function
-#define STATE_SKIPSPACE(s) if(isblank(s->data[s->index])) return 0
-// Push a state to the state stack
-int state_push(struct state *s, unsigned state);
-// Pop the state from the state stack into the current state
-int state_pop(struct state *s);
-// Add the current char as an opening paranthesis
-int state_addparan(struct state *s);
-// Add the current char as a closing paranthesis
-// This function will find matching paranthesis
-int state_addcounterparan(struct state *s, int counter);
-// Acquire the next syntax element
-int state_continue(struct state *s);
-// Draw a char to the window
-// Note: ONLY call this inside of c_cleanup
-void state_addchar(struct state *s, int line, int col, char ch, int attr);
-// Free all resources associated to this state
-int state_cleanup(struct state *s);
-
-// C syntax
-extern int (*c_states[])(struct state *s);
-// cnergy syntax
-extern int (*cnergy_states[])(struct state *s);
 
 #endif

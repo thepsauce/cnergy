@@ -10,9 +10,9 @@
  */
 
 struct binding {
-	unsigned nKeys;
+	size_t nKeys;
 	size_t szProgram;
-	int *keys;
+	char *keys;
 	void *program;
 };
 
@@ -32,11 +32,11 @@ struct binding_mode {
 
 extern struct binding_mode *all_modes[WINDOW_MAX];
 
-int *mode_allockeys(const int *keys, unsigned nKeys);
+char *mode_allockeys(const char *keys, size_t nKeys);
 char *mode_allocstring(const char *string, size_t nString);
 void *mode_allocprogram(const void *program, size_t szProgram);
 int modes_add(struct binding_mode *modes[WINDOW_MAX]);
 struct binding_mode *mode_find(window_type_t type, const char *name);
-int bind_find(const int *keys, struct binding **pBind);
+int bind_find(const char *keys, struct binding **pBind);
 
 #endif

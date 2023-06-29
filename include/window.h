@@ -15,10 +15,6 @@
  * When the user inserts a character, .... (TODO: think about this; lookahead makes this complicated)
  */
 
-/** TODO: The fileviewer (fileviewer.c) needs to be able to go
- * above the current selected base path using ..
- */
-
 typedef enum {
 	WINDOW_ALL,
 	WINDOW_EDIT,
@@ -72,8 +68,6 @@ struct window {
 		struct {
 			// text buffer
 			bufferid_t buffer;
-			// syntax states
-			int (**states)(struct state *s);
 			// scrolling values of the last render
 			int vScroll, hScroll;
 			// selection cursor
@@ -206,7 +200,6 @@ void window_layout(windowid_t winid);
 
 /* Additional functions for specific window types */
 // edit.c
-int (**edit_statesfromfiletype(fileid_t file))(struct state *s);
-windowid_t edit_new(bufferid_t bufid, int (**states)(struct state *s));
+windowid_t edit_new(bufferid_t bufid);
 
 #endif

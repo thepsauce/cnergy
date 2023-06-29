@@ -131,8 +131,8 @@ struct parser {
 	} *appendRequests;
 	size_t nAppendRequests;
 
-	int *keys;
-	unsigned nKeys;
+	char *keys;
+	size_t nKeys;
 	void *program;
 	size_t szProgram;
 	struct parser_label {

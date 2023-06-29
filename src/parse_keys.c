@@ -58,27 +58,28 @@ parser_getkeys(struct parser *parser)
 {
 	static const struct {
 		const char *word;
-		int key;
+		int uc;
 	} keyTranslations[] = {
-		{ "HOME", KEY_HOME },
-		{ "END", KEY_END },
-		{ "LEFT", KEY_LEFT },
-		{ "RIGHT", KEY_RIGHT },
-		{ "UP", KEY_UP},
-		{ "DOWN", KEY_DOWN },
+		{ "HOME", SPECIAL_KEY(KEY_HOME) },
+		{ "END", SPECIAL_KEY(KEY_END) },
+		{ "LEFT", SPECIAL_KEY(KEY_LEFT) },
+		{ "RIGHT", SPECIAL_KEY(KEY_RIGHT) },
+		{ "UP", SPECIAL_KEY(KEY_UP) },
+		{ "DOWN", SPECIAL_KEY(KEY_DOWN) },
 		{ "SPACE", ' ' },
-		{ "BACKSPACE", KEY_BACKSPACE },
-		{ "BACK", KEY_BACKSPACE },
-		{ "DELETE", KEY_DC },
-		{ "DEL", KEY_DC },
+		{ "BACKSPACE", SPECIAL_KEY(KEY_BACKSPACE) },
+		{ "BACK", SPECIAL_KEY(KEY_BACKSPACE) },
+		{ "DELETE", SPECIAL_KEY(KEY_DC) },
+		{ "DEL", SPECIAL_KEY(KEY_DC) },
 		{ "TAB", '\t' },
 		{ "ENTER", '\n' },
 		{ "RETURN", '\n' },
 		{ "ESCAPE", 0x1b },
 		{ "ESC", 0x1b },
 	};
-	int key;
-	int *newKeys;
+	char utf8[4];
+	unsigned len;
+	char *newKeys;
 	struct parser_token tok;
 
 	parser_setcontext(parser, parser_getkeystoken);
@@ -88,7 +89,8 @@ parser_getkeys(struct parser *parser)
 		case '\\':
 		case '^':
 			parser_consumetoken(parser);
-			key = tok.value[0];
+			utf8[0] = tok.value[0];
+			len = 1;
 			break;
 		case '<': {
 			unsigned i;
@@ -96,7 +98,7 @@ parser_getkeys(struct parser *parser)
 			parser_consumetoken(parser);
 			for(i = 0; i < ARRLEN(keyTranslations); i++) {
 				if(!strcasecmp(keyTranslations[i].word, tok.value)) {
-					key = keyTranslations[i].key;
+					len = utf8_convunicode(keyTranslations[i].uc, utf8);
 					break;
 				}
 			}
@@ -109,32 +111,36 @@ parser_getkeys(struct parser *parser)
 			parser_peektoken(parser, &tok);
 			if(tok.type == '*') {
 				parser_consumetoken(parser);
-				key = -1;
+				utf8[0] = -1;
 			} else {
-				key = '*';
+				utf8[0] = '*';
 			}
+			len = 1;
 			break;
 		case ',':
 			parser_consumetoken(parser);
 			parser_peektoken(parser, &tok);
+			len = 1;
 			if(isspace(tok.type)) {
 				parser_consumetoken(parser);
-				key = 0;
+				utf8[0] = 0;
 				break;
 			}
-			key = ',';
+			utf8[0] = ',';
 			break;
 		default:
 			parser_consumetoken(parser);
-			key = tok.type;
+			utf8[0] = tok.type;
+			len = 1;
 		}
-		newKeys = realloc(parser->keys, sizeof(*parser->keys) * (parser->nKeys + 1));
+		newKeys = realloc(parser->keys, parser->nKeys + len);
 		if(!newKeys)
 			return parser_pusherror(parser, ERRK_ALLOCATING);
 		parser->keys = newKeys;
-		parser->keys[parser->nKeys++] = key;
+		memcpy(parser->keys + parser->nKeys, utf8, len);
+		parser->nKeys += len;
 	}
-	newKeys = realloc(parser->keys, sizeof(*parser->keys) * (parser->nKeys + 1));
+	newKeys = realloc(parser->keys, parser->nKeys + 1);
 	if(!newKeys)
 		return parser_pusherror(parser, ERRK_ALLOCATING);
 	parser->keys = newKeys;
