@@ -61,8 +61,8 @@ fc_getdata(struct filecache *fc, const char *path)
 
 	if(lstat(path, &sb) < 0) {
 		fc->flags |= FC_VIRTUAL;
-		// if the time is 0, that means it was never set before
-		if(!fc->ctime) {
+		/* if the time is 0, that means it was never set before */
+		if(fc->ctime == 0) {
 			struct timeval tv;
 			time_t time;
 
@@ -89,6 +89,7 @@ fc_init(void)
 	char path[PATH_MAX];
 
 	if(!getcwd(path, sizeof(path))) {
+		endwin();
 		perror("getcwd");
 		abort();
 	}
@@ -291,8 +292,9 @@ fc_getabsolutepath(fileid_t fileid, char *dest, size_t maxDest)
 		memcpy(dest, fc->name, n);
 		fc = file_caches + fc->parent;
 	}
-	// we have written the buffer from end to start, so we have to shift it to the left to
-	// make it from left to right
+	/* we have written the buffer from end to start, so we have to shift it to the left to
+	 * make it from left to right
+	 */
 	memmove(dest - maxDest, dest, sMaxDest - maxDest);
 	return 0;
 err_path_too_long:

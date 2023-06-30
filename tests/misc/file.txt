@@ -1,7 +1,0 @@
-src/main.c: In function ‘render’:
-src/main.c:34:31: warning: implicit declaration of function ‘c_feed’ [-Wimplicit-function-declaration]
-src/main.c: In function ‘main’:
-src/main.c:85:17: warning: implicit declaration of function ‘print_modes’ [-Wimplicit-function-declaration]
-src/syntax_c.c: In function ‘c_state_default’:
-src/syntax_c.c:104:28: error: ‘C_STATE_PREPROC’ undeclared (first use in this function)
-src/syntax_c.c:104:28: note: each undeclared identifier is reported only once for each function it appears in

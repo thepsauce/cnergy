@@ -1,32 +1,5 @@
 #include "cnergy.h"
 
-// yoinked some code from https://www.cl.cam.ac.uk/~mgk25/ucs/wcwidth.c
-
-struct uc_interval {
-	int first;
-	int last;
-};
-
-/* auxiliary function for binary search in interval table */
-static int
-uc_bsearch(int uc, const struct uc_interval *table, int max) {
-	int min = 0;
-	int mid;
-
-	if(uc < table[0].first || uc > table[max].last)
-		return 0;
-	while(max >= min) {
-		mid = (min + max) / 2;
-		if(uc > table[mid].last)
-			min = mid + 1;
-		else if (uc < table[mid].first)
-			max = mid - 1;
-		else
-			return 1;
-	}
-	return 0;
-}
-
 unsigned
 utf8_convunicode(int uc, char *utf8)
 {
@@ -85,6 +58,33 @@ utf8_tounicode(const char *utf8, size_t n)
 	return uc;
 }
 
+// yoinked some code from https://www.cl.cam.ac.uk/~mgk25/ucs/wcwidth.c
+
+struct uc_interval {
+	int first;
+	int last;
+};
+
+/* auxiliary function for binary search in interval table */
+static int
+uc_bsearch(int uc, const struct uc_interval *table, int max) {
+	int min = 0;
+	int mid;
+
+	if(uc < table[0].first || uc > table[max].last)
+		return 0;
+	while(max >= min) {
+		mid = (min + max) / 2;
+		if(uc > table[mid].last)
+			min = mid + 1;
+		else if (uc < table[mid].first)
+			max = mid - 1;
+		else
+			return 1;
+	}
+	return 0;
+}
+
 int
 utf8_width(const char *utf8, size_t n, int tabRef)
 {
@@ -141,10 +141,8 @@ utf8_width(const char *utf8, size_t n, int tabRef)
 		{ 0xE0100, 0xE01EF }
 	};
 	/* tab correction */
-	if(utf8[0] == '\t') {
-		const int tabsize = main_environment.settings[SET_TABSIZE];
-		return tabsize - tabRef % tabsize;
-	}
+	if(utf8[0] == '\t')
+		return settings_tabsize - tabRef % settings_tabsize;
 	/* ^A ^B ^C and so on */
 	if(iscntrl(utf8[0]))
 		return 2;

@@ -55,14 +55,10 @@ struct binding_call;
 struct window {
 	window_flags_t flags;
 	window_type_t type; // defined in cnergy.h
-	// the binding mode this window is in
-	struct binding_mode *bindMode;
 	// position of the window
 	int line, col;
 	// size of the window
 	int lines, cols;
-	// that window is above/below/left of/right of this window
-	windowid_t above, below, left, right;
 	union {
 		// WINDOW_EDIT
 		struct {
@@ -97,8 +93,6 @@ extern int focus_y, focus_x;
 #define window_get(g, wid) all_windows[wid].g
 #define window_getflags(wid) window_get(flags, wid)
 #define window_gettype(wid) window_get(type, wid)
-#define window_getbindmode(wid) window_get(bindMode, wid)
-#define window_setbindmode(wid, bm) all_windows[wid].bindMode = (bm)
 /** Getter for attached window */
 #define window_getabove(wid) window_get(above, wid)
 #define window_getbelow(wid) window_get(below, wid)
@@ -160,6 +154,8 @@ extern int focus_y, focus_x;
 #define window_countleft(wid) window_count(left, wid)
 #define window_countright(wid) window_count(right, wid)
 
+/** Relayouts all windows and renders them */
+void window_displayall(int y, int x, int lines, int cols);
 /** Create a new window and add it to the window list */
 windowid_t window_new(window_type_t type);
 /** Safe function that detaches, deletes the window and changes focus-/first window if needed */

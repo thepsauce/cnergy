@@ -1,3 +1,0 @@
-bind bufferviewer::normal:
-
-<enter> 		call choose
