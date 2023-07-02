@@ -2,41 +2,29 @@
 
 struct environment main_environment;
 
-bool edit_call(windowid_t winid, call_t call);
-bool bufferviewer_call(windowid_t winid, call_t call);
-bool fileviewer_call(windowid_t winid, call_t call);
-
-bool (*window_types[])(windowid_t winid, call_t call) = {
-	[WINDOW_EDIT] = edit_call,
-	[WINDOW_BUFFERVIEWER] = bufferviewer_call,
-	[WINDOW_FILEVIEWER] = fileviewer_call,
-};
-
 // TODO: maybe when this list is complete, add binary search or hashing
 // Note that this is used by the parser (parse_instruction.c)
 const char *callNames[CALL_MAX] = {
 	[CALL_NULL] = "",
-	[CALL_SETMODE] = "SETMODE",
 	[CALL_VSPLIT] = "VSPLIT",
 	[CALL_HSPLIT] = "HSPLIT",
-	[CALL_COLORWINDOW] = "COLOR",
-	[CALL_OPENWINDOW] = "OPEN",
-	[CALL_CLOSEWINDOW] = "CLOSE",
-	[CALL_NEWWINDOW] = "NEW",
-	[CALL_MOVEWINDOW_RIGHT] = "MOVEWINDOW_RIGHT",
-	[CALL_MOVEWINDOW_BELOW] = "MOVEWINDOW_BELOW",
+	[CALL_COLORPAGE] = "COLOR",
+	[CALL_OPENPAGE] = "OPEN",
+	[CALL_CLOSEPAGE] = "CLOSE",
+	[CALL_NEWPAGE] = "NEW",
+	[CALL_MOVERIGHTPAGE] = "MOVERIGHTPAGE",
+	[CALL_MOVEBELOWPAGE] = "MOVEBELOWPAGE",
 	[CALL_QUIT] = "QUIT",
 
-	[CALL_CREATE] = "CREATE",
-	[CALL_DESTROY] = "DESTROY",
-	[CALL_RENDER] = "RENDER",
-	[CALL_TYPE] = "TYPE",
-	[CALL_ASSERT] = "ASSERT",
+	[CALL_NORMAL] = "NORMAL",
+	[CALL_INSERT] = "INSERT",
+	[CALL_VISUAL] = "VISUAL",
+	[CALL_ASSERTSTRING] = "ASSERTSTRING",
 	[CALL_ASSERTCHAR] = "ASSERTCHAR",
 	[CALL_MOVECURSOR] = "MOVECURSOR",
 	[CALL_MOVEHORZ] = "MOVEHORZ",
 	[CALL_MOVEVERT] = "MOVEVERT",
-	[CALL_INSERT] = "INSERT",
+	[CALL_INSERTSTRING] = "INSERTSTRING",
 	[CALL_INSERTCHAR] = "INSERTCHAR",
 	[CALL_DELETE] = "DELETE",
 	[CALL_DELETELINE] = "DELETELINE",
@@ -49,6 +37,9 @@ const char *callNames[CALL_MAX] = {
 	[CALL_READFILE] = "READ",
 	[CALL_FIND] = "FIND",
 
+	[CALL_CONFIRM] = "CONFIRM",
+	[CALL_CANCEL] = "CANCEL",
+	[CALL_SWAP] = "SWAP",
 	[CALL_CHOOSE] = "CHOOSE",
 	[CALL_TOGGLEHIDDEN] = "TOGGLEHIDDEN",
 	[CALL_TOGGLESORTTYPE] = "TOGGLESORTTYPE",
@@ -96,109 +87,27 @@ const char *instrNames[INSTR_MAX] = {
 #undef REGISTER_MISC
 };
 
-static void
-environment_recursiverender(windowid_t winid)
-{
-	/* do not need to render empty windows */
-	if(window_getarea(winid) != 0)
-		(*window_types[window_gettype(winid)])(winid, CALL_RENDER);
-	if(window_getbelow(winid) != ID_NULL)
-		environment_recursiverender(window_getbelow(winid));
-	if(window_getright(winid) != ID_NULL)
-		environment_recursiverender(window_getright(winid));
-}
-
 void
 environment_call(call_t call)
 {
 	switch(call) {
-	case CALL_RENDER:
-		environment_recursiverender(focus_window);
+	case CALL_NORMAL:
 		break;
-	case CALL_SETMODE: {
-		const char *const mode = (const char*) main_environment.A;
-		window_setbindmode(focus_window,
-				mode_find(window_gettype(focus_window), mode));
+	case CALL_INSERT:
 		break;
-	}
-	case CALL_CLOSEWINDOW:
-		window_close(focus_window);
-		if(!n_windows) {
+	case CALL_VISUAL:
+		break;
+	case CALL_CLOSEPAGE:
+		page_close(comp_getparent(focus_comp));
+		if(!n_pages) {
 			endwin();
-			printf("all windows closed exit\n");
+			printf("all pages closed exit\n");
 			exit(0);
 		}
-		break;
-	case CALL_MOVEWINDOW_RIGHT:
-	case CALL_MOVEWINDOW_BELOW: {
-		const ptrdiff_t amount = main_environment.A;
-		ptrdiff_t i = 0;
-		/* get the right directional function */
-		windowid_t (*const next)(windowid_t) =
-			call == CALL_MOVEWINDOW_RIGHT ?
-				(amount > 0 ? window_right : window_left) :
-			amount > 0 ? window_below : window_above;
-		const ptrdiff_t di = amount < 0 ? -1 : 1;
-		for(windowid_t wid = focus_window; i != amount && (wid = (*next)(wid)) != ID_NULL; i += di)
-			focus_window = wid;
-		main_environment.z = i == amount;
-		break;
-	}
-	case CALL_VSPLIT: {
-		const windowid_t winid = window_dup(focus_window);
-		if(winid == ID_NULL) {
-			main_environment.z = false;
-			break;
-		}
-		window_attach(focus_window, winid, ATT_WINDOW_HORIZONTAL);
-		break;
-	}
-	case CALL_HSPLIT: {
-		const windowid_t winid = window_dup(focus_window);
-		if(winid == ID_NULL) {
-			main_environment.z = false;
-			break;
-		}
-		window_attach(focus_window, winid, ATT_WINDOW_VERTICAL);
-		break;
-	}
-	case CALL_OPENWINDOW: {
-		const windowid_t winid = window_new(WINDOW_FILEVIEWER);
-		if(winid == ID_NULL) {
-			main_environment.z = false;
-			break;
-		}
-		window_delete(focus_window);
-		/* it is safe to use a deleted window as only a flag gets set */
-		window_copylayout(winid, focus_window);
-		break;
-	}
-	case CALL_NEWWINDOW: {
-		bufferid_t bufid;
-		windowid_t winid;
-
-		bufid = buffer_new(0);
-		if(bufid == ID_NULL) {
-			main_environment.z = false;
-			break;
-		}
-		winid = edit_new(bufid);
-		if(winid != ID_NULL) {
-			window_attach(focus_window, winid, ATT_WINDOW_UNSPECIFIED);
-			focus_window = winid;
-		} else {
-			buffer_free(bufid);
-			main_environment.z = false;
-		}
-		break;
-	}
-	case CALL_COLORWINDOW:
-		// TODO: open a color window or focus an existing one
 		break;
 	default:
 		break;
 	}
-	main_environment.z = (*window_types[window_gettype(focus_window)])(focus_window, call);
 };
 
 int

@@ -1,9 +1,5 @@
 bind .lazy:
 
-a >1
-b `1
-c .1
-
 <home>		>home
 <end>		>end
 <left>		<C
@@ -25,7 +21,7 @@ l		>C
 k		`C
 j		.C
 
-bind normal: lazy, normal_movement
+bind: lazy, normal_movement
 
 ^Wh		<wC
 ^Wj		.wC
@@ -38,12 +34,13 @@ bind normal: lazy, normal_movement
 ^Wv		call vsplit
 ^Ws		call hsplit
 
-bind $insert: lazy
+bind$: lazy
 
-bind visual*: lazy, normal_movement
+bind*: lazy, normal_movement
 
 include "edit.cng"
 include "fileviewer.cng"
 include "bufferviewer.cng"
+include "color.cng"
 
 bind i_have_the_porpuse_to_prevent_a_bug:

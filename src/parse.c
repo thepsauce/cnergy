@@ -219,23 +219,6 @@ parser_pusherror(struct parser *parser, parser_error_t err)
 }
 
 int
-parsewindowtype(const char *name, window_type_t *pType)
-{
-	static const char *windowTypes[] = {
-		[WINDOW_ALL] = "all",
-		[WINDOW_EDIT] = "edit",
-		[WINDOW_BUFFERVIEWER] = "bufferviewer",
-		[WINDOW_FILEVIEWER] = "fileviewer",
-	};
-	for(window_type_t i = 0; i < ARRLEN(windowTypes); i++)
-		if(!strcmp(windowTypes[i], name)) {
-			*pType = (window_type_t) i;
-			return SUCCESS;
-		}
-	return FAIL;
-}
-
-int
 parseint(const char *str, ptrdiff_t *pInt)
 {
 	ptrdiff_t sgn = 1;
@@ -318,12 +301,7 @@ parser_run(struct parser *parser, fileid_t file)
 				continue;
 			}
 		}
-		if(parser->curMode)
-			parser_getbind(parser);
-		else {
-			parser_pusherror(parser, ERR_INVALID);
-			parser_consumetoken(parser);
-		}
+		parser_getbind(parser);
 	}
 }
 
@@ -332,17 +310,13 @@ parser_cleanup(struct parser *parser)
 {
 	for(unsigned i = 0; i < parser->nStreams; i++)
 		fclose(parser->streams[i].fp);
+	for(unsigned i = 0; i < parser->nModes; i++)
+		free(parser->modes[i].bindings);
+	free(parser->modes);
 	free(parser->labels);
 	free(parser->labelRequests);
 	free(parser->keys);
 	free(parser->program);
-	for(window_type_t i = 0; i < WINDOW_MAX; i++) {
-		for(struct binding_mode *m = parser->firstModes[i], *next; m; m = next) {
-			next = m->next;
-			free(m->bindings);
-			free(m);
-		}
-	}
 	free(parser->appendRequests);
 	return 0;
 }

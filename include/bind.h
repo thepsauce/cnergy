@@ -16,27 +16,30 @@ struct binding {
 	void *program;
 };
 
-enum {
-	FBIND_MODE_SUPPLEMENTARY 	= 1 << 0,
-	FBIND_MODE_SELECTION 		= 1 << 1,
-	FBIND_MODE_TYPE 			= 1 << 2,
-};
-
 struct binding_mode {
-	char name[64];
-	unsigned flags;
+	char name[NAME_MAX];
 	unsigned nBindings;
 	struct binding *bindings;
-	struct binding_mode *next;
 };
 
-extern struct binding_mode *all_modes[WINDOW_MAX];
+#define mode_isnormal(mode) !(mode_isvisual(mode)||mode_isinsert(mode)||mode_issupp(mode))
+#define mode_isvisual(mode) ((mode)->name[strlen((mode)->name)-1]=='*')
+#define mode_isinsert(mode) ((mode)->name[0]=='$')
+#define mode_issupp(mode) ((mode)->name[0]=='.')
 
+extern struct binding_mode *all_modes;
+extern unsigned n_modes;
+
+void debug_modes_print(struct binding_mode *modes, unsigned nModes);
 char *mode_allockeys(const char *keys, size_t nKeys);
 char *mode_allocstring(const char *string, size_t nString);
 void *mode_allocprogram(const void *program, size_t szProgram);
-int modes_add(struct binding_mode *modes[WINDOW_MAX]);
-struct binding_mode *mode_find(window_type_t type, const char *name);
+struct binding_mode *mode_new(const char *name);
+int mode_addbind(struct binding_mode *mode,
+		const struct binding *bind);
+int mode_addallbinds(struct binding_mode *mode,
+		const struct binding_mode *from);
+struct binding_mode *mode_find(const char *name);
 int bind_find(const char *keys, struct binding **pBind);
 
 #endif

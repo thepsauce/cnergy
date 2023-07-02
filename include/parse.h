@@ -78,6 +78,10 @@ typedef enum {
 	ERRBM_NEWLINE,
 	ERRBM_WORD,
 	ERRBM_INVALID,
+	ERRBM_SUPPPAGE,
+	ERRBM_DUP,
+	ERRBM_SUPPVISUAL,
+	ERRBM_SUPPINSERT,
 	ERRINSTR_COLONWORD,
 	ERRINSTR_INVALIDNAME,
 	ERRINSTR_JMPWORD,
@@ -89,13 +93,12 @@ typedef enum {
 	ERRIP_REGISTER,
 	ERRIP_HASH,
 	ERRIP_NUMBER,
-	ERRINSTR_WINDOWDEL,
+	ERRINSTR_MOVEDEL,
 	ERRPROG_MISSING_OPENING,
 	ERRPROG_MISSING_CLOSING,
 	ERRPROG_MISSING_LABEL,
 	ERRW_TOO_LONG,
 	ERR_EXPECTED_MODE_NAME,
-	ERR_INVALID_WINDOWTYPE,
 	ERRBIND_LABEL,
 	ERRBIND_OUTSIDE,
 	ERR_MAX,
@@ -120,13 +123,12 @@ struct parser {
 	unsigned nPeekedTokens;
 	int (*tokengetter)(struct parser *parser, struct parser_token *tok);
 
-	struct binding_mode *firstModes[WINDOW_MAX];
-	struct binding_mode *curMode;
+	struct binding_mode *modes;
+	unsigned nModes;
 	// the requests are necessary to allow usage before declaration
 	// append requests are added when a mode should be extended by another
 	struct append_request {
-		struct binding_mode *mode;
-		window_type_t windowType;
+		char receiver[64];
 		char donor[64];
 	} *appendRequests;
 	size_t nAppendRequests;
@@ -157,7 +159,6 @@ struct parser {
 
 // parse.c
 int parseint(const char *str, ptrdiff_t *pInt);
-int parsewindowtype(const char *str, window_type_t *pType);
 int parser_getc(struct parser *parser);
 int parser_ungetc(struct parser *parser);
 long parser_tell(struct parser *parser);
@@ -170,13 +171,11 @@ void parser_consumeblank(struct parser *parser);
 void parser_consumetoken(struct parser *parser);
 void parser_consumetokens(struct parser *parser, unsigned nToks);
 parser_error_t parser_pusherror(struct parser *parser, parser_error_t err);
-int parser_addappendrequest(struct parser *parser, struct append_request *request);
-int parser_windowtype(struct parser *parser, const char *name, window_type_t *pType);
 /** Run the parser on a file (set the memory of the parser to 0 before starting to use it) */
 int parser_run(struct parser *parser, fileid_t file);
 int parser_cleanup(struct parser *parser);
 
-// parse_mode.c
+// parse_bindmode.c
 /**
  * Reads a bind mode and adds it to parser->modes
  *
@@ -186,8 +185,11 @@ int parser_cleanup(struct parser *parser);
  * .supp:
  * visual*: foo, bar
  */
+struct binding_mode *parser_findbindmode(struct parser *parser, const char *name);
+int parser_addappendrequest(struct parser *parser, struct append_request *request);
 int parser_getbindmode(struct parser *parser);
 
+// parse_bind.c
 /**
  * Reads a bind
  *
@@ -199,6 +201,7 @@ int parser_getbindmode(struct parser *parser);
  */
 int parser_getbind(struct parser *parser);
 
+// parse_keys.c
 /**
  * Reads keys
  *
@@ -208,18 +211,21 @@ int parser_getbind(struct parser *parser);
  */
 int parser_getkeys(struct parser *parser);
 
+// parse_program.c
 int parser_getprogram(struct parser *parser);
 int parser_addlabelrequest(struct parser *parser, struct parser_label_request *lrq);
 int parser_addlabel(struct parser *parser, struct parser_label *lbl);
 size_t parser_getlabeladdress(struct parser *parser, const char *name);
 int parser_writeprogram(struct parser *parser, void *program, size_t szProgram);
 /* shorthands */
+// parse_shorthand.c
 int parser_getendjmp(struct parser *parser);
 int parser_getmotion(struct parser *parser);
 int parser_getinsert(struct parser *parser);
 int parser_getassert(struct parser *parser);
 int parser_getsetmode(struct parser *parser);
 /* instructions */
+// parse_instruction.c
 int parser_getld(struct parser *parser);
 int parser_getpsh(struct parser *parser);
 int parser_getpop(struct parser *parser);

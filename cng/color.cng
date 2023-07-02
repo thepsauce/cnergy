@@ -1,0 +1,4 @@
+bind color::normal:
+
+<enter>	call choose
+<tab>	call swap

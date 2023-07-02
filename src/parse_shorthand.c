@@ -25,13 +25,13 @@ parser_getendjmp(struct parser *parser)
 int
 parser_getmotion(struct parser *parser)
 {
-	struct parser_token toks[3];
+	struct parser_token toks[4];
 	struct parser_label_request lrq;
 	uint8_t prog[64];
 	void *p;
 	unsigned iTok;
 	bool del = false;
-	bool window = false;
+	bool wander = false;
 	char *w;
 	ptrdiff_t mul;
 	bool aregloaded = false;
@@ -44,7 +44,7 @@ parser_getmotion(struct parser *parser)
 	w = toks[iTok].value;
 	if(*w == 'w') {
 		w++;
-		window = true;
+		wander = true;
 	}
 	if(*w == 'x') {
 		w++;
@@ -108,14 +108,14 @@ parser_getmotion(struct parser *parser)
 	}
 	*(instr_t*) p = INSTR_CALL;
 	p += sizeof(instr_t);
-	if(window && del) {
+	if(wander && del) {
 		parser_consumetokens(parser, iTok);
-		return parser_pusherror(parser, ERRINSTR_WINDOWDEL);
+		return parser_pusherror(parser, ERRINSTR_MOVEDEL);
 	}
 	if(del)
 		*(call_t*) p = vert ? CALL_DELETELINE : CALL_DELETE;
-	else if(window)
-		*(call_t*) p = vert ? CALL_MOVEWINDOW_BELOW : CALL_MOVEWINDOW_RIGHT;
+	else if(wander)
+		*(call_t*) p = vert ? CALL_MOVEBELOWPAGE : CALL_MOVERIGHTPAGE;
 	else
 		*(call_t*) p = vert ? CALL_MOVEVERT : horz ? CALL_MOVEHORZ : CALL_MOVECURSOR;
 	p += sizeof(call_t);
@@ -176,36 +176,7 @@ parser_getassert(struct parser *parser)
 	p += sizeof(size_t);
 	*(instr_t*) p = INSTR_CALL;
 	p += sizeof(instr_t);
-	*(call_t*) p = CALL_ASSERT;
-	p += sizeof(call_t);
-	parser_writeprogram(parser, prog, sizeof(prog));
-	return SUCCESS;
-}
-
-int
-parser_getsetmode(struct parser *parser)
-{
-	struct parser_token toks[2];
-	uint8_t prog[sizeof(instr_t) + sizeof(ptrdiff_t) +
-		sizeof(instr_t) + sizeof(call_t)];
-	void *p;
-
-	parser_peektokens(parser, toks, ARRLEN(toks));
-	parser_consumetoken(parser);
-	if(toks[1].type != 'w')
-		return parser_pusherror(parser, ERRINSTR_COLONWORD);
-	parser_consumetoken(parser);
-	char *const str = mode_allocstring(toks[1].value, strlen(toks[1].value));
-	if(!str)
-		return parser_pusherror(parser, ERR_OUTOFMEMORY);
-	p = prog;
-	*(instr_t*) p = INSTR_LDA;
-	p += sizeof(instr_t);
-	*(size_t*) p = (size_t) str;
-	p += sizeof(size_t);
-	*(instr_t*) p = INSTR_CALL;
-	p += sizeof(instr_t);
-	*(call_t*) p = CALL_SETMODE;
+	*(call_t*) p = CALL_ASSERTSTRING;
 	p += sizeof(call_t);
 	parser_writeprogram(parser, prog, sizeof(prog));
 	return SUCCESS;

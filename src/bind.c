@@ -6,7 +6,63 @@ static char mode_keys[262144];
 static size_t n_keys;
 static uint8_t program_space[0xffff];
 static size_t sz_programs;
-struct binding_mode *all_modes[WINDOW_MAX];
+struct binding_mode *all_modes;
+unsigned n_modes;
+
+void
+debug_modes_print(struct binding_mode *modes, unsigned nModes)
+{
+	if(!modes) {
+		modes = all_modes;
+		nModes = n_modes;
+	}
+	for(unsigned i = 0; i < nModes; i++) {
+		struct binding_mode *const m = modes + i;
+		printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+		printf("MODE: %s (%u bindings)\n", m->name, m->nBindings);
+		printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+		for(unsigned j = 0; j < m->nBindings; j++) {
+			const struct binding bind = m->bindings[j];
+				printf("  BIND([%p]%zu): ", (void*) bind.keys, bind.nKeys);
+			fflush(stdout);
+			for(char *k = bind.keys, *e = k + bind.nKeys;;) {
+				for(;;) {
+					const unsigned l = utf8_len(k, e - k);
+					const int uc = utf8_tounicode(k, e - k);
+					if(uc >= 0xf6b1 && uc <= 0xf6b1 + 0xff)
+						printf("<%s>", keyname(uc - (0xf6b1 - 0xff)) + 4);
+					else if(uc <= 0x7f)
+						printf("%s", keyname(uc));
+					else
+						printf("%.*s", l, k);
+					k += l;
+					if(!*k)
+						break;
+				}
+				k++;
+				if(k == e)
+					break;
+				printf(", ");
+			}
+			putchar('\n');
+			printf("    ");
+			for(size_t sz = 0; sz < bind.szProgram; sz++) {
+				const uint8_t b = *(uint8_t*) (bind.program + sz);
+				const uint8_t
+					l = b & 0xf,
+					h = b >> 4;
+				printf("0x");
+				putchar(h >= 0xa ? (h - 0xa + 'a') : h + '0');
+				putchar(l >= 0xa ? (l - 0xa + 'a') : l + '0');
+				putchar(' ');
+			}
+			printf("\n========\n");
+			environment_loadandprint(bind.program, bind.szProgram);
+			printf("========");
+			putchar('\n');
+		}
+	}
+}
 
 char *
 mode_allockeys(const char *keys, size_t nKeys)
@@ -60,16 +116,36 @@ mode_allocprogram(const void *program, size_t szProgram)
 }
 
 struct binding_mode *
-mode_find(window_type_t windowType, const char *name)
+mode_find(const char *name)
 {
-	for(struct binding_mode *m = all_modes[windowType]; m; m = m->next)
-		if(!strcmp(m->name, name))
-			return m;
+	for(unsigned i = 0; i < n_modes; i++)
+		if(!strcmp(all_modes[i].name, name))
+			return all_modes + i;
 	return NULL;
 }
 
+struct binding_mode *
+mode_new(const char *name)
+{
+	struct binding_mode *mode;
+
+	mode = mode_find(name);
+	if(!mode) {
+		mode = realloc(all_modes, sizeof(*all_modes) *
+				(n_modes + 1));
+		if(!mode)
+			return NULL;
+		all_modes = mode;
+		mode += n_modes;
+		n_modes++;
+		memset(mode, 0, sizeof(*mode));
+		strcpy(mode->name, name);
+	}
+	return mode;
+}
+
 static inline int
-mergekeys(struct binding *b1, struct binding *b2)
+mergekeys(struct binding *b1, const struct binding *b2)
 {
 	char *k1, *k2;
 	char *e1, *e2;
@@ -105,70 +181,38 @@ mergekeys(struct binding *b1, struct binding *b2)
 	return 0;
 }
 
-static inline int
-mergebinds(struct binding_mode *m1, struct binding_mode *m2)
+int
+mode_addbind(struct binding_mode *mode, const struct binding *bind)
 {
-	struct binding *b1, *b2;
-	unsigned n1, n2;
+	struct binding *b;
+	unsigned n;
 	struct binding *newBindings;
 
-	for(b2 = m2->bindings, n2 = m2->nBindings; n2; n2--, b2++) {
-		for(b1 = m1->bindings, n1 = m1->nBindings; n1; n1--, b1++)
-			if(b1->szProgram == b2->szProgram &&
-					!memcmp(b1->program, b2->program, b2->szProgram)) {
-				if(mergekeys(b1, b2) < 0)
-					return -1;
-				break;
-			}
-		if(n1)
-			continue;
-		newBindings = realloc(m1->bindings, sizeof(*m1->bindings) * (m1->nBindings + 1));
-		if(newBindings)
-			return -1;
-		m1->bindings = newBindings;
-		memcpy(m1->bindings + m1->nBindings, b2, sizeof(*b2));
-		m1->nBindings++;
-	}
+	for(b = mode->bindings, n = mode->nBindings; n; n--, b++)
+		if(b->szProgram == bind->szProgram &&
+				!memcmp(b->program,
+					bind->program,
+					bind->szProgram))
+			return mergekeys(b, bind);
+
+	newBindings = realloc(mode->bindings, sizeof(*mode->bindings) *
+			(mode->nBindings + 1));
+	if(newBindings == NULL)
+		return -1;
+	mode->bindings = newBindings;
+	memcpy(mode->bindings + mode->nBindings, bind, sizeof(*bind));
+	mode->nBindings++;
 	return 0;
 }
 
 int
-modes_add(struct binding_mode *modes[WINDOW_MAX])
+mode_addallbinds(struct binding_mode *mode, const struct binding_mode *from)
 {
-	for(window_type_t i = 0; i < WINDOW_MAX; i++) {
-		struct binding_mode *m = modes[i];
-		for(; m; m = m->next) {
-			struct binding_mode *e, *prev_e;
-			struct binding_mode *newMode;
+	const struct binding *b;
+	unsigned n;
 
-			for(e = all_modes[i], prev_e = NULL; e; prev_e = e, e = e->next) {
-				if(!strcmp(m->name, e->name)) {
-					if(mergebinds(m, e) < 0)
-						return -1;
-					break;
-				}
-			}
-			if(e)
-				continue;
-			newMode = malloc(sizeof(*newMode));
-			if(!newMode)
-				return -1;
-			memset(newMode, 0, sizeof(*newMode));
-			strcpy(newMode->name, m->name);
-			newMode->flags = m->flags;
-			newMode->bindings = malloc(sizeof(*newMode->bindings) * m->nBindings);
-			if(!newMode->bindings) {
-				free(newMode);
-				return -1;
-			}
-			memcpy(newMode->bindings, m->bindings, sizeof(*m->bindings) * m->nBindings);
-			newMode->nBindings = m->nBindings;
-			if(prev_e)
-				prev_e->next = newMode;
-			else
-				all_modes[i] = newMode;
-		}
-	}
+	for(b = from->bindings, n = from->nBindings; n; n--, b++)
+		mode_addbind(mode, b);
 	return 0;
 }
 
@@ -180,8 +224,9 @@ bind_find(const char *keys, struct binding **pBind)
 	unsigned nBinds;
 	struct binding_mode *mode, *nextMode;
 
-	mode = window_getbindmode(focus_window);
-	nextMode = mode ? mode_find(WINDOW_ALL, window_getbindmode(focus_window)->name) : NULL;
+	//mode = window_getbindmode(focus_window);
+	//nextMode = mode ? mode_find(window_getbindmode(focus_window)->name) : NULL;
+	mode = nextMode = NULL;
 	while(mode) {
 		for(binds = mode->bindings, nBinds = mode->nBindings; nBinds; binds++, nBinds--)
 		for(const char *k, *ks = binds->keys, *es = ks + binds->nKeys; ks != es; ks++) {

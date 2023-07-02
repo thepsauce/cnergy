@@ -1,13 +1,13 @@
 # All these keybinds are available only inside of
 # the edit window type
-bind edit::normal:
+bind edit::view:
 
-O		>home ; +"\n" ; :insert
-o		>end ; +"\n" ; :insert
-I		>home ; :insert
-A		>end ; :insert
-i		:insert
-a		$1 ; :insert
+O		>home ; +"\n" ; call insert
+o		>end ; +"\n" ; call insert
+I		>home ; call insert
+A		>end ; call insert
+i		call insert
+a		$1 ; call insert
 dl, x, DEL	>xC
 dh, X		<xC
 dD		`xC
@@ -28,7 +28,7 @@ loop:
 p		call paste
 u		call undo
 ^R		call redo
-v		:visual
+v		call visual
 # ** means that any key can be pressed here
 # key#0 will get the first key pressed (f in this case)
 # key#1 will get the second key pressed
@@ -51,12 +51,12 @@ loop:
 T		loop: decc & ; +"T" ; jmp loop
 #M		?"int" ^ +"int" ^ +"u" ^ <3 ^ <1
 
-bind $edit::insert:
+bind $edit::view:
 
 <back>		<x1
 <del>		>x1
-#^A		$home ; :visual ; $end
-<esc>		:normal
+#^A		$home ; call visual ; $end
+<esc>		call normal
 
 # Some tests for interactive coding
 if(		+")\n\t" $-1
@@ -65,12 +65,12 @@ main		<x4 ; +"int\nmain(int argc, char **argv)\n{\n\treturn 0;\n}" ; $-13
 while(1)	<x8 ; +"for(;;)"
 ^Wbeg		<x3 ; $home
 ^Wend		<x3 ; $end
-<esc>, v 	:normal
+<esc>, v 	call normal
 
 A <home
 
-bind edit::visual*:
+bind edit::view*:
 
-x, X, d, D 	call delete ; :normal
-y		call copy ; :normal
+x, X, d, D 	call delete ; call normal
+y		call copy ; call normal
 

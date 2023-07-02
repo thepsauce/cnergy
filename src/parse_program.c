@@ -169,7 +169,6 @@ parser_getinstruction(struct parser *parser)
 		{ '$', parser_getmotion },
 		{ '+', parser_getinsert },
 		{ '?', parser_getassert },
-		{ ':', parser_getsetmode },
 	};
 	struct parser_token toks[2];
 	struct parser_label lbl;

@@ -3,7 +3,7 @@
 bind fileviewer::normal:
 
 <enter>		call choose
-<tab>		:insert
+<tab>		call insert
 sa		call sort_alphabetical
 ss		call sort_changetime
 sm		call sort_modificationtime
@@ -14,7 +14,7 @@ h		call toggle_hidden
 bind $fileviewer::insert:
 
 <enter>		call choose
-<tab>		:normal
+<tab>		call normal
 <back>		<x1
 <del>		>x1
-<esc>		:normal
+<esc>		call normal

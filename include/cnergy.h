@@ -132,28 +132,32 @@ extern const char *instrNames[INSTR_MAX];
 
 typedef enum {
 	CALL_NULL,
+	/* page calls */
+	PAGE_CONSTRUCT,
+	PAGE_LAYOUT,
+	PAGE_DESTRUCT,
+	/* component calls */
+	COMP_RENDER,
 	// general calls, these have a default behavior which cannot be overwritten but only extended
-	CALL_SETMODE,
+	CALL_NORMAL,
+	CALL_INSERT,
+	CALL_VISUAL,
 	CALL_VSPLIT,
 	CALL_HSPLIT,
-	CALL_COLORWINDOW,
-	CALL_OPENWINDOW,
-	CALL_CLOSEWINDOW,
-	CALL_NEWWINDOW,
-	CALL_MOVEWINDOW_RIGHT,
-	CALL_MOVEWINDOW_BELOW,
+	CALL_COLORPAGE,
+	CALL_OPENPAGE,
+	CALL_CLOSEPAGE,
+	CALL_NEWPAGE,
+	CALL_MOVERIGHTPAGE,
+	CALL_MOVEBELOWPAGE,
 	CALL_QUIT,
 	// these have no default behavior and it solely depends on the window type what the behavior is
-	CALL_CREATE,
-	CALL_DESTROY,
-	CALL_RENDER,
-	CALL_TYPE,
-	CALL_ASSERT,
+	CALL_ASSERTSTRING,
 	CALL_ASSERTCHAR,
 	CALL_MOVECURSOR,
 	CALL_MOVEHORZ,
 	CALL_MOVEVERT,
-	CALL_INSERT,
+	CALL_INSERTSTRING,
 	CALL_INSERTCHAR,
 	CALL_DELETE,
 	CALL_DELETELINE,
@@ -166,6 +170,9 @@ typedef enum {
 	CALL_READFILE,
 	CALL_FIND,
 
+	CALL_CONFIRM,
+	CALL_CANCEL,
+	CALL_SWAP,
 	CALL_CHOOSE,
 	CALL_TOGGLEHIDDEN,
 	CALL_TOGGLESORTTYPE,
@@ -308,12 +315,13 @@ int clipboard_paste(char **text);
 #define ID_NULL UINT_MAX
 
 typedef unsigned fileid_t;
-typedef unsigned windowid_t;
+typedef unsigned pageid_t;
+typedef unsigned compid_t;
 typedef unsigned bufferid_t;
 
 #include "filecache.h"
 #include "buffer.h"
-#include "window.h"
+#include "page.h"
 #include "bind.h"
 #include "parse.h"
 

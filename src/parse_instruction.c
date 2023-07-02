@@ -132,7 +132,7 @@ parser_getcall(struct parser *parser)
 	parser_consumetokens(parser, 3);
 	*(instr_t*) prog = INSTR_CALL;
 	for(call_t i = 1; i < CALL_MAX; i++)
-		if(!strcasecmp(callNames[i], toks[2].value)) {
+		if(callNames[i] && !strcasecmp(callNames[i], toks[2].value)) {
 			*(call_t*) (prog + sizeof(instr_t)) = i;
 			break;
 		}
